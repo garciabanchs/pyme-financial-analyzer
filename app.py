@@ -1,10 +1,14 @@
 from flask import Flask, request
 import os
+import zipfile
 
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+EXTRACT_FOLDER = "extracted"
+os.makedirs(EXTRACT_FOLDER, exist_ok=True)
 
 @app.route("/")
 def home():
@@ -201,7 +205,13 @@ def upload():
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(file_path)
 
-    return f"Archivo '{file.filename}' guardado correctamente en el servidor"
+    extract_subfolder = os.path.join(EXTRACT_FOLDER, os.path.splitext(file.filename)[0])
+    os.makedirs(extract_subfolder, exist_ok=True)
+
+    with zipfile.ZipFile(file_path, "r") as zip_ref:
+        zip_ref.extractall(extract_subfolder)
+
+    return f"Archivo '{file.filename}' guardado y descomprimido correctamente"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
