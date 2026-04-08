@@ -1,11 +1,11 @@
 def normalizar_importe(valor):
     try:
-        return float(valor.replace(".", "").replace(",", "."))
+        return float(str(valor).replace(".", "").replace(",", "."))
     except:
         return None
 
 def detectar_inconsistencias(ledger):
-    facturas_venta = []
+    facturas_por_archivo = {}
     movimientos_banco = []
 
     for item in ledger:
@@ -13,14 +13,20 @@ def detectar_inconsistencias(ledger):
         if importe is None:
             continue
 
-        if item["tipo"] == "factura_venta":
-            facturas_venta.append({
-                "archivo": item["archivo"],
-                "fecha": item["fecha"],
-                "importe": importe
-            })
+        if item["tipo"] in ["factura_venta", "factura_compra"]:
+            archivo = item["archivo"]
 
-        if item["tipo"] == "extracto_bancario":
+            if archivo not in facturas_por_archivo:
+                facturas_por_archivo[archivo] = {
+                    "archivo": archivo,
+                    "fecha": item["fecha"],
+                    "tipo": item["tipo"],
+                    "importes": []
+                }
+
+            facturas_por_archivo[archivo]["importes"].append(importe)
+
+        elif item["tipo"] == "extracto_bancario":
             movimientos_banco.append({
                 "archivo": item["archivo"],
                 "fecha": item["fecha"],
@@ -29,18 +35,20 @@ def detectar_inconsistencias(ledger):
 
     conciliacion = []
 
-    for factura in facturas_venta:
+    for factura in facturas_por_archivo.values():
+        importe_principal = max(factura["importes"]) if factura["importes"] else 0.0
         estado = "pendiente"
 
         for movimiento in movimientos_banco:
-            if abs(factura["importe"] - movimiento["importe"]) < 0.01:
+            if abs(importe_principal - movimiento["importe"]) < 0.01:
                 estado = "conciliado"
                 break
 
         conciliacion.append({
             "archivo": factura["archivo"],
             "fecha": factura["fecha"],
-            "importe": factura["importe"],
+            "tipo": factura["tipo"],
+            "importe": round(importe_principal, 2),
             "estado": estado
         })
 
