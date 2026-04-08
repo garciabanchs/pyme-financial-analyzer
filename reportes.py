@@ -21,6 +21,51 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             html += f"<li><strong>{item['archivo']}</strong> | {item['tipo']} | {item['fecha']}</li>"
         return html
 
+        def resumen_flujo(ledger):
+        if not ledger:
+            return "<p>No hay datos para resumen.</p>"
+
+        total_entradas = 0.0
+        total_salidas = 0.0
+        total_movimientos = 0.0
+        total_revisar = 0.0
+
+        for item in ledger:
+            valor = float(item["importe"].replace(".", "").replace(",", "."))
+
+            if item["naturaleza"] == "entrada":
+                total_entradas += valor
+            elif item["naturaleza"] == "salida":
+                total_salidas += valor
+            elif item["naturaleza"] == "movimiento":
+                total_movimientos += valor
+            else:
+                total_revisar += valor
+
+        def fmt(numero):
+            return f"{numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        return f"""
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:24px;">
+            <div style="background:white; padding:20px; border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+                <div style="font-size:14px; color:#6b7280;">Entradas</div>
+                <div style="font-size:28px; font-weight:bold;">€ {fmt(total_entradas)}</div>
+            </div>
+            <div style="background:white; padding:20px; border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+                <div style="font-size:14px; color:#6b7280;">Salidas</div>
+                <div style="font-size:28px; font-weight:bold;">€ {fmt(total_salidas)}</div>
+            </div>
+            <div style="background:white; padding:20px; border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+                <div style="font-size:14px; color:#6b7280;">Movimientos bancarios</div>
+                <div style="font-size:28px; font-weight:bold;">€ {fmt(total_movimientos)}</div>
+            </div>
+            <div style="background:white; padding:20px; border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+                <div style="font-size:14px; color:#6b7280;">Por revisar</div>
+                <div style="font-size:28px; font-weight:bold;">€ {fmt(total_revisar)}</div>
+            </div>
+        </div>
+        """
+
     def tabla_ledger(ledger):
         if not ledger:
             return "<p>No hay movimientos en el ledger.</p>"
