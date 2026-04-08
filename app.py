@@ -211,12 +211,25 @@ def upload():
     with zipfile.ZipFile(file_path, "r") as zip_ref:
         zip_ref.extractall(extract_subfolder)
 
-    total_files = 0
+        total_files = 0
+    file_names = []
 
     for root, dirs, files in os.walk(extract_subfolder):
-        total_files += len(files)
+        for filename in files:
+            total_files += 1
+            relative_path = os.path.relpath(os.path.join(root, filename), extract_subfolder)
+            file_names.append(relative_path)
 
-    return f"Archivo '{file.filename}' guardado, descomprimido y procesado correctamente. Se encontraron {total_files} archivos dentro del ZIP."
+    file_list_html = "".join(f"<li>{name}</li>" for name in file_names)
+
+    return f"""
+    <h2>Procesamiento completado</h2>
+    <p>Archivo '<strong>{file.filename}</strong>' guardado, descomprimido y procesado correctamente.</p>
+    <p>Se encontraron <strong>{total_files}</strong> archivos dentro del ZIP.</p>
+    <h3>Archivos detectados:</h3>
+    <ul>{file_list_html}</ul>
+    <p><a href="/">Volver a la landing</a></p>
+    """
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
