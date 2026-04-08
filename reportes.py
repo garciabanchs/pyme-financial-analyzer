@@ -123,6 +123,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     <h3>🗂 Documentos</h3>
     <ul>{lista_documentos(documentos)}</ul>
 
+    <h3>📊 Resumen preliminar de flujo de caja</h3>
+    {resumen_flujo(ledger)}
+
     <h3>📒 Ledger base</h3>
     {tabla_ledger(ledger)}
 
