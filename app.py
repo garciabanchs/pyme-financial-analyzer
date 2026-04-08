@@ -221,8 +221,8 @@ def upload():
         "otros": []
     }
 
-        previews_pdf = []
-
+    previews_pdf = []
+    
     for root, dirs, files in os.walk(extract_subfolder):
         for filename in files:
             total_files += 1
