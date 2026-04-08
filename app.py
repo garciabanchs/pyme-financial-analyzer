@@ -1,8 +1,8 @@
 from flask import Flask, request
 import os
+import re
 import zipfile
 from pypdf import PdfReader
-import re
 
 app = Flask(__name__)
 
@@ -119,6 +119,32 @@ def home():
                 margin-bottom: 15px;
                 font-size: 16px;
             }
+            .result-container {
+                max-width: 1100px;
+                margin: 40px auto;
+                padding: 20px;
+                font-family: Arial, sans-serif;
+                color: #1f2937;
+            }
+            .result-box {
+                background: white;
+                padding: 25px;
+                border-radius: 14px;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+                margin-bottom: 20px;
+            }
+            .result-box h3 {
+                margin-top: 0;
+            }
+            ul {
+                line-height: 1.6;
+            }
+            small {
+                color: #4b5563;
+            }
+            a {
+                color: #1d4ed8;
+            }
         </style>
     </head>
     <body>
@@ -223,14 +249,13 @@ def upload():
     }
 
     previews_pdf = []
-    importes_detectados = []    
-    
+    importes_detectados = []
+
     for root, dirs, files in os.walk(extract_subfolder):
         for filename in files:
             total_files += 1
             nombre = filename.lower()
             texto_pdf = ""
-
             ruta_relativa = os.path.relpath(os.path.join(root, filename), extract_subfolder)
 
             if filename.lower().endswith(".pdf"):
@@ -245,7 +270,7 @@ def upload():
 
                     texto_preview = " ".join(texto_pdf.split())[:500]
 
-                    montos = re.findall(r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b", texto_pdf)
+                    montos = re.findall(r"\\b\\d{1,3}(?:\\.\\d{3})*,\\d{2}\\b", texto_pdf)
                     montos_unicos = []
                     for monto in montos:
                         if monto not in montos_unicos:
@@ -260,10 +285,15 @@ def upload():
                         "archivo": ruta_relativa,
                         "montos": montos_unicos[:15]
                     })
+
                 except Exception:
                     previews_pdf.append({
                         "archivo": ruta_relativa,
                         "preview": "(Error al leer el PDF)"
+                    })
+                    importes_detectados.append({
+                        "archivo": ruta_relativa,
+                        "montos": []
                     })
 
             if ("factura" in nombre or "invoice" in texto_pdf) and ("venta" in nombre or "total" in texto_pdf):
@@ -278,6 +308,15 @@ def upload():
     def generar_lista(lista):
         return "".join(f"<li>{item}</li>" for item in lista) if lista else "<li>No hay</li>"
 
+    def generar_previews(previews):
+        if not previews:
+            return "<li>No hay PDFs leídos</li>"
+
+        html = ""
+        for item in previews:
+            html += f"<li><strong>{item['archivo']}</strong><br><small>{item['preview']}</small></li>"
+        return html
+
     def generar_importes(lista):
         if not lista:
             return "<li>No se detectaron importes</li>"
@@ -289,31 +328,39 @@ def upload():
         return html
 
     return f"""
-    <h2>Procesamiento completado</h2>
+    <div class="result-container">
+        <div class="result-box">
+            <h2>Procesamiento completado</h2>
+            <p><strong>Archivo:</strong> {file.filename}</p>
+            <p><strong>Total de archivos:</strong> {total_files}</p>
+        </div>
 
-    <p><strong>Archivo:</strong> {file.filename}</p>
-    <p><strong>Total de archivos:</strong> {total_files}</p>
+        <div class="result-box">
+            <h3>📄 Facturas de venta</h3>
+            <ul>{generar_lista(clasificados["factura_venta"])}</ul>
 
-    <h3>📄 Facturas de venta</h3>
-    <ul>{generar_lista(clasificados["factura_venta"])}</ul>
+            <h3>🧾 Facturas de compra</h3>
+            <ul>{generar_lista(clasificados["factura_compra"])}</ul>
 
-    <h3>🧾 Facturas de compra</h3>
-    <ul>{generar_lista(clasificados["factura_compra"])}</ul>
+            <h3>🏦 Extractos bancarios</h3>
+            <ul>{generar_lista(clasificados["extracto_bancario"])}</ul>
 
-    <h3>🏦 Extractos bancarios</h3>
-    <ul>{generar_lista(clasificados["extracto_bancario"])}</ul>
+            <h3>📁 Otros documentos</h3>
+            <ul>{generar_lista(clasificados["otros"])}</ul>
+        </div>
 
-    <h3>📁 Otros documentos</h3>
-    <ul>{generar_lista(clasificados["otros"])}</ul>
+        <div class="result-box">
+            <h3>🔎 Vista previa del texto leído en PDFs</h3>
+            <ul>{generar_previews(previews_pdf)}</ul>
+        </div>
 
-    <h3>🔎 Vista previa del texto leído en PDFs</h3>
-    <ul>{generar_previews(previews_pdf)}</ul>
+        <div class="result-box">
+            <h3>💶 Importes detectados en PDFs</h3>
+            <ul>{generar_importes(importes_detectados)}</ul>
+        </div>
 
-    <h3>💶 Importes detectados en PDFs</h3>
-    <ul>{generar_importes(importes_detectados)}</ul>
-
-    <br>
-    <a href="/">⬅ Volver a la landing</a>
+        <p><a href="/">⬅ Volver a la landing</a></p>
+    </div>
     """
 
 if __name__ == "__main__":
