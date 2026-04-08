@@ -1,8 +1,13 @@
 from flask import Flask, request
 import os
-import re
 import zipfile
-from pypdf import PdfReader
+
+from extractor import extraer_texto_pdf
+from clasificador import clasificar_documento
+from parser_financiero import extraer_importes, extraer_fecha
+from ledger import construir_ledger
+from conciliador import detectar_inconsistencias
+from reportes import generar_html_resultado
 
 app = Flask(__name__)
 
@@ -119,32 +124,6 @@ def home():
                 margin-bottom: 15px;
                 font-size: 16px;
             }
-            .result-container {
-                max-width: 1100px;
-                margin: 40px auto;
-                padding: 20px;
-                font-family: Arial, sans-serif;
-                color: #1f2937;
-            }
-            .result-box {
-                background: white;
-                padding: 25px;
-                border-radius: 14px;
-                box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-                margin-bottom: 20px;
-            }
-            .result-box h3 {
-                margin-top: 0;
-            }
-            ul {
-                line-height: 1.6;
-            }
-            small {
-                color: #4b5563;
-            }
-            a {
-                color: #1d4ed8;
-            }
         </style>
     </head>
     <body>
@@ -240,159 +219,53 @@ def upload():
         zip_ref.extractall(extract_subfolder)
 
     total_files = 0
-
     clasificados = {
         "factura_venta": [],
         "factura_compra": [],
         "extracto_bancario": [],
         "otros": []
     }
-
-    previews_pdf = []
+    documentos = []
     importes_detectados = []
-    documentos_detectados = []
 
     for root, dirs, files in os.walk(extract_subfolder):
         for filename in files:
             total_files += 1
-            nombre = filename.lower()
-            texto_pdf = ""
-            ruta_relativa = os.path.relpath(os.path.join(root, filename), extract_subfolder)
+            ruta_archivo = os.path.join(root, filename)
+            ruta_relativa = os.path.relpath(ruta_archivo, extract_subfolder)
 
+            texto = ""
             if filename.lower().endswith(".pdf"):
-                try:
-                    ruta_pdf = os.path.join(root, filename)
-                    reader = PdfReader(ruta_pdf)
+                texto = extraer_texto_pdf(ruta_archivo)
 
-                    for page in reader.pages:
-                        contenido = page.extract_text()
-                        if contenido:
-                            texto_pdf += contenido.lower()
+            tipo = clasificar_documento(filename, texto)
+            clasificados[tipo].append(filename)
 
-                    texto_preview = " ".join(texto_pdf.split())[:500]
+            importes = extraer_importes(texto)
+            fecha = extraer_fecha(f"{filename.lower()} {texto}")
 
-                    montos = re.findall(r"\d{1,3}(?:\.\d{3})*,\d{2}", texto_pdf)
-                    montos_unicos = []
-                    for monto in montos:
-                        if monto not in montos_unicos:
-                            montos_unicos.append(monto)
-
-                    previews_pdf.append({
-                        "archivo": ruta_relativa,
-                        "preview": texto_preview if texto_preview else "(No se pudo extraer texto útil)"
-                    })
-
-                    importes_detectados.append({
-                        "archivo": ruta_relativa,
-                        "montos": montos_unicos[:15]
-                    })
-
-                except Exception:
-                    previews_pdf.append({
-                        "archivo": ruta_relativa,
-                        "preview": "(Error al leer el PDF)"
-                    })
-                    importes_detectados.append({
-                        "archivo": ruta_relativa,
-                        "montos": []
-                    })
-
-            tipo_documento = "otros"
-
-            if ("factura" in nombre or "invoice" in texto_pdf) and ("venta" in nombre or "total" in texto_pdf):
-                clasificados["factura_venta"].append(filename)
-                tipo_documento = "factura_venta"
-            elif "factura" in nombre or "invoice" in texto_pdf:
-                clasificados["factura_compra"].append(filename)
-                tipo_documento = "factura_compra"
-            elif "banco" in nombre or "extracto" in nombre or "saldo" in texto_pdf:
-                clasificados["extracto_bancario"].append(filename)
-                tipo_documento = "extracto_bancario"
-            else:
-                clasificados["otros"].append(filename)
-                tipo_documento = "otros"
-
-            texto_fuente = f"{nombre} {texto_pdf}"
-            fechas = re.findall(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", texto_fuente)
-            fecha_detectada = fechas[0] if fechas else "No detectada"
-
-            documentos_detectados.append({
+            documentos.append({
                 "archivo": ruta_relativa,
-                "tipo": tipo_documento,
-                "fecha": fecha_detectada
+                "tipo": tipo,
+                "fecha": fecha,
+                "importes": importes
             })
 
-    def generar_lista(lista):
-        return "".join(f"<li>{item}</li>" for item in lista) if lista else "<li>No hay</li>"
+            if filename.lower().endswith(".pdf"):
+                importes_detectados.append({
+                    "archivo": ruta_relativa,
+                    "importes": importes
+                })
 
-    def generar_previews(previews):
-        if not previews:
-            return "<li>No hay PDFs leídos</li>"
+    ledger = construir_ledger(documentos)
+    inconsistencias = detectar_inconsistencias(ledger)
 
-        html = ""
-        for item in previews:
-            html += f"<li><strong>{item['archivo']}</strong><br><small>{item['preview']}</small></li>"
-        return html
+    return generar_html_resultado(
+        total=total_files,
+        clasificados=clasificados,
+        importes=importes_detectados,
+        documentos=documentos
+    )
 
-    def generar_importes(lista):
-        if not lista:
-            return "<li>No se detectaron importes</li>"
-
-        html = ""
-        for item in lista:
-            montos = ", ".join(item["montos"]) if item["montos"] else "No se detectaron importes"
-            html += f"<li><strong>{item['archivo']}</strong><br><small>{montos}</small></li>"
-        return html
-
-    def generar_documentos(lista):
-        if not lista:
-            return "<li>No se detectaron documentos</li>"
-
-        html = ""
-        for item in lista:
-            html += f"<li><strong>{item['archivo']}</strong><br><small>Tipo: {item['tipo']} | Fecha: {item['fecha']}</small></li>"
-        return html
-
-    return f"""
-    <div class="result-container">
-        <div class="result-box">
-            <h2>Procesamiento completado</h2>
-            <p><strong>Archivo:</strong> {file.filename}</p>
-            <p><strong>Total de archivos:</strong> {total_files}</p>
-        </div>
-
-        <div class="result-box">
-            <h3>📄 Facturas de venta</h3>
-            <ul>{generar_lista(clasificados["factura_venta"])}</ul>
-
-            <h3>🧾 Facturas de compra</h3>
-            <ul>{generar_lista(clasificados["factura_compra"])}</ul>
-
-            <h3>🏦 Extractos bancarios</h3>
-            <ul>{generar_lista(clasificados["extracto_bancario"])}</ul>
-
-            <h3>📁 Otros documentos</h3>
-            <ul>{generar_lista(clasificados["otros"])}</ul>
-        </div>
-
-        <div class="result-box">
-            <h3>🔎 Vista previa del texto leído en PDFs</h3>
-            <ul>{generar_previews(previews_pdf)}</ul>
-        </div>
-
-        <div class="result-box">
-            <h3>💶 Importes detectados en PDFs</h3>
-            <ul>{generar_importes(importes_detectados)}</ul>
-        </div>
-
-        <div class="result-box">
-            <h3>🗂 Metadatos detectados</h3>
-            <ul>{generar_documentos(documentos_detectados)}</ul>
-        </div>
-
-        <p><a href="/">⬅ Volver a la landing</a></p>
-    </div>
-    """
-    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
