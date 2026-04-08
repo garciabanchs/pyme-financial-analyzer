@@ -12,7 +12,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             html += f"<li><strong>{item['archivo']}</strong>: {montos}</li>"
         return html
 
-    def lista_documentos(lista):
+        def lista_documentos(lista):
         if not lista:
             return "<li>No hay documentos detectados</li>"
 
@@ -21,7 +21,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             html += f"<li><strong>{item['archivo']}</strong> | {item['tipo']} | {item['fecha']}</li>"
         return html
 
-        def resumen_flujo(ledger):
+    def resumen_flujo(ledger):
         if not ledger:
             return "<p>No hay datos para resumen.</p>"
 
