@@ -4,6 +4,7 @@ def normalizar_importe(valor):
     except:
         return None
 
+
 def construir_ledger(documentos):
     ledger = []
 
@@ -35,13 +36,38 @@ def construir_ledger(documentos):
                     "naturaleza": naturaleza
                 })
 
-        else:
-            for monto_original, valor in importes_validos:
+        elif doc["tipo"] == "extracto_bancario":
+            vistos = set()
+
+            for monto_original, valor in sorted(importes_validos, key=lambda x: x[1], reverse=True):
+                if valor == 0:
+                    continue
+
+                if valor < 100:
+                    continue
+
+                clave = round(valor, 2)
+                if clave in vistos:
+                    continue
+                vistos.add(clave)
+
                 ledger.append({
                     "archivo": doc["archivo"],
                     "tipo": doc["tipo"],
                     "fecha": doc["fecha"],
                     "importe": monto_original,
+                    "naturaleza": naturaleza
+                })
+
+        else:
+            if importes_validos:
+                monto_principal = max(importes_validos, key=lambda x: x[1])[0]
+
+                ledger.append({
+                    "archivo": doc["archivo"],
+                    "tipo": doc["tipo"],
+                    "fecha": doc["fecha"],
+                    "importe": monto_principal,
                     "naturaleza": naturaleza
                 })
 
