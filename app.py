@@ -297,7 +297,7 @@ def upload():
                         "montos": []
                     })
 
-                    tipo_documento = "otros"
+            tipo_documento = "otros"
 
             if ("factura" in nombre or "invoice" in texto_pdf) and ("venta" in nombre or "total" in texto_pdf):
                 clasificados["factura_venta"].append(filename)
@@ -313,7 +313,7 @@ def upload():
                 tipo_documento = "otros"
 
             texto_fuente = f"{nombre} {texto_pdf}"
-            fechas = re.findall(r"\b\d{2}[/-]\d{2}[/-]\d{2,4}\b", texto_fuente)
+            fechas = re.findall(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", texto_fuente)
             fecha_detectada = fechas[0] if fechas else "No detectada"
 
             documentos_detectados.append({
@@ -344,7 +344,7 @@ def upload():
             html += f"<li><strong>{item['archivo']}</strong><br><small>{montos}</small></li>"
         return html
 
-        def generar_documentos(lista):
+    def generar_documentos(lista):
         if not lista:
             return "<li>No se detectaron documentos</li>"
 
@@ -361,7 +361,26 @@ def upload():
             <p><strong>Total de archivos:</strong> {total_files}</p>
         </div>
 
-                <div class="result-box">
+        <div class="result-box">
+            <h3>📄 Facturas de venta</h3>
+            <ul>{generar_lista(clasificados["factura_venta"])}</ul>
+
+            <h3>🧾 Facturas de compra</h3>
+            <ul>{generar_lista(clasificados["factura_compra"])}</ul>
+
+            <h3>🏦 Extractos bancarios</h3>
+            <ul>{generar_lista(clasificados["extracto_bancario"])}</ul>
+
+            <h3>📁 Otros documentos</h3>
+            <ul>{generar_lista(clasificados["otros"])}</ul>
+        </div>
+
+        <div class="result-box">
+            <h3>🔎 Vista previa del texto leído en PDFs</h3>
+            <ul>{generar_previews(previews_pdf)}</ul>
+        </div>
+
+        <div class="result-box">
             <h3>💶 Importes detectados en PDFs</h3>
             <ul>{generar_importes(importes_detectados)}</ul>
         </div>
@@ -374,6 +393,6 @@ def upload():
         <p><a href="/">⬅ Volver a la landing</a></p>
     </div>
     """
-
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
