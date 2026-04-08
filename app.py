@@ -270,7 +270,7 @@ def upload():
 
                     texto_preview = " ".join(texto_pdf.split())[:500]
 
-                    montos = re.findall(r"\\b\\d{1,3}(?:\\.\\d{3})*,\\d{2}\\b", texto_pdf)
+                    montos = re.findall(r"\d{1,3}(?:\.\d{3})*,\d{2}", texto_pdf)
                     montos_unicos = []
                     for monto in montos:
                         if monto not in montos_unicos:
