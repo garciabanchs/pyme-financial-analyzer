@@ -240,7 +240,30 @@ def upload():
 
     file_list_html = "".join(f"<li>{name}</li>" for name in file_names)
 
+        def generar_lista(lista):
+        return "".join(f"<li>{item}</li>" for item in lista) if lista else "<li>No hay</li>"
+
     return f"""
+    <h2>Procesamiento completado</h2>
+
+    <p><strong>Archivo:</strong> {file.filename}</p>
+    <p><strong>Total de archivos:</strong> {total_files}</p>
+
+    <h3>📄 Facturas de venta</h3>
+    <ul>{generar_lista(clasificados["factura_venta"])}</ul>
+
+    <h3>🧾 Facturas de compra</h3>
+    <ul>{generar_lista(clasificados["factura_compra"])}</ul>
+
+    <h3>🏦 Extractos bancarios</h3>
+    <ul>{generar_lista(clasificados["extracto_bancario"])}</ul>
+
+    <h3>📁 Otros documentos</h3>
+    <ul>{generar_lista(clasificados["otros"])}</ul>
+
+    <br>
+    <a href="/">⬅ Volver a la landing</a>
+    """
     <h2>Procesamiento completado</h2>
     <p>Archivo '<strong>{file.filename}</strong>' guardado, descomprimido y procesado correctamente.</p>
     <p>Se encontraron <strong>{total_files}</strong> archivos dentro del ZIP.</p>
