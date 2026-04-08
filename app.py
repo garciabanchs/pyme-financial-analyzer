@@ -258,7 +258,7 @@ def upload():
                 })
 
     ledger = construir_ledger(documentos)
-    inconsistencias = detectar_inconsistencias(ledger)
+    conciliacion = detectar_inconsistencias(ledger)
 
     return generar_html_resultado(
         total=total_files,
@@ -266,7 +266,7 @@ def upload():
         importes=importes_detectados,
         documentos=documentos,
         ledger=ledger,
-        conciliacion=inconsistencias
+        conciliacion=conciliacion
     )
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
