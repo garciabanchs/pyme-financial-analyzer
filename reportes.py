@@ -1,4 +1,5 @@
 def generar_html_resultado(total, clasificados, importes, documentos, ledger=None):
+
     def lista(lista):
         return "".join(f"<li>{x}</li>" for x in lista) if lista else "<li>No hay</li>"
 
@@ -12,7 +13,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             html += f"<li><strong>{item['archivo']}</strong>: {montos}</li>"
         return html
 
-        def lista_documentos(lista):
+    def lista_documentos(lista):
         if not lista:
             return "<li>No hay documentos detectados</li>"
 
@@ -31,7 +32,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         total_revisar = 0.0
 
         for item in ledger:
-            valor = float(item["importe"].replace(".", "").replace(",", "."))
+            try:
+                valor = float(item["importe"].replace(".", "").replace(",", "."))
+            except:
+                continue
 
             if item["naturaleza"] == "entrada":
                 total_entradas += valor
