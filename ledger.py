@@ -51,12 +51,17 @@ def construir_ledger(documentos):
                     continue
                 vistos.add(clave)
 
+                if valor > 1000:
+                    naturaleza_mov = "entrada"
+                else:
+                    naturaleza_mov = "salida"
+
                 ledger.append({
                     "archivo": doc["archivo"],
                     "tipo": doc["tipo"],
                     "fecha": doc["fecha"],
                     "importe": monto_original,
-                    "naturaleza": naturaleza
+                    "naturaleza": naturaleza_mov
                 })
 
         else:
