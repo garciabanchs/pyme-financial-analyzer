@@ -260,7 +260,7 @@ def upload():
     ledger = construir_ledger(documentos)
     inconsistencias = detectar_inconsistencias(ledger)
 
-        return generar_html_resultado(
+    return generar_html_resultado(
         total=total_files,
         clasificados=clasificados,
         importes=importes_detectados,
