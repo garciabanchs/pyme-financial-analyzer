@@ -1,6 +1,10 @@
-from flask import Flask
+from flask import Flask, request
+import os
 
 app = Flask(__name__)
+
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route("/")
 def home():
@@ -44,6 +48,8 @@ def home():
                 text-decoration: none;
                 font-weight: bold;
                 font-size: 18px;
+                border: none;
+                cursor: pointer;
             }
             .section {
                 max-width: 1100px;
@@ -99,6 +105,13 @@ def home():
                 max-width: 800px;
                 margin: 0 auto 30px auto;
                 line-height: 1.6;
+            }
+            .upload-form {
+                margin-top: 25px;
+            }
+            .file-input {
+                margin-bottom: 15px;
+                font-size: 16px;
             }
         </style>
     </head>
@@ -160,17 +173,17 @@ def home():
                 Una experiencia simple, limpia y profesional para transformar documentos dispersos
                 en información útil para decidir mejor.
             </p>
-            <form action="/upload" method="post" enctype="multipart/form-data">
-    <input type="file" name="file" accept=".zip" required style="margin-bottom:15px;">
-    <br>
-    <button class="cta-btn" type="submit">Subir ZIP</button>
-</form>
+
+            <form class="upload-form" action="/upload" method="post" enctype="multipart/form-data">
+                <input class="file-input" type="file" name="file" accept=".zip" required>
+                <br>
+                <button class="cta-btn" type="submit">Subir ZIP</button>
+            </form>
         </section>
 
     </body>
     </html>
     """
-from flask import request
 
 @app.route("/upload", methods=["POST"])
 def upload():
@@ -179,9 +192,16 @@ def upload():
     if not file:
         return "No se subió ningún archivo"
 
-    if not file.filename.endswith(".zip"):
+    if file.filename == "":
+        return "No se seleccionó ningún archivo"
+
+    if not file.filename.lower().endswith(".zip"):
         return "Solo se permiten archivos ZIP"
 
-    return f"Archivo '{file.filename}' recibido correctamente (aún no procesado)"
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file.save(file_path)
+
+    return f"Archivo '{file.filename}' guardado correctamente en el servidor"
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
