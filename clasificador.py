@@ -12,16 +12,26 @@ def clasificar_documento(nombre, texto):
         return "extracto_bancario"
 
     if "factura" in nombre or "factura" in texto or "invoice" in texto:
-        if (
-            "cliente:" in texto
-            or "cliente " in texto
-            or "nro. de factura" in texto
-            or "fecha de factura" in texto
-            or "venta" in nombre
-            or "yudigar" in texto
-        ):
-            return "factura_venta"
-        else:
+        indicadores_venta = [
+            "cliente:",
+            "nro. de factura",
+            "fecha de factura",
+            "yudigar"
+        ]
+
+        indicadores_compra = [
+            "factura cliente",
+            "albarán",
+            "f. envío",
+            "subtotal albarán"
+        ]
+
+        if any(ind in texto for ind in indicadores_compra):
             return "factura_compra"
+
+        if any(ind in texto for ind in indicadores_venta):
+            return "factura_venta"
+
+        return "factura_compra"
 
     return "otros"
