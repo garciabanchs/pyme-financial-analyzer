@@ -160,12 +160,28 @@ def home():
                 Una experiencia simple, limpia y profesional para transformar documentos dispersos
                 en información útil para decidir mejor.
             </p>
-            <a class="cta-btn" href="#">Comenzar</a>
+            <form action="/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="file" accept=".zip" required style="margin-bottom:15px;">
+    <br>
+    <button class="cta-btn" type="submit">Subir ZIP</button>
+</form>
         </section>
 
     </body>
     </html>
     """
+from flask import request
 
+@app.route("/upload", methods=["POST"])
+def upload():
+    file = request.files.get("file")
+
+    if not file:
+        return "No se subió ningún archivo"
+
+    if not file.filename.endswith(".zip"):
+        return "Solo se permiten archivos ZIP"
+
+    return f"Archivo '{file.filename}' recibido correctamente (aún no procesado)"
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
