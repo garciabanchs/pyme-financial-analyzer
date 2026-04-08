@@ -208,7 +208,7 @@ def upload():
     extract_subfolder = os.path.join(EXTRACT_FOLDER, os.path.splitext(file.filename)[0])
     os.makedirs(extract_subfolder, exist_ok=True)
 
-        with zipfile.ZipFile(file_path, "r") as zip_ref:
+    with zipfile.ZipFile(file_path, "r") as zip_ref:
         zip_ref.extractall(extract_subfolder)
 
     total_files = 0
