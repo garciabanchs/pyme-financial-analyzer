@@ -1,4 +1,4 @@
-def generar_html_resultado(total, clasificados, importes, documentos, ledger=None):
+def generar_html_resultado(total, clasificados, importes, documentos, ledger=None, conciliacion=None):
 
     def lista(lista):
         return "".join(f"<li>{x}</li>" for x in lista) if lista else "<li>No hay</li>"
