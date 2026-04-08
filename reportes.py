@@ -105,13 +105,51 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
+    def resumen_conciliacion(conciliacion):
+        if not conciliacion:
+            return "<p>No hay conciliación disponible.</p>"
+
+        total_conciliadas = 0
+        total_pendientes = 0
+        importe_pendiente = 0.0
+
+        for item in conciliacion:
+            if item["estado"] == "conciliado":
+                total_conciliadas += 1
+            else:
+                total_pendientes += 1
+                try:
+                    importe_pendiente += float(item["importe"])
+                except:
+                    pass
+
+        def fmt(numero):
+            return f"{numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        return f"""
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:24px;">
+            <div style="background:white; padding:20px; border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+                <div style="font-size:14px; color:#6b7280;">Facturas conciliadas</div>
+                <div style="font-size:28px; font-weight:bold;">{total_conciliadas}</div>
+            </div>
+            <div style="background:white; padding:20px; border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+                <div style="font-size:14px; color:#6b7280;">Facturas pendientes</div>
+                <div style="font-size:28px; font-weight:bold;">{total_pendientes}</div>
+            </div>
+            <div style="background:white; padding:20px; border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+                <div style="font-size:14px; color:#6b7280;">Importe pendiente</div>
+                <div style="font-size:28px; font-weight:bold;">€ {fmt(importe_pendiente)}</div>
+            </div>
+        </div>
+        """
+
     def tabla_conciliacion(conciliacion):
         if not conciliacion:
             return "<p>No hay conciliación disponible.</p>"
 
         filas = ""
         for item in conciliacion:
-            importe = str(item["importe"]).replace(".", ",")
+            importe = f"{item['importe']:.2f}".replace(".", ",")
             filas += f"""
             <tr>
                 <td>{item['archivo']}</td>
@@ -166,6 +204,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
     <h3>📒 Ledger base</h3>
     {tabla_ledger(ledger)}
+
+    <h3>🔗 Resumen de conciliación</h3>
+    {resumen_conciliacion(conciliacion)}
 
     <h3>🔗 Conciliación básica</h3>
     {tabla_conciliacion(conciliacion)}
