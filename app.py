@@ -250,6 +250,7 @@ def upload():
 
     previews_pdf = []
     importes_detectados = []
+    documentos_detectados = []
 
     for root, dirs, files in os.walk(extract_subfolder):
         for filename in files:
@@ -296,14 +297,30 @@ def upload():
                         "montos": []
                     })
 
+                        tipo_documento = "otros"
+
             if ("factura" in nombre or "invoice" in texto_pdf) and ("venta" in nombre or "total" in texto_pdf):
                 clasificados["factura_venta"].append(filename)
+                tipo_documento = "factura_venta"
             elif "factura" in nombre or "invoice" in texto_pdf:
                 clasificados["factura_compra"].append(filename)
+                tipo_documento = "factura_compra"
             elif "banco" in nombre or "extracto" in nombre or "saldo" in texto_pdf:
                 clasificados["extracto_bancario"].append(filename)
+                tipo_documento = "extracto_bancario"
             else:
                 clasificados["otros"].append(filename)
+                tipo_documento = "otros"
+
+            texto_fuente = f"{nombre} {texto_pdf}"
+            fechas = re.findall(r"\b\d{2}[/-]\d{2}[/-]\d{2,4}\b", texto_fuente)
+            fecha_detectada = fechas[0] if fechas else "No detectada"
+
+            documentos_detectados.append({
+                "archivo": ruta_relativa,
+                "tipo": tipo_documento,
+                "fecha": fecha_detectada
+            })
 
     def generar_lista(lista):
         return "".join(f"<li>{item}</li>" for item in lista) if lista else "<li>No hay</li>"
@@ -327,6 +344,15 @@ def upload():
             html += f"<li><strong>{item['archivo']}</strong><br><small>{montos}</small></li>"
         return html
 
+        def generar_documentos(lista):
+        if not lista:
+            return "<li>No se detectaron documentos</li>"
+
+        html = ""
+        for item in lista:
+            html += f"<li><strong>{item['archivo']}</strong><br><small>Tipo: {item['tipo']} | Fecha: {item['fecha']}</small></li>"
+        return html
+
     return f"""
     <div class="result-container">
         <div class="result-box">
@@ -335,28 +361,14 @@ def upload():
             <p><strong>Total de archivos:</strong> {total_files}</p>
         </div>
 
-        <div class="result-box">
-            <h3>📄 Facturas de venta</h3>
-            <ul>{generar_lista(clasificados["factura_venta"])}</ul>
-
-            <h3>🧾 Facturas de compra</h3>
-            <ul>{generar_lista(clasificados["factura_compra"])}</ul>
-
-            <h3>🏦 Extractos bancarios</h3>
-            <ul>{generar_lista(clasificados["extracto_bancario"])}</ul>
-
-            <h3>📁 Otros documentos</h3>
-            <ul>{generar_lista(clasificados["otros"])}</ul>
-        </div>
-
-        <div class="result-box">
-            <h3>🔎 Vista previa del texto leído en PDFs</h3>
-            <ul>{generar_previews(previews_pdf)}</ul>
-        </div>
-
-        <div class="result-box">
+                <div class="result-box">
             <h3>💶 Importes detectados en PDFs</h3>
             <ul>{generar_importes(importes_detectados)}</ul>
+        </div>
+
+        <div class="result-box">
+            <h3>🗂 Metadatos detectados</h3>
+            <ul>{generar_documentos(documentos_detectados)}</ul>
         </div>
 
         <p><a href="/">⬅ Volver a la landing</a></p>
