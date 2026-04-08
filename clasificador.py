@@ -2,11 +2,26 @@ def clasificar_documento(nombre, texto):
     nombre = nombre.lower()
     texto = texto.lower()
 
-    if ("factura" in nombre or "invoice" in texto) and ("venta" in nombre or "total" in texto):
-        return "factura_venta"
-    elif "factura" in nombre or "invoice" in texto:
-        return "factura_compra"
-    elif "banco" in nombre or "extracto" in nombre or "saldo" in texto:
+    if (
+        "extracto" in nombre
+        or "saldo" in texto
+        or "paypal" in texto
+        or "resumen de actividad" in texto
+        or "resumen de saldo" in texto
+    ):
         return "extracto_bancario"
-    else:
-        return "otros"
+
+    if "factura" in nombre or "factura" in texto or "invoice" in texto:
+        if (
+            "cliente:" in texto
+            or "cliente " in texto
+            or "nro. de factura" in texto
+            or "fecha de factura" in texto
+            or "venta" in nombre
+            or "yudigar" in texto
+        ):
+            return "factura_venta"
+        else:
+            return "factura_compra"
+
+    return "otros"
