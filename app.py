@@ -211,14 +211,32 @@ def upload():
     with zipfile.ZipFile(file_path, "r") as zip_ref:
         zip_ref.extractall(extract_subfolder)
 
-        total_files = 0
-    file_names = []
+            total_files = 0
+
+    clasificados = {
+        "factura_venta": [],
+        "factura_compra": [],
+        "extracto_bancario": [],
+        "otros": []
+    }
 
     for root, dirs, files in os.walk(extract_subfolder):
         for filename in files:
             total_files += 1
-            relative_path = os.path.relpath(os.path.join(root, filename), extract_subfolder)
-            file_names.append(relative_path)
+
+            nombre = filename.lower()
+
+            if "factura" in nombre and "venta" in nombre:
+                clasificados["factura_venta"].append(filename)
+
+            elif "factura" in nombre:
+                clasificados["factura_compra"].append(filename)
+
+            elif "banco" in nombre or "extracto" in nombre:
+                clasificados["extracto_bancario"].append(filename)
+
+            else:
+                clasificados["otros"].append(filename)
 
     file_list_html = "".join(f"<li>{name}</li>" for name in file_names)
 
