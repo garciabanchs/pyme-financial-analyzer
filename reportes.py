@@ -33,6 +33,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <td>{item['tipo']}</td>
                 <td>{item['fecha']}</td>
                 <td>{item['importe']}</td>
+                <td>{item['naturaleza']}</td>
             </tr>
             """
 
@@ -45,6 +46,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         <th style="border:1px solid #ddd; padding:10px; text-align:left;">Tipo</th>
                         <th style="border:1px solid #ddd; padding:10px; text-align:left;">Fecha</th>
                         <th style="border:1px solid #ddd; padding:10px; text-align:left;">Importe</th>
+                        <th style="border:1px solid #ddd; padding:10px; text-align:left;">Naturaleza</th>
                     </tr>
                 </thead>
                 <tbody>
