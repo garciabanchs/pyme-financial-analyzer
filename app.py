@@ -221,11 +221,15 @@ def upload():
         "otros": []
     }
 
+        previews_pdf = []
+
     for root, dirs, files in os.walk(extract_subfolder):
         for filename in files:
             total_files += 1
             nombre = filename.lower()
             texto_pdf = ""
+
+            ruta_relativa = os.path.relpath(os.path.join(root, filename), extract_subfolder)
 
             if filename.lower().endswith(".pdf"):
                 try:
@@ -236,8 +240,17 @@ def upload():
                         contenido = page.extract_text()
                         if contenido:
                             texto_pdf += contenido.lower()
+
+                    texto_preview = " ".join(texto_pdf.split())[:500]
+                    previews_pdf.append({
+                        "archivo": ruta_relativa,
+                        "preview": texto_preview if texto_preview else "(No se pudo extraer texto útil)"
+                    })
                 except Exception:
-                    pass
+                    previews_pdf.append({
+                        "archivo": ruta_relativa,
+                        "preview": "(Error al leer el PDF)"
+                    })
 
             if ("factura" in nombre or "invoice" in texto_pdf) and ("venta" in nombre or "total" in texto_pdf):
                 clasificados["factura_venta"].append(filename)
@@ -250,6 +263,15 @@ def upload():
 
     def generar_lista(lista):
         return "".join(f"<li>{item}</li>" for item in lista) if lista else "<li>No hay</li>"
+
+    def generar_previews(previews):
+        if not previews:
+            return "<li>No hay PDFs leídos</li>"
+
+        html = ""
+        for item in previews:
+            html += f"<li><strong>{item['archivo']}</strong><br><small>{item['preview']}</small></li>"
+        return html
 
     return f"""
     <h2>Procesamiento completado</h2>
@@ -268,6 +290,9 @@ def upload():
 
     <h3>📁 Otros documentos</h3>
     <ul>{generar_lista(clasificados["otros"])}</ul>
+
+    <h3>🔎 Vista previa del texto leído en PDFs</h3>
+    <ul>{generar_previews(previews_pdf)}</ul>
 
     <br>
     <a href="/">⬅ Volver a la landing</a>
