@@ -2,6 +2,7 @@ from flask import Flask, request
 import os
 import zipfile
 from pypdf import PdfReader
+import re
 
 app = Flask(__name__)
 
@@ -222,6 +223,7 @@ def upload():
     }
 
     previews_pdf = []
+        importes_detectados = []    
     
     for root, dirs, files in os.walk(extract_subfolder):
         for filename in files:
@@ -242,9 +244,21 @@ def upload():
                             texto_pdf += contenido.lower()
 
                     texto_preview = " ".join(texto_pdf.split())[:500]
+
+                    montos = re.findall(r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b", texto_pdf)
+                    montos_unicos = []
+                    for monto in montos:
+                        if monto not in montos_unicos:
+                            montos_unicos.append(monto)
+
                     previews_pdf.append({
                         "archivo": ruta_relativa,
                         "preview": texto_preview if texto_preview else "(No se pudo extraer texto útil)"
+                    })
+
+                    importes_detectados.append({
+                        "archivo": ruta_relativa,
+                        "montos": montos_unicos[:15]
                     })
                 except Exception:
                     previews_pdf.append({
@@ -264,13 +278,14 @@ def upload():
     def generar_lista(lista):
         return "".join(f"<li>{item}</li>" for item in lista) if lista else "<li>No hay</li>"
 
-    def generar_previews(previews):
-        if not previews:
-            return "<li>No hay PDFs leídos</li>"
+    def generar_importes(lista):
+        if not lista:
+            return "<li>No se detectaron importes</li>"
 
         html = ""
-        for item in previews:
-            html += f"<li><strong>{item['archivo']}</strong><br><small>{item['preview']}</small></li>"
+        for item in lista:
+            montos = ", ".join(item["montos"]) if item["montos"] else "No se detectaron importes"
+            html += f"<li><strong>{item['archivo']}</strong><br><small>{montos}</small></li>"
         return html
 
     return f"""
@@ -293,6 +308,9 @@ def upload():
 
     <h3>🔎 Vista previa del texto leído en PDFs</h3>
     <ul>{generar_previews(previews_pdf)}</ul>
+
+    <h3>💶 Importes detectados en PDFs</h3>
+    <ul>{generar_importes(importes_detectados)}</ul>
 
     <br>
     <a href="/">⬅ Volver a la landing</a>
