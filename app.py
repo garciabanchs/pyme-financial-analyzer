@@ -208,10 +208,15 @@ def upload():
     extract_subfolder = os.path.join(EXTRACT_FOLDER, os.path.splitext(file.filename)[0])
     os.makedirs(extract_subfolder, exist_ok=True)
 
-    with zipfile.ZipFile(file_path, "r") as zip_ref:
+        with zipfile.ZipFile(file_path, "r") as zip_ref:
         zip_ref.extractall(extract_subfolder)
 
-    return f"Archivo '{file.filename}' guardado y descomprimido correctamente"
+    total_files = 0
+
+    for root, dirs, files in os.walk(extract_subfolder):
+        total_files += len(files)
+
+    return f"Archivo '{file.filename}' guardado, descomprimido y procesado correctamente. Se encontraron {total_files} archivos dentro del ZIP."
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
