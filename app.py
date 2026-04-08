@@ -248,7 +248,8 @@ def upload():
                 "archivo": ruta_relativa,
                 "tipo": tipo,
                 "fecha": fecha,
-                "importes": importes
+                "importes": importes,
+                "texto": texto
             })
 
             if filename.lower().endswith(".pdf"):
