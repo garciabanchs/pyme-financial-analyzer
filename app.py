@@ -5,8 +5,166 @@ app = Flask(__name__)
 @app.route("/")
 def home():
     return """
-    <h1>PYME Financial Analyzer</h1>
-    <p>El sistema está funcionando correctamente.</p>
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>PYME Financial Analyzer</title>
+        <style>
+            body {
+                margin: 0;
+                font-family: Arial, sans-serif;
+                background: #f4f7fb;
+                color: #1f2937;
+            }
+            .hero {
+                background: linear-gradient(135deg, #0f172a, #1d4ed8);
+                color: white;
+                padding: 70px 20px;
+                text-align: center;
+            }
+            .hero h1 {
+                margin: 0 0 20px 0;
+                font-size: 42px;
+                line-height: 1.2;
+            }
+            .hero p {
+                max-width: 800px;
+                margin: 0 auto 30px auto;
+                font-size: 20px;
+                line-height: 1.6;
+            }
+            .cta-btn {
+                display: inline-block;
+                background: #f59e0b;
+                color: #111827;
+                padding: 16px 28px;
+                border-radius: 10px;
+                text-decoration: none;
+                font-weight: bold;
+                font-size: 18px;
+            }
+            .section {
+                max-width: 1100px;
+                margin: 0 auto;
+                padding: 60px 20px;
+            }
+            .section h2 {
+                text-align: center;
+                font-size: 32px;
+                margin-bottom: 20px;
+            }
+            .section p.lead {
+                text-align: center;
+                font-size: 18px;
+                max-width: 850px;
+                margin: 0 auto 40px auto;
+                line-height: 1.7;
+            }
+            .cards {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 20px;
+            }
+            .card {
+                background: white;
+                padding: 25px;
+                border-radius: 14px;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            }
+            .card h3 {
+                margin-top: 0;
+                font-size: 22px;
+            }
+            .card p {
+                line-height: 1.6;
+                font-size: 16px;
+            }
+            .outputs {
+                background: #eaf1ff;
+                border-radius: 16px;
+                padding: 30px;
+            }
+            .footer-cta {
+                text-align: center;
+                padding: 60px 20px 80px 20px;
+            }
+            .footer-cta h2 {
+                font-size: 34px;
+                margin-bottom: 20px;
+            }
+            .footer-cta p {
+                font-size: 18px;
+                max-width: 800px;
+                margin: 0 auto 30px auto;
+                line-height: 1.6;
+            }
+        </style>
+    </head>
+    <body>
+
+        <section class="hero">
+            <h1>Convierte tus documentos en claridad financiera para tu PYME</h1>
+            <p>
+                Sube un único archivo ZIP con facturas, extractos y documentos administrativos,
+                y recibe un análisis automático con dashboard visual de flujo de caja
+                y resumen ejecutivo en PDF.
+            </p>
+            <a class="cta-btn" href="#subir">Subir ZIP ahora</a>
+        </section>
+
+        <section class="section">
+            <h2>¿Qué hace este sistema?</h2>
+            <p class="lead">
+                Analiza automáticamente documentos financieros y administrativos de tu empresa,
+                construye movimientos reales, concilia soportes y detecta pendientes,
+                inconsistencias y señales críticas para la toma de decisiones.
+            </p>
+
+            <div class="cards">
+                <div class="card">
+                    <h3>Subida simple</h3>
+                    <p>La PYME sube un solo archivo ZIP con facturas, extractos bancarios, extractos PayPal, recibos, nóminas y otros documentos.</p>
+                </div>
+                <div class="card">
+                    <h3>Procesamiento automático</h3>
+                    <p>El sistema lee PDFs, Excel y Word, extrae texto, clasifica documentos y construye un ledger completo movimiento por movimiento.</p>
+                </div>
+                <div class="card">
+                    <h3>Detección inteligente</h3>
+                    <p>Identifica cobros sin factura, pagos sin soporte, retenciones, pendientes y posibles inconsistencias contables o documentales.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="outputs">
+                <h2>Outputs que recibe la PYME</h2>
+                <div class="cards">
+                    <div class="card">
+                        <h3>Dashboard HTML</h3>
+                        <p>Un informe visual, claro y profesional con flujo de caja, ingresos vs gastos, pendientes, inconsistencias y métricas clave.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Resumen ejecutivo PDF</h3>
+                        <p>Un documento vistoso y directo, pensado para dueños de PYME, con hallazgos, problemas principales e insights accionables.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="footer-cta" id="subir">
+            <h2>Sube tu ZIP y obtén una radiografía financiera real</h2>
+            <p>
+                Una experiencia simple, limpia y profesional para transformar documentos dispersos
+                en información útil para decidir mejor.
+            </p>
+            <a class="cta-btn" href="#">Comenzar</a>
+        </section>
+
+    </body>
+    </html>
     """
 
 if __name__ == "__main__":
