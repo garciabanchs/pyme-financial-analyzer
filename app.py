@@ -297,7 +297,7 @@ def upload():
                         "montos": []
                     })
 
-                        tipo_documento = "otros"
+                    tipo_documento = "otros"
 
             if ("factura" in nombre or "invoice" in texto_pdf) and ("venta" in nombre or "total" in texto_pdf):
                 clasificados["factura_venta"].append(filename)
