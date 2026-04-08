@@ -1,6 +1,7 @@
 from flask import Flask, request
 import os
 import zipfile
+from pypdf import PdfReader
 
 app = Flask(__name__)
 
@@ -226,11 +227,25 @@ def upload():
 
             nombre = filename.lower()
 
-            if "factura" in nombre and "venta" in nombre:
+            texto_pdf = ""
+
+if filename.lower().endswith(".pdf"):
+    try:
+        ruta_pdf = os.path.join(root, filename)
+        reader = PdfReader(ruta_pdf)
+
+        for page in reader.pages:
+            contenido = page.extract_text()
+            if contenido:
+                texto_pdf += contenido.lower()
+    except:
+        pass
+
+if ("factura" in nombre or "invoice" in texto_pdf) and ("venta" in nombre or "total" in texto_pdf):
                 clasificados["factura_venta"].append(filename)
-            elif "factura" in nombre:
+            elif "factura" in nombre or "invoice" in texto_pdf:
                 clasificados["factura_compra"].append(filename)
-            elif "banco" in nombre or "extracto" in nombre:
+            elif "banco" in nombre or "extracto" in nombre or "saldo" in texto_pdf:
                 clasificados["extracto_bancario"].append(filename)
             else:
                 clasificados["otros"].append(filename)
