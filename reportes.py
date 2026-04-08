@@ -46,6 +46,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             else:
                 total_revisar += valor
 
+        balance = total_entradas - total_salidas
+
         def fmt(numero):
             return f"{numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
@@ -66,6 +68,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             <div style="background:white; padding:20px; border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,0.08);">
                 <div style="font-size:14px; color:#6b7280;">Por revisar</div>
                 <div style="font-size:28px; font-weight:bold;">€ {fmt(total_revisar)}</div>
+            </div>
+            <div style="background:white; padding:20px; border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+                <div style="font-size:14px; color:#6b7280;">Balance preliminar</div>
+                <div style="font-size:28px; font-weight:bold;">€ {fmt(balance)}</div>
             </div>
         </div>
         """
