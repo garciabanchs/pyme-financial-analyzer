@@ -211,7 +211,7 @@ def upload():
     with zipfile.ZipFile(file_path, "r") as zip_ref:
         zip_ref.extractall(extract_subfolder)
 
-            total_files = 0
+    total_files = 0
 
     clasificados = {
         "factura_venta": [],
@@ -228,19 +228,14 @@ def upload():
 
             if "factura" in nombre and "venta" in nombre:
                 clasificados["factura_venta"].append(filename)
-
             elif "factura" in nombre:
                 clasificados["factura_compra"].append(filename)
-
             elif "banco" in nombre or "extracto" in nombre:
                 clasificados["extracto_bancario"].append(filename)
-
             else:
                 clasificados["otros"].append(filename)
 
-    file_list_html = "".join(f"<li>{name}</li>" for name in file_names)
-
-        def generar_lista(lista):
+    def generar_lista(lista):
         return "".join(f"<li>{item}</li>" for item in lista) if lista else "<li>No hay</li>"
 
     return f"""
@@ -263,13 +258,6 @@ def upload():
 
     <br>
     <a href="/">⬅ Volver a la landing</a>
-    """
-    <h2>Procesamiento completado</h2>
-    <p>Archivo '<strong>{file.filename}</strong>' guardado, descomprimido y procesado correctamente.</p>
-    <p>Se encontraron <strong>{total_files}</strong> archivos dentro del ZIP.</p>
-    <h3>Archivos detectados:</h3>
-    <ul>{file_list_html}</ul>
-    <p><a href="/">Volver a la landing</a></p>
     """
 
 if __name__ == "__main__":
