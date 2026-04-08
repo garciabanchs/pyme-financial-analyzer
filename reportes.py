@@ -105,6 +105,40 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
+    def tabla_conciliacion(conciliacion):
+        if not conciliacion:
+            return "<p>No hay conciliación disponible.</p>"
+
+        filas = ""
+        for item in conciliacion:
+            importe = str(item["importe"]).replace(".", ",")
+            filas += f"""
+            <tr>
+                <td>{item['archivo']}</td>
+                <td>{item['fecha']}</td>
+                <td>{importe}</td>
+                <td>{item['estado']}</td>
+            </tr>
+            """
+
+        return f"""
+        <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; background:white;">
+                <thead>
+                    <tr>
+                        <th style="border:1px solid #ddd; padding:10px; text-align:left;">Archivo</th>
+                        <th style="border:1px solid #ddd; padding:10px; text-align:left;">Fecha</th>
+                        <th style="border:1px solid #ddd; padding:10px; text-align:left;">Importe</th>
+                        <th style="border:1px solid #ddd; padding:10px; text-align:left;">Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {filas}
+                </tbody>
+            </table>
+        </div>
+        """
+
     html = f"""
     <h2>Procesamiento completado</h2>
     <p><strong>Total archivos:</strong> {total}</p>
@@ -132,6 +166,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
     <h3>📒 Ledger base</h3>
     {tabla_ledger(ledger)}
+
+    <h3>🔗 Conciliación básica</h3>
+    {tabla_conciliacion(conciliacion)}
 
     <br><a href="/">Volver</a>
     """
