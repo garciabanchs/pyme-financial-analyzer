@@ -224,24 +224,22 @@ def upload():
     for root, dirs, files in os.walk(extract_subfolder):
         for filename in files:
             total_files += 1
-
             nombre = filename.lower()
-
             texto_pdf = ""
 
-if filename.lower().endswith(".pdf"):
-    try:
-        ruta_pdf = os.path.join(root, filename)
-        reader = PdfReader(ruta_pdf)
+            if filename.lower().endswith(".pdf"):
+                try:
+                    ruta_pdf = os.path.join(root, filename)
+                    reader = PdfReader(ruta_pdf)
 
-        for page in reader.pages:
-            contenido = page.extract_text()
-            if contenido:
-                texto_pdf += contenido.lower()
-    except:
-        pass
+                    for page in reader.pages:
+                        contenido = page.extract_text()
+                        if contenido:
+                            texto_pdf += contenido.lower()
+                except Exception:
+                    pass
 
-if ("factura" in nombre or "invoice" in texto_pdf) and ("venta" in nombre or "total" in texto_pdf):
+            if ("factura" in nombre or "invoice" in texto_pdf) and ("venta" in nombre or "total" in texto_pdf):
                 clasificados["factura_venta"].append(filename)
             elif "factura" in nombre or "invoice" in texto_pdf:
                 clasificados["factura_compra"].append(filename)
