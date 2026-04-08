@@ -223,7 +223,7 @@ def upload():
     }
 
     previews_pdf = []
-        importes_detectados = []    
+    importes_detectados = []    
     
     for root, dirs, files in os.walk(extract_subfolder):
         for filename in files:
