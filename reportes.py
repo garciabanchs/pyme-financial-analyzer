@@ -2,7 +2,6 @@ from branding import BRANDING
 
 
 def generar_html_resultado(total, clasificados, importes, documentos, ledger=None, conciliacion=None):
-
     branding_data = BRANDING[BRANDING["modo"]]
 
     def lista(lista):
@@ -27,6 +26,17 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             html += f"<li><strong>{item['archivo']}</strong> | {item['tipo']} | {item['fecha']}</li>"
         return html
 
+    def fmt(numero):
+        return f"{numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def normalizar_importe(valor):
+        try:
+            if isinstance(valor, (int, float)):
+                return float(valor)
+            return float(str(valor).replace(".", "").replace(",", "."))
+        except:
+            return 0.0
+
     def resumen_flujo(ledger):
         if not ledger:
             return "<p>No hay datos para resumen.</p>"
@@ -37,10 +47,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         total_revisar = 0.0
 
         for item in ledger:
-            try:
-                valor = float(str(item["importe"]).replace(".", "").replace(",", "."))
-            except:
-                continue
+            valor = normalizar_importe(item.get("importe", 0))
 
             if item["naturaleza"] == "entrada":
                 total_entradas += valor
@@ -52,9 +59,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 total_revisar += valor
 
         balance = total_entradas - total_salidas
-
-        def fmt(numero):
-            return f"{numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
         return f"""
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:24px;">
@@ -89,11 +93,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         for item in ledger:
             filas += f"""
             <tr>
-                <td>{item['archivo']}</td>
-                <td>{item['tipo']}</td>
-                <td>{item['fecha']}</td>
-                <td>{item['importe']}</td>
-                <td>{item['naturaleza']}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb;">{item['archivo']}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb;">{item['tipo']}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb;">{item['fecha']}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb;">{item['importe']}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb;">{item['naturaleza']}</td>
             </tr>
             """
 
@@ -101,7 +105,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         <div style="overflow-x:auto;">
             <table style="width:100%; border-collapse:collapse; background:white;">
                 <thead>
-                    <tr>
+                    <tr style="background:#f9fafb;">
                         <th style="border:1px solid #ddd; padding:10px; text-align:left;">Archivo</th>
                         <th style="border:1px solid #ddd; padding:10px; text-align:left;">Tipo</th>
                         <th style="border:1px solid #ddd; padding:10px; text-align:left;">Fecha</th>
@@ -132,13 +136,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 total_parciales += 1
             else:
                 total_pendientes += 1
-                try:
-                    importe_pendiente += float(item["importe"])
-                except:
-                    pass
-
-        def fmt(numero):
-            return f"{numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                importe_pendiente += normalizar_importe(item["importe"])
 
         return f"""
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:24px;">
@@ -174,19 +172,12 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 continue
 
             total_pendientes += 1
-
-            try:
-                importe = float(item["importe"])
-            except:
-                importe = 0.0
+            importe = normalizar_importe(item["importe"])
 
             if item.get("tipo") == "factura_venta":
                 pendiente_cobro += importe
             elif item.get("tipo") == "factura_compra":
                 pendiente_pago += importe
-
-        def fmt(numero):
-            return f"{numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
         return f"""
         <div style="background:#fff7ed; border:1px solid #fdba74; padding:20px; border-radius:14px; margin-bottom:24px;">
@@ -205,18 +196,18 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
         filas = ""
         for item in conciliacion:
-            importe = f"{item['importe']:.2f}".replace(".", ",")
+            importe = f"{float(item['importe']):.2f}".replace(".", ",")
             diferencia = "-"
             if item.get("diferencia") is not None:
-                diferencia = f"{item['diferencia']:.2f}".replace(".", ",")
+                diferencia = f"{float(item['diferencia']):.2f}".replace(".", ",")
 
             filas += f"""
             <tr>
-                <td>{item['archivo']}</td>
-                <td>{item['fecha']}</td>
-                <td>{importe}</td>
-                <td>{item['estado']}</td>
-                <td>{diferencia}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb;">{item['archivo']}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb;">{item['fecha']}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb;">{importe}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb;">{item['estado']}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb;">{diferencia}</td>
             </tr>
             """
 
@@ -224,7 +215,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         <div style="overflow-x:auto;">
             <table style="width:100%; border-collapse:collapse; background:white;">
                 <thead>
-                    <tr>
+                    <tr style="background:#f9fafb;">
                         <th style="border:1px solid #ddd; padding:10px; text-align:left;">Archivo</th>
                         <th style="border:1px solid #ddd; padding:10px; text-align:left;">Fecha</th>
                         <th style="border:1px solid #ddd; padding:10px; text-align:left;">Importe</th>
