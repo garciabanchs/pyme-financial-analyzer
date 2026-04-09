@@ -149,6 +149,44 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
+    def hallazgos_ejecutivos(conciliacion):
+        if not conciliacion:
+            return "<p>No hay hallazgos ejecutivos disponibles.</p>"
+
+        pendiente_cobro = 0.0
+        pendiente_pago = 0.0
+        total_pendientes = 0
+
+        for item in conciliacion:
+            if item["estado"] != "pendiente":
+                continue
+
+            total_pendientes += 1
+
+            try:
+                importe = float(item["importe"])
+            except:
+                importe = 0.0
+
+            if item.get("tipo") == "factura_venta":
+                pendiente_cobro += importe
+            elif item.get("tipo") == "factura_compra":
+                pendiente_pago += importe
+
+        def fmt(numero):
+            return f"{numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        return f"""
+        <div style="background:#fff7ed; border:1px solid #fdba74; padding:20px; border-radius:14px; margin-bottom:24px;">
+            <h3 style="margin-top:0;">📌 Hallazgos ejecutivos</h3>
+            <ul style="margin:0; padding-left:20px; line-height:1.8;">
+                <li><strong>Documentos pendientes de conciliación:</strong> {total_pendientes}</li>
+                <li><strong>Pendiente de cobro estimado:</strong> € {fmt(pendiente_cobro)}</li>
+                <li><strong>Pendiente de pago estimado:</strong> € {fmt(pendiente_pago)}</li>
+            </ul>
+        </div>
+        """
+
     def tabla_conciliacion(conciliacion):
         if not conciliacion:
             return "<p>No hay conciliación disponible.</p>"
@@ -210,6 +248,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
     <h3>📒 Ledger base</h3>
     {tabla_ledger(ledger)}
+
+    {hallazgos_ejecutivos(conciliacion)}
 
     <h3>🔗 Resumen de conciliación</h3>
     {resumen_conciliacion(conciliacion)}
