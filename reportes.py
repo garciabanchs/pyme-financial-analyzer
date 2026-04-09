@@ -1,4 +1,9 @@
+from branding import BRANDING
+
+
 def generar_html_resultado(total, clasificados, importes, documentos, ledger=None, conciliacion=None):
+
+    branding_data = BRANDING[BRANDING["modo"]]
 
     def lista(lista):
         return "".join(f"<li>{x}</li>" for x in lista) if lista else "<li>No hay</li>"
@@ -33,7 +38,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
         for item in ledger:
             try:
-                valor = float(item["importe"].replace(".", "").replace(",", "."))
+                valor = float(str(item["importe"]).replace(".", "").replace(",", "."))
             except:
                 continue
 
@@ -234,6 +239,68 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
+    def bloque_branding_html():
+        partes = []
+
+        if BRANDING.get("mostrar_bio", False):
+            imagen_html = ""
+            if branding_data.get("imagen_url"):
+                imagen_html = f"""
+                <img src="{branding_data['imagen_url']}" alt="{branding_data['nombre']}"
+                     style="width:96px; height:96px; border-radius:999px; object-fit:cover; flex-shrink:0;">
+                """
+
+            partes.append(f"""
+            <div style="background:#f3f4f6; border-radius:18px; padding:24px; margin:32px 0;">
+                <div style="display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap;">
+                    {imagen_html}
+                    <div style="flex:1; min-width:280px;">
+                        <div style="font-size:15px; font-weight:bold; margin-bottom:8px;">{branding_data['titulo']}</div>
+                        <div style="font-size:18px; font-weight:bold; margin-bottom:10px;">{branding_data['nombre']}</div>
+                        <div style="font-size:15px; line-height:1.6; color:#374151; margin-bottom:12px;">
+                            {branding_data['subtitulo']}
+                        </div>
+                        <div style="font-size:15px; line-height:1.6; color:#374151;">
+                            {branding_data['descripcion']}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """)
+
+        if BRANDING.get("mostrar_libros", False) and branding_data.get("libros"):
+            items = ""
+            for libro in branding_data["libros"]:
+                items += f"""
+                <li style="margin-bottom:8px;">
+                    <a href="{libro['url']}" target="_blank" style="color:#1d4ed8; text-decoration:none; font-weight:bold;">
+                        {libro['titulo']}
+                    </a>
+                </li>
+                """
+
+            partes.append(f"""
+            <div style="background:white; border-radius:14px; padding:22px; box-shadow:0 8px 24px rgba(0,0,0,0.08); margin:24px 0;">
+                <h3 style="margin-top:0;">📚 Libros</h3>
+                <ul style="padding-left:20px; line-height:1.7;">
+                    {items}
+                </ul>
+            </div>
+            """)
+
+        if BRANDING.get("mostrar_contacto", False) and branding_data.get("contacto_url"):
+            partes.append(f"""
+            <div style="margin:24px 0 10px 0;">
+                <a href="{branding_data['contacto_url']}" target="_blank"
+                   style="display:inline-block; background:#111827; color:white; padding:14px 22px;
+                          border-radius:10px; text-decoration:none; font-weight:bold;">
+                    {branding_data['contacto_texto']}
+                </a>
+            </div>
+            """)
+
+        return "".join(partes)
+
     html = f"""
     <h2>Procesamiento completado</h2>
     <p><strong>Total archivos:</strong> {total}</p>
@@ -269,6 +336,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
     <h3>🔗 Conciliación básica</h3>
     {tabla_conciliacion(conciliacion)}
+
+    {bloque_branding_html()}
 
     <br><a href="/">Volver</a>
     """
