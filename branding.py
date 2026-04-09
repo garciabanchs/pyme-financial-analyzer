@@ -24,12 +24,12 @@ BRANDING = {
             {
                 "titulo": "CAMINO A LA RIQUEZA: Desmontando falacias y revelando la ruta",
                 "url": "https://amzn.eu/d/0gYgZQfp",
-                "portada_url": "https://angelgarciabanchs.com/camino-a-la-riqueza.jpg"
+                "portada_url": "https://m.media-amazon.com/images/I/71KIL9T6kDL._SL1500_.jpg"
             },
             {
                 "titulo": "The Artificial Intelligence Millionaire",
                 "url": "https://amzn.eu/d/00BhXvMF",
-                "portada_url": "https://angelgarciabanchs.com/the-artificial-intelligence-millionaire.jpg"
+                "portada_url": "https://m.media-amazon.com/images/I/71KIL9T6kDL._SL1500_.jpg"
             }
         ]
     },
