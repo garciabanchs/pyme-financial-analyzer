@@ -268,7 +268,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </div>
             """)
 
-                if BRANDING.get("mostrar_libros", False) and branding_data.get("libros"):
+        if BRANDING.get("mostrar_libros", False) and branding_data.get("libros"):
             items = ""
             for libro in branding_data["libros"]:
                 portada_html = ""
