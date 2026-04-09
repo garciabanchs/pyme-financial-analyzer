@@ -182,7 +182,6 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
     c.setFont("Helvetica", 10)
     c.drawString(margin_x, height - 3.7 * cm, "Informe preliminar automático para dueños de PYME")
 
-    # KPI
     y_cards = height - 6.4 * cm
     box_w = (width - (2 * margin_x) - 12) / 2
     box_h = 1.9 * cm
@@ -214,7 +213,6 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
 
     y = y_cards_2 - box_h - 24
 
-    # Hallazgos
     c.setFillColor(HexColor("#111827"))
     c.setFont("Helvetica-Bold", 14)
     c.drawString(margin_x, y, "Hallazgos ejecutivos")
@@ -243,7 +241,6 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
 
     y -= 8
 
-    # Clasificación
     c.setFillColor(HexColor("#111827"))
     c.setFont("Helvetica-Bold", 14)
     c.drawString(margin_x, y, "Clasificación documental")
@@ -264,7 +261,6 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
 
     y -= 10
 
-    # Observación
     c.setFillColor(HexColor("#fff7ed"))
     c.roundRect(margin_x, y - 2.8 * cm, width - 2 * margin_x, 2.8 * cm, 10, fill=1, stroke=0)
 
@@ -292,12 +288,11 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
     )
 
     # =========================
-    # PÁGINA 2: BRANDING
+    # PÁGINA 2
     # =========================
     c.showPage()
     y = height - 2 * cm
 
-    # BIO
     if BRANDING.get("mostrar_bio", False):
         box_h = 5.2 * cm
         c.setFillColor(HexColor("#f3f4f6"))
@@ -356,78 +351,65 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
 
         y -= box_h + 16
 
-    # =========================
-# LIBROS (VERSIÓN PRO)
-# =========================
-if BRANDING.get("mostrar_libros", False) and branding_data.get("libros"):
-    c.setFillColor(HexColor("#111827"))
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(margin_x, y, "Libros")
-    y -= 20
+    if BRANDING.get("mostrar_libros", False) and branding_data.get("libros"):
+        c.setFillColor(HexColor("#111827"))
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(margin_x, y, "Libros")
+        y -= 20
 
-    for libro in branding_data["libros"]:
-        card_h = 4.5 * cm
+        for libro in branding_data["libros"]:
+            card_h = 4.5 * cm
 
-        if y - card_h < 2 * cm:
-            c.showPage()
-            y = height - 2 * cm
+            if y - card_h < 2 * cm:
+                c.showPage()
+                y = height - 2 * cm
 
-        # Card fondo
-        c.setFillColor(HexColor("#ffffff"))
-        c.roundRect(margin_x, y - card_h, width - 2 * margin_x, card_h, 12, fill=1, stroke=1)
+            c.setFillColor(HexColor("#ffffff"))
+            c.roundRect(margin_x, y - card_h, width - 2 * margin_x, card_h, 12, fill=1, stroke=1)
 
-        # Sombra simulada (muy sutil)
-        c.setStrokeColor(HexColor("#e5e7eb"))
-        c.setLineWidth(0.5)
+            portada_x = margin_x + 14
+            portada_y = y - 3.6 * cm
+            portada_ok = False
 
-        portada_x = margin_x + 14
-        portada_y = y - 3.6 * cm
+            if libro.get("portada_url"):
+                portada_ok = _safe_draw_remote_image(
+                    c,
+                    libro["portada_url"],
+                    portada_x,
+                    portada_y,
+                    width=2.5 * cm,
+                    height=3.5 * cm,
+                )
 
-        portada_ok = False
+            text_x = portada_x + 3.2 * cm if portada_ok else portada_x
+            text_w = width - text_x - margin_x - 16
 
-        if libro.get("portada_url"):
-            portada_ok = _safe_draw_remote_image(
+            y_text = _draw_paragraph(
                 c,
-                libro["portada_url"],
-                portada_x,
-                portada_y,
-                width=2.5 * cm,
-                height=3.5 * cm,
+                libro.get("titulo", ""),
+                text_x,
+                y - 24,
+                text_w,
+                "Helvetica-Bold",
+                12,
+                14,
+                HexColor("#111827"),
             )
 
-        # TEXTO
-        text_x = portada_x + 3.2 * cm if portada_ok else portada_x
-        text_w = width - text_x - margin_x - 16
+            _draw_paragraph(
+                c,
+                f"Ver en Amazon: {libro.get('url', '')}",
+                text_x,
+                y_text - 10,
+                text_w,
+                "Helvetica",
+                10,
+                13,
+                HexColor("#1d4ed8"),
+            )
 
-        # Título libro
-        y_text = _draw_paragraph(
-            c,
-            libro.get("titulo", ""),
-            text_x,
-            y - 24,
-            text_w,
-            "Helvetica-Bold",
-            12,
-            14,
-            HexColor("#111827"),
-        )
+            y -= card_h + 14
 
-        # Link Amazon
-        _draw_paragraph(
-            c,
-            f"Ver en Amazon: {libro.get('url', '')}",
-            text_x,
-            y_text - 10,
-            text_w,
-            "Helvetica",
-            10,
-            13,
-            HexColor("#1d4ed8"),
-        )
-
-        y -= card_h + 14
-
-    # CONTACTO
     if BRANDING.get("mostrar_contacto", False) and branding_data.get("contacto_url"):
         if y < 4 * cm:
             c.showPage()
