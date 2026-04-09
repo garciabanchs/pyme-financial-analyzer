@@ -8,6 +8,7 @@ from parser_financiero import extraer_importes, extraer_fecha
 from ledger import construir_ledger
 from conciliador import detectar_inconsistencias
 from reportes import generar_html_resultado
+from pdf_report import generar_pdf_ejecutivo
 
 app = Flask(__name__)
 
@@ -276,23 +277,41 @@ def upload():
     )
 
     nombre_base = os.path.splitext(file.filename)[0]
+
     output_html_filename = f"{nombre_base}_analisis.html"
     output_html_path = os.path.join(OUTPUT_FOLDER, output_html_filename)
 
     with open(output_html_path, "w", encoding="utf-8") as f:
         f.write(html_resultado)
 
-    enlace_descarga = f"""
-    <div style="margin: 24px 0 40px 0;">
+    output_pdf_filename = f"{nombre_base}_reporte.pdf"
+    output_pdf_path = os.path.join(OUTPUT_FOLDER, output_pdf_filename)
+
+    generar_pdf_ejecutivo(
+        pdf_path=output_pdf_path,
+        nombre_zip=file.filename,
+        clasificados=clasificados,
+        ledger=ledger,
+        conciliacion=conciliacion
+    )
+
+    enlaces_descarga = f"""
+    <div style="margin: 24px 0 40px 0; display:flex; gap:12px; flex-wrap:wrap;">
         <a href="/outputs/{output_html_filename}" target="_blank"
            style="display:inline-block; background:#1d4ed8; color:white; padding:14px 22px;
                   border-radius:10px; text-decoration:none; font-weight:bold;">
             Descargar análisis HTML
         </a>
+
+        <a href="/outputs/{output_pdf_filename}" target="_blank"
+           style="display:inline-block; background:#16a34a; color:white; padding:14px 22px;
+                  border-radius:10px; text-decoration:none; font-weight:bold;">
+            Descargar PDF ejecutivo
+        </a>
     </div>
     """
 
-    return html_resultado + enlace_descarga
+    return html_resultado + enlaces_descarga
 
 
 @app.route("/outputs/<path:filename>")
