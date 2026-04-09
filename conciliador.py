@@ -4,8 +4,9 @@ def normalizar_importe(valor):
     except:
         return None
 
+
 def detectar_inconsistencias(ledger):
-    facturas_por_archivo = {}
+    facturas = []
     movimientos_banco = []
 
     for item in ledger:
@@ -14,42 +15,47 @@ def detectar_inconsistencias(ledger):
             continue
 
         if item["tipo"] in ["factura_venta", "factura_compra"]:
-            archivo = item["archivo"]
-
-            if archivo not in facturas_por_archivo:
-                facturas_por_archivo[archivo] = {
-                    "archivo": archivo,
-                    "fecha": item["fecha"],
-                    "tipo": item["tipo"],
-                    "importes": []
-                }
-
-            facturas_por_archivo[archivo]["importes"].append(importe)
+            facturas.append({
+                "archivo": item["archivo"],
+                "fecha": item["fecha"],
+                "tipo": item["tipo"],
+                "importe": importe
+            })
 
         elif item["tipo"] == "extracto_bancario":
             movimientos_banco.append({
                 "archivo": item["archivo"],
                 "fecha": item["fecha"],
+                "tipo": item["tipo"],
                 "importe": importe
             })
 
     conciliacion = []
 
-    for factura in facturas_por_archivo.values():
-        importe_principal = max(factura["importes"]) if factura["importes"] else 0.0
+    for factura in facturas:
         estado = "pendiente"
+        mejor_diferencia = None
 
         for movimiento in movimientos_banco:
-            if abs(importe_principal - movimiento["importe"]) < 0.01:
+            diferencia = abs(factura["importe"] - movimiento["importe"])
+
+            if diferencia <= 0.01:
                 estado = "conciliado"
+                mejor_diferencia = diferencia
                 break
+
+            if diferencia <= 5.00:
+                if estado != "conciliado":
+                    estado = "parcialmente_conciliado"
+                    mejor_diferencia = diferencia
 
         conciliacion.append({
             "archivo": factura["archivo"],
             "fecha": factura["fecha"],
             "tipo": factura["tipo"],
-            "importe": round(importe_principal, 2),
-            "estado": estado
+            "importe": round(factura["importe"], 2),
+            "estado": estado,
+            "diferencia": round(mejor_diferencia, 2) if mejor_diferencia is not None else None
         })
 
     return conciliacion
