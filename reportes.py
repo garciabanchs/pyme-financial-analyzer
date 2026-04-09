@@ -265,7 +265,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 portada_html = ""
                 if libro.get("portada_local"):
                     portada_html = f"""
-                    <img src="{libro['portada_local']}" alt="{libro['titulo']}"
+                    <img src="/{libro['portada_local']}" alt="{libro['titulo']}"
                          style="width:90px; height:135px; object-fit:cover; border-radius:10px; flex-shrink:0; box-shadow:0 6px 16px rgba(0,0,0,0.12);">
                     """
 
