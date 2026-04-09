@@ -403,10 +403,12 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
     )
 
     narrativa = (
-        f"Se identificaron € {_fmt_eur(flujo['entradas'])} en entradas preliminares y "
-        f"€ {_fmt_eur(flujo['salidas'])} en salidas, con un balance estimado de "
-        f"€ {_fmt_eur(flujo['balance'])}. Existen {conc['pendientes']} registros pendientes "
-        f"de conciliación, con € {_fmt_eur(conc['importe_pendiente'])} aún sujetos a revisión."
+        f"Durante el período analizado entraron € {_fmt_eur(flujo['entradas'])} y salieron "
+        f"€ {_fmt_eur(flujo['salidas'])}, dejando un balance preliminar de € {_fmt_eur(flujo['balance'])}. "
+        f"Se observan {conc['pendientes']} registros pendientes de conciliación, con "
+        f"€ {_fmt_eur(conc['importe_pendiente'])} todavía sujetos a validación documental. "
+        f"El objetivo de este informe es mostrar qué pasó con la caja, qué movimientos ya tienen soporte "
+        f"y qué elementos siguen pendientes de revisión."
     )
 
     c.setFillColor(HexColor("#ffffff"))
@@ -518,11 +520,13 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
         y,
         usable_w,
         info_h,
-        "Hallazgos clave",
+        "Hallazgos clave de conciliación",
         (
             f"Pendiente de cobro estimado: € {_fmt_eur(conc['pendiente_cobro'])}. "
             f"Pendiente de pago estimado: € {_fmt_eur(conc['pendiente_pago'])}. "
-            f"Facturas conciliadas: {conc['conciliadas']}. Parciales: {conc['parciales']}."
+            f"Facturas conciliadas exactas: {conc['conciliadas']}. "
+            f"Facturas parcialmente conciliadas: {conc['parciales']}. "
+            f"Registros pendientes: {conc['pendientes']}."
         ),
         bg="#ffffff",
         accent="#0f172a",
@@ -530,26 +534,28 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
 
     y -= info_h + 18
 
-    c.setFillColor(HexColor("#ffffff"))
+    c.setFillColor(HexColor("#fff7ed"))
     c.roundRect(margin_x, y - 3.2 * cm, usable_w, 3.2 * cm, 16, fill=1, stroke=0)
 
     c.setFillColor(HexColor("#9a3412"))
-    c.setFont("Helvetica-Bold", 11)
+    c.setFont("Helvetica-Bold", 12)
     c.drawString(margin_x + 14, y - 18, "Observación ejecutiva")
+
+    texto_observacion = (
+        "Este informe es preliminar. El sistema ya identifica estructura financiera, clasifica documentos, "
+        "resume flujo de caja y detecta conciliaciones pendientes. El siguiente nivel consiste en refinar "
+        "la lectura de extractos, mejorar la conciliación y consolidar el resumen final para toma de decisiones."
+    )
 
     _draw_paragraph(
         c,
-        (
-            "El sistema ya transforma documentos dispersos en una lectura financiera más clara. "
-            "El siguiente nivel consiste en refinar extractos, mejorar conciliación y consolidar "
-            "el cierre final para decisiones empresariales más robustas."
-        ),
+        texto_observacion,
         margin_x + 14,
         y - 36,
         usable_w - 28,
         "Helvetica",
-        9.5,
-        12.5,
+        9.8,
+        13,
         HexColor("#7c2d12"),
     )
 
