@@ -4,8 +4,8 @@ from urllib.request import urlopen
 from branding import BRANDING
 from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.lib.units import cm
+from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.pdfgen import canvas
 
 
@@ -110,7 +110,18 @@ def _draw_paragraph(
     return current_y
 
 
-def _draw_metric_box(c, x, y, w, h, title, value, bg="#ffffff", title_color="#6b7280", value_color="#111827"):
+def _draw_metric_box(
+    c,
+    x,
+    y,
+    w,
+    h,
+    title,
+    value,
+    bg="#ffffff",
+    title_color="#6b7280",
+    value_color="#111827",
+):
     c.setFillColor(HexColor(bg))
     c.roundRect(x, y - h, w, h, 10, fill=1, stroke=0)
 
@@ -123,7 +134,7 @@ def _draw_metric_box(c, x, y, w, h, title, value, bg="#ffffff", title_color="#6b
     c.drawString(x + 12, y - 40, value)
 
 
-def _safe_draw_remote_image(c, url, x, y, width=None, height=None, preserve_aspect=True):
+def _safe_draw_remote_image(c, url, x, y, width=None, height=None):
     if not url:
         return False
 
@@ -137,7 +148,7 @@ def _safe_draw_remote_image(c, url, x, y, width=None, height=None, preserve_aspe
             width=width,
             height=height,
             mask="auto",
-            preserveAspectRatio=preserve_aspect,
+            preserveAspectRatio=True,
             anchor="c",
         )
         return True
@@ -148,10 +159,15 @@ def _safe_draw_remote_image(c, url, x, y, width=None, height=None, preserve_aspe
 def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliacion):
     c = canvas.Canvas(pdf_path, pagesize=A4)
     width, height = A4
-
     margin_x = 2 * cm
 
-    # Cabecera
+    branding_data = BRANDING[BRANDING["modo"]]
+    flujo = _resumen_flujo(ledger)
+    conc = _resumen_conciliacion(conciliacion)
+
+    # =========================
+    # PÁGINA 1
+    # =========================
     c.setFillColor(HexColor("#0f172a"))
     c.rect(0, height - 5.2 * cm, width, 5.2 * cm, fill=1, stroke=0)
 
@@ -166,10 +182,7 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
     c.setFont("Helvetica", 10)
     c.drawString(margin_x, height - 3.7 * cm, "Informe preliminar automático para dueños de PYME")
 
-    flujo = _resumen_flujo(ledger)
-    conc = _resumen_conciliacion(conciliacion)
-
-    # Tarjetas KPI
+    # KPI
     y_cards = height - 6.4 * cm
     box_w = (width - (2 * margin_x) - 12) / 2
     box_h = 1.9 * cm
@@ -178,8 +191,26 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
     _draw_metric_box(c, margin_x + box_w + 12, y_cards, box_w, box_h, "Salidas", f"€ {_fmt_eur(flujo['salidas'])}")
 
     y_cards_2 = y_cards - box_h - 12
-    _draw_metric_box(c, margin_x, y_cards_2, box_w, box_h, "Balance preliminar", f"€ {_fmt_eur(flujo['balance'])}", bg="#eff6ff")
-    _draw_metric_box(c, margin_x + box_w + 12, y_cards_2, box_w, box_h, "Pendientes de conciliación", str(conc["pendientes"]), bg="#fff7ed")
+    _draw_metric_box(
+        c,
+        margin_x,
+        y_cards_2,
+        box_w,
+        box_h,
+        "Balance preliminar",
+        f"€ {_fmt_eur(flujo['balance'])}",
+        bg="#eff6ff",
+    )
+    _draw_metric_box(
+        c,
+        margin_x + box_w + 12,
+        y_cards_2,
+        box_w,
+        box_h,
+        "Pendientes de conciliación",
+        str(conc["pendientes"]),
+        bg="#fff7ed",
+    )
 
     y = y_cards_2 - box_h - 24
 
@@ -196,15 +227,23 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
         f"Balance preliminar del periodo analizado: € {_fmt_eur(flujo['balance'])}.",
     ]
 
-    c.setFont("Helvetica", 11)
-    c.setFillColor(HexColor("#1f2937"))
     for item in hallazgos:
-        y = _draw_paragraph(c, f"- {item}", margin_x, y, width - 2 * margin_x, "Helvetica", 11, 15)
+        y = _draw_paragraph(
+            c,
+            f"- {item}",
+            margin_x,
+            y,
+            width - 2 * margin_x,
+            "Helvetica",
+            11,
+            15,
+            HexColor("#1f2937"),
+        )
         y -= 4
 
     y -= 8
 
-    # Clasificación documental
+    # Clasificación
     c.setFillColor(HexColor("#111827"))
     c.setFont("Helvetica-Bold", 14)
     c.drawString(margin_x, y, "Clasificación documental")
@@ -218,13 +257,14 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
     ]
 
     c.setFont("Helvetica", 11)
+    c.setFillColor(HexColor("#1f2937"))
     for line in clasif_lines:
         c.drawString(margin_x, y, line)
         y -= 15
 
     y -= 10
 
-    # Observación final
+    # Observación
     c.setFillColor(HexColor("#fff7ed"))
     c.roundRect(margin_x, y - 2.8 * cm, width - 2 * margin_x, 2.8 * cm, 10, fill=1, stroke=0)
 
@@ -251,22 +291,20 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
         HexColor("#7c2d12"),
     )
 
-    y -= 3.4 * cm
+    # =========================
+    # PÁGINA 2: BRANDING
+    # =========================
+    c.showPage()
+    y = height - 2 * cm
 
-    branding_data = BRANDING[BRANDING["modo"]]
-
-    # Bio / autor / empresa
+    # BIO
     if BRANDING.get("mostrar_bio", False):
-        if y < 7 * cm:
-            c.showPage()
-            y = height - 2 * cm
-
-        box_h = 5.0 * cm
+        box_h = 5.2 * cm
         c.setFillColor(HexColor("#f3f4f6"))
         c.roundRect(margin_x, y - box_h, width - 2 * margin_x, box_h, 12, fill=1, stroke=0)
 
         imagen_x = margin_x + 14
-        imagen_y = y - 3.6 * cm
+        imagen_y = y - 3.8 * cm
         texto_x = margin_x + 14
         texto_ancho = width - 2 * margin_x - 28
 
@@ -316,27 +354,24 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
             HexColor("#374151"),
         )
 
-        y -= box_h + 14
+        y -= box_h + 16
 
-    # Libros con portada
+    # LIBROS
     if BRANDING.get("mostrar_libros", False) and branding_data.get("libros"):
-        if y < 8 * cm:
-            c.showPage()
-            y = height - 2 * cm
-
         c.setFillColor(HexColor("#111827"))
         c.setFont("Helvetica-Bold", 13)
         c.drawString(margin_x, y, "Libros")
         y -= 18
 
         for libro in branding_data["libros"]:
-            if y < 5.5 * cm:
+            card_h = 3.8 * cm
+
+            if y - card_h < 2 * cm:
                 c.showPage()
                 y = height - 2 * cm
 
-            card_h = 3.8 * cm
             c.setFillColor(HexColor("#ffffff"))
-            c.roundRect(margin_x, y - card_h, width - 2 * margin_x, card_h, 10, fill=1, stroke=0)
+            c.roundRect(margin_x, y - card_h, width - 2 * margin_x, card_h, 10, fill=1, stroke=1)
 
             portada_x = margin_x + 12
             portada_y = y - 3.1 * cm
@@ -355,8 +390,6 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
             text_x = portada_x + 2.8 * cm if portada_ok else portada_x
             text_w = width - text_x - margin_x - 12
 
-            c.setFillColor(HexColor("#111827"))
-            c.setFont("Helvetica-Bold", 11)
             y_after_title = _draw_paragraph(
                 c,
                 libro.get("titulo", ""),
@@ -369,7 +402,6 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
                 HexColor("#111827"),
             )
 
-            c.setFont("Helvetica", 9)
             _draw_paragraph(
                 c,
                 f"Amazon: {libro.get('url', '')}",
@@ -384,7 +416,7 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
 
             y -= card_h + 10
 
-    # Contacto
+    # CONTACTO
     if BRANDING.get("mostrar_contacto", False) and branding_data.get("contacto_url"):
         if y < 4 * cm:
             c.showPage()
@@ -407,5 +439,4 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
             HexColor("#1f2937"),
         )
 
-    c.showPage()
     c.save()
