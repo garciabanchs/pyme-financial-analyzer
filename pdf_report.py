@@ -140,7 +140,20 @@ def _safe_draw_remote_image(c, url, x, y, width=None, height=None):
         return False
 
     try:
-        img_bytes = urlopen(url, timeout=10).read()
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0 Safari/537.36"
+            )
+        }
+
+        req = Request(url, headers=headers)
+        context = ssl.create_default_context()
+
+        with urlopen(req, timeout=15, context=context) as response:
+            img_bytes = response.read()
+
         img = ImageReader(BytesIO(img_bytes))
         c.drawImage(
             img,
@@ -153,7 +166,9 @@ def _safe_draw_remote_image(c, url, x, y, width=None, height=None):
             anchor="c",
         )
         return True
-    except:
+
+    except Exception as e:
+        print(f"Error cargando imagen remota {url}: {e}")
         return False
 
 
