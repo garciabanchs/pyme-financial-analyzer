@@ -1,8 +1,12 @@
-from reportlab.lib.pagesizes import A4
+from io import BytesIO
+from urllib.request import urlopen
+
+from branding import BRANDING
 from reportlab.lib.colors import HexColor
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
-from reportlab.lib.utils import simpleSplit
 
 
 def _fmt_eur(numero):
@@ -13,13 +17,14 @@ def _fmt_eur(numero):
 
 
 def _num(valor):
+    if isinstance(valor, (int, float)):
+        return float(valor)
+
     try:
-        return float(str(valor).replace(".", "").replace(",", "."))
+        texto = str(valor).strip()
+        return float(texto.replace(".", "").replace(",", "."))
     except:
-        try:
-            return float(valor)
-        except:
-            return 0.0
+        return 0.0
 
 
 def _resumen_flujo(ledger):
@@ -45,7 +50,7 @@ def _resumen_flujo(ledger):
         "salidas": total_salidas,
         "movimientos": total_movimientos,
         "revisar": total_revisar,
-        "balance": total_entradas - total_salidas
+        "balance": total_entradas - total_salidas,
     }
 
 
@@ -77,15 +82,25 @@ def _resumen_conciliacion(conciliacion):
         "parciales": parciales,
         "pendientes": pendientes,
         "pendiente_cobro": pendiente_cobro,
-        "pendiente_pago": pendiente_pago
+        "pendiente_pago": pendiente_pago,
     }
 
 
-def _draw_paragraph(c, text, x, y, width, font_name="Helvetica", font_size=11, leading=15, color=HexColor("#1f2937")):
+def _draw_paragraph(
+    c,
+    text,
+    x,
+    y,
+    width,
+    font_name="Helvetica",
+    font_size=11,
+    leading=15,
+    color=HexColor("#1f2937"),
+):
     c.setFont(font_name, font_size)
     c.setFillColor(color)
 
-    lines = simpleSplit(text, font_name, font_size, width)
+    lines = simpleSplit(str(text), font_name, font_size, width)
     current_y = y
 
     for line in lines:
@@ -108,18 +123,38 @@ def _draw_metric_box(c, x, y, w, h, title, value, bg="#ffffff", title_color="#6b
     c.drawString(x + 12, y - 40, value)
 
 
+def _safe_draw_remote_image(c, url, x, y, width=None, height=None, preserve_aspect=True):
+    if not url:
+        return False
+
+    try:
+        img_bytes = urlopen(url, timeout=10).read()
+        img = ImageReader(BytesIO(img_bytes))
+        c.drawImage(
+            img,
+            x,
+            y,
+            width=width,
+            height=height,
+            mask="auto",
+            preserveAspectRatio=preserve_aspect,
+            anchor="c",
+        )
+        return True
+    except:
+        return False
+
+
 def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliacion):
     c = canvas.Canvas(pdf_path, pagesize=A4)
     width, height = A4
 
     margin_x = 2 * cm
-    y = height - 2 * cm
 
-    # Fondo superior
+    # Cabecera
     c.setFillColor(HexColor("#0f172a"))
     c.rect(0, height - 5.2 * cm, width, 5.2 * cm, fill=1, stroke=0)
 
-    # Título
     c.setFillColor(HexColor("#ffffff"))
     c.setFont("Helvetica-Bold", 22)
     c.drawString(margin_x, height - 2.2 * cm, "Resumen ejecutivo financiero")
@@ -134,7 +169,7 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
     flujo = _resumen_flujo(ledger)
     conc = _resumen_conciliacion(conciliacion)
 
-    # Tarjetas de métricas
+    # Tarjetas KPI
     y_cards = height - 6.4 * cm
     box_w = (width - (2 * margin_x) - 12) / 2
     box_h = 1.9 * cm
@@ -158,7 +193,7 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
         f"Pendiente de cobro estimado: € {_fmt_eur(conc['pendiente_cobro'])}.",
         f"Pendiente de pago estimado: € {_fmt_eur(conc['pendiente_pago'])}.",
         f"Facturas conciliadas: {conc['conciliadas']}. Parcialmente conciliadas: {conc['parciales']}.",
-        f"Balance preliminar del periodo analizado: € {_fmt_eur(flujo['balance'])}."
+        f"Balance preliminar del periodo analizado: € {_fmt_eur(flujo['balance'])}.",
     ]
 
     c.setFont("Helvetica", 11)
@@ -179,7 +214,7 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
         f"Facturas de venta: {len(clasificados.get('factura_venta', []))}",
         f"Facturas de compra: {len(clasificados.get('factura_compra', []))}",
         f"Extractos bancarios: {len(clasificados.get('extracto_bancario', []))}",
-        f"Otros documentos: {len(clasificados.get('otros', []))}"
+        f"Otros documentos: {len(clasificados.get('otros', []))}",
     ]
 
     c.setFont("Helvetica", 11)
@@ -213,8 +248,164 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
         "Helvetica",
         10,
         13,
-        HexColor("#7c2d12")
+        HexColor("#7c2d12"),
     )
+
+    y -= 3.4 * cm
+
+    branding_data = BRANDING[BRANDING["modo"]]
+
+    # Bio / autor / empresa
+    if BRANDING.get("mostrar_bio", False):
+        if y < 7 * cm:
+            c.showPage()
+            y = height - 2 * cm
+
+        box_h = 5.0 * cm
+        c.setFillColor(HexColor("#f3f4f6"))
+        c.roundRect(margin_x, y - box_h, width - 2 * margin_x, box_h, 12, fill=1, stroke=0)
+
+        imagen_x = margin_x + 14
+        imagen_y = y - 3.6 * cm
+        texto_x = margin_x + 14
+        texto_ancho = width - 2 * margin_x - 28
+
+        imagen_ok = False
+        if branding_data.get("imagen_url"):
+            imagen_ok = _safe_draw_remote_image(
+                c,
+                branding_data["imagen_url"],
+                imagen_x,
+                imagen_y,
+                width=2.4 * cm,
+                height=2.4 * cm,
+            )
+
+        if imagen_ok:
+            texto_x = imagen_x + 3.0 * cm
+            texto_ancho = width - texto_x - margin_x
+
+        c.setFillColor(HexColor("#111827"))
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(texto_x, y - 18, branding_data.get("titulo", ""))
+
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(texto_x, y - 36, branding_data.get("nombre", ""))
+
+        y_text = _draw_paragraph(
+            c,
+            branding_data.get("subtitulo", ""),
+            texto_x,
+            y - 56,
+            texto_ancho,
+            "Helvetica",
+            10,
+            13,
+            HexColor("#374151"),
+        )
+
+        _draw_paragraph(
+            c,
+            branding_data.get("descripcion", ""),
+            texto_x,
+            y_text - 6,
+            texto_ancho,
+            "Helvetica",
+            10,
+            13,
+            HexColor("#374151"),
+        )
+
+        y -= box_h + 14
+
+    # Libros con portada
+    if BRANDING.get("mostrar_libros", False) and branding_data.get("libros"):
+        if y < 8 * cm:
+            c.showPage()
+            y = height - 2 * cm
+
+        c.setFillColor(HexColor("#111827"))
+        c.setFont("Helvetica-Bold", 13)
+        c.drawString(margin_x, y, "Libros")
+        y -= 18
+
+        for libro in branding_data["libros"]:
+            if y < 5.5 * cm:
+                c.showPage()
+                y = height - 2 * cm
+
+            card_h = 3.8 * cm
+            c.setFillColor(HexColor("#ffffff"))
+            c.roundRect(margin_x, y - card_h, width - 2 * margin_x, card_h, 10, fill=1, stroke=0)
+
+            portada_x = margin_x + 12
+            portada_y = y - 3.1 * cm
+            portada_ok = False
+
+            if libro.get("portada_url"):
+                portada_ok = _safe_draw_remote_image(
+                    c,
+                    libro["portada_url"],
+                    portada_x,
+                    portada_y,
+                    width=2.2 * cm,
+                    height=3.0 * cm,
+                )
+
+            text_x = portada_x + 2.8 * cm if portada_ok else portada_x
+            text_w = width - text_x - margin_x - 12
+
+            c.setFillColor(HexColor("#111827"))
+            c.setFont("Helvetica-Bold", 11)
+            y_after_title = _draw_paragraph(
+                c,
+                libro.get("titulo", ""),
+                text_x,
+                y - 20,
+                text_w,
+                "Helvetica-Bold",
+                11,
+                13,
+                HexColor("#111827"),
+            )
+
+            c.setFont("Helvetica", 9)
+            _draw_paragraph(
+                c,
+                f"Amazon: {libro.get('url', '')}",
+                text_x,
+                y_after_title - 8,
+                text_w,
+                "Helvetica",
+                9,
+                12,
+                HexColor("#1d4ed8"),
+            )
+
+            y -= card_h + 10
+
+    # Contacto
+    if BRANDING.get("mostrar_contacto", False) and branding_data.get("contacto_url"):
+        if y < 4 * cm:
+            c.showPage()
+            y = height - 2 * cm
+
+        c.setFillColor(HexColor("#111827"))
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(margin_x, y, "Contacto")
+        y -= 16
+
+        _draw_paragraph(
+            c,
+            f"{branding_data.get('contacto_texto', 'Contacto')}: {branding_data.get('contacto_url', '')}",
+            margin_x,
+            y,
+            width - 2 * margin_x,
+            "Helvetica",
+            10,
+            13,
+            HexColor("#1f2937"),
+        )
 
     c.showPage()
     c.save()
