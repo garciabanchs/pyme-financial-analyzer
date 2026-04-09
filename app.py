@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, send_from_directory
 import os
 import zipfile
 
@@ -16,6 +16,10 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 EXTRACT_FOLDER = "extracted"
 os.makedirs(EXTRACT_FOLDER, exist_ok=True)
+
+OUTPUT_FOLDER = "outputs"
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
 
 @app.route("/")
 def home():
@@ -196,6 +200,7 @@ def home():
     </html>
     """
 
+
 @app.route("/upload", methods=["POST"])
 def upload():
     file = request.files.get("file")
@@ -261,7 +266,7 @@ def upload():
     ledger = construir_ledger(documentos)
     conciliacion = detectar_inconsistencias(ledger)
 
-    return generar_html_resultado(
+    html_resultado = generar_html_resultado(
         total=total_files,
         clasificados=clasificados,
         importes=importes_detectados,
@@ -269,6 +274,32 @@ def upload():
         ledger=ledger,
         conciliacion=conciliacion
     )
+
+    nombre_base = os.path.splitext(file.filename)[0]
+    output_html_filename = f"{nombre_base}_analisis.html"
+    output_html_path = os.path.join(OUTPUT_FOLDER, output_html_filename)
+
+    with open(output_html_path, "w", encoding="utf-8") as f:
+        f.write(html_resultado)
+
+    enlace_descarga = f"""
+    <div style="margin: 24px 0 40px 0;">
+        <a href="/outputs/{output_html_filename}" target="_blank"
+           style="display:inline-block; background:#1d4ed8; color:white; padding:14px 22px;
+                  border-radius:10px; text-decoration:none; font-weight:bold;">
+            Descargar análisis HTML
+        </a>
+    </div>
+    """
+
+    return html_resultado + enlace_descarga
+
+
+@app.route("/outputs/<path:filename>")
+def descargar_output(filename):
+    return send_from_directory(OUTPUT_FOLDER, filename, as_attachment=True)
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
