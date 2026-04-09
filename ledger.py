@@ -28,30 +28,58 @@ def clasificar_movimiento_bancario(texto, valor):
     return "desconocido"
 
 
-def extraer_movimientos_extracto(texto, archivo, fecha_doc):
-    movimientos = []
+def inferir_naturaleza_desde_texto(linea):
+    t = (linea or "").lower()
 
-    if not texto:
-        return movimientos
+    patrones_entrada = [
+        "pago recibido",
+        "pagos recibidos",
+        "cobro",
+        "abono",
+        "ingreso",
+        "recibido",
+        "received",
+        "payment received",
+        "from",
+    ]
 
-    texto_lower = texto.lower()
+    patrones_salida = [
+        "pago enviado",
+        "pagos enviados",
+        "enviado",
+        "enviados",
+        "cargo",
+        "débito",
+        "debito",
+        "compra",
+        "paid",
+        "sent",
+        "withdrawal",
+        "retirada",
+        "fee",
+        "comisión",
+        "comision",
+        "subscription",
+        "payment to",
+        "to ",
+    ]
 
-    inicio_historial = texto_lower.find("historial de transacciones")
-    if inicio_historial != -1:
-        texto_trabajo = texto[inicio_historial:]
-    else:
-        texto_trabajo = texto
+    for patron in patrones_entrada:
+        if patron in t:
+            return "entrada"
 
-    lineas = texto_trabajo.split("\n")
+    for patron in patrones_salida:
+        if patron in t:
+            return "salida"
 
-    patron_fecha = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")
-    patron_importe = re.compile(r"-?\d{1,3}(?:\.\d{3})*,\d{2}")
+    return None
 
-    fecha_actual = fecha_doc if fecha_doc and fecha_doc != "No detectada" else None
-    vistos = set()
-    contador = 1
 
-    lineas_ignorar = [
+def es_linea_ruido(linea_lower):
+    if not linea_lower:
+        return True
+
+    fragmentos_ignorar = [
         "saldo inicial",
         "saldo final",
         "pagos recibidos",
@@ -63,10 +91,51 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
         "totales",
         "subtotal",
         "balance",
+        "tipo de cambio",
+        "conversión",
+        "conversion",
+        "autorización abierta",
+        "autorizacion abierta",
+        "cancelación de retención",
+        "cancelacion de retencion",
+        "disponible",
+        "pendiente",
+        "processing",
+        "overview",
+        "activity summary",
     ]
 
-    for linea in lineas:
-        linea_original = linea.strip()
+    return any(fragmento in linea_lower for fragmento in fragmentos_ignorar)
+
+
+def limpiar_descripcion(linea):
+    return " ".join((linea or "").strip().split())
+
+
+def extraer_movimientos_extracto(texto, archivo, fecha_doc):
+    movimientos = []
+
+    if not texto:
+        return movimientos
+
+    texto_lower = texto.lower()
+    inicio_historial = texto_lower.find("historial de transacciones")
+    if inicio_historial != -1:
+        texto_trabajo = texto[inicio_historial:]
+    else:
+        texto_trabajo = texto
+
+    lineas = texto_trabajo.split("\n")
+
+    patron_fecha = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")
+    patron_importe = re.compile(r"\d{1,3}(?:\.\d{3})*,\d{2}")
+
+    fecha_actual = fecha_doc if fecha_doc and fecha_doc != "No detectada" else None
+    vistos = set()
+    contador = 1
+
+    for i, linea in enumerate(lineas):
+        linea_original = limpiar_descripcion(linea)
         linea_lower = linea_original.lower()
 
         if not linea_original:
@@ -76,41 +145,69 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
         if m_fecha:
             fecha_actual = m_fecha.group()
 
-        if any(fragmento in linea_lower for fragmento in lineas_ignorar):
-            continue
-
-        if "cancelación de retención" in linea_lower or "cancelacion de retencion" in linea_lower:
-            continue
-
-        if "autorización abierta" in linea_lower or "autorizacion abierta" in linea_lower:
-            continue
-
-        if "tipo de cambio" in linea_lower:
+        if es_linea_ruido(linea_lower):
             continue
 
         importes = patron_importe.findall(linea_original)
         if not importes:
             continue
 
-        importe_str = importes[-1]
-        valor = normalizar_importe(importe_str)
+        # Solo usamos líneas que parezcan realmente una transacción:
+        # fecha o contexto cercano a fecha + descripción + importe
+        tiene_fecha_en_linea = patron_fecha.search(linea_original) is not None
+        linea_anterior = limpiar_descripcion(lineas[i - 1]).lower() if i > 0 else ""
+        linea_siguiente = limpiar_descripcion(lineas[i + 1]).lower() if i + 1 < len(lineas) else ""
 
-        if valor is None:
-            continue
-
-        if abs(valor) < 1:
-            continue
-
-        clave = (
-            fecha_actual or "sin_fecha",
-            round(abs(valor), 2),
-            linea_lower[:120],
+        contexto_con_fecha = (
+            tiene_fecha_en_linea
+            or bool(patron_fecha.search(linea_anterior))
+            or bool(patron_fecha.search(linea_siguiente))
+            or fecha_actual is not None
         )
+
+        if not contexto_con_fecha:
+            continue
+
+        # En extractos tipo PayPal o similares, suele servir mejor el último importe de la línea.
+        importe_str = importes[-1]
+        valor_abs = normalizar_importe(importe_str)
+
+        if valor_abs is None:
+            continue
+
+        if valor_abs < 1:
+            continue
+
+        # Evitar importes gigantes que suelen ser agregados o resúmenes
+        if valor_abs > 100000:
+            continue
+
+        naturaleza = inferir_naturaleza_desde_texto(linea_original)
+
+        # Si no pudo inferirse por texto, intentar con contexto de línea vecina
+        if naturaleza is None:
+            naturaleza = inferir_naturaleza_desde_texto(linea_anterior)
+        if naturaleza is None:
+            naturaleza = inferir_naturaleza_desde_texto(linea_siguiente)
+
+        # Si sigue sin inferirse, mejor NO inventar
+        if naturaleza is None:
+            continue
+
+        valor_firmado = valor_abs if naturaleza == "entrada" else -valor_abs
+        categoria = clasificar_movimiento_bancario(linea_lower, valor_firmado)
+
+        descripcion_base = linea_original[:200]
+        clave = (
+            archivo,
+            fecha_actual or "sin_fecha",
+            naturaleza,
+            round(valor_abs, 2),
+            descripcion_base[:120],
+        )
+
         if clave in vistos:
             continue
-
-        naturaleza = "entrada" if valor > 0 else "salida"
-        categoria = clasificar_movimiento_bancario(linea_lower, valor)
 
         movimientos.append({
             "id": f"bank_{contador}",
@@ -118,11 +215,11 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
             "tipo": "extracto_bancario",
             "fecha": fecha_actual or "No detectada",
             "periodo": obtener_periodo(fecha_actual or "No detectada"),
-            "importe": f"{abs(valor):.2f}".replace(".", ","),
-            "importe_num": abs(valor),
+            "importe": f"{valor_abs:.2f}".replace(".", ","),
+            "importe_num": valor_abs,
             "naturaleza": naturaleza,
             "categoria": categoria,
-            "descripcion": linea_original[:200],
+            "descripcion": descripcion_base,
             "soporte": False
         })
 
