@@ -263,12 +263,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             items = ""
             for libro in branding_data["libros"]:
                 portada_html = ""
-                if libro.get("portada_local"):
+                if libro.get("portada_html"):
                     portada_html = f"""
-                    <img src="/{libro['portada_local']}" alt="{libro['titulo']}"
+                    <img src="{libro['portada_html']}" alt="{libro['titulo']}"
                          style="width:90px; height:135px; object-fit:cover; border-radius:10px; flex-shrink:0; box-shadow:0 6px 16px rgba(0,0,0,0.12);">
                     """
-
                 items += f"""
                 <div style="display:flex; gap:16px; align-items:flex-start; margin-bottom:18px;">
                     {portada_html}
