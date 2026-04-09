@@ -2,8 +2,8 @@ from branding import BRANDING
 
 
 def generar_html_resultado(total, clasificados, importes, documentos, ledger=None, conciliacion=None):
-    branding_data = BRANDING[BRANDING["modo"]]
     assert BRANDING["modo"] in BRANDING, f"Modo inválido en BRANDING: {BRANDING.get('modo')}"
+    branding_data = BRANDING[BRANDING["modo"]]
 
     ledger = ledger or []
     conciliacion = conciliacion or []
@@ -474,9 +474,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             }}
 
             .topbar-shell {{
-                position:sticky;
-                top:16px;
-                z-index:50;
                 padding:16px 0 0;
             }}
 
@@ -1070,9 +1067,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             }}
 
             .book-item {{
-                display:flex;
+                display:grid;
+                grid-template-columns:96px minmax(0, 1fr);
                 gap:16px;
-                align-items:flex-start;
+                align-items:start;
                 padding:16px 0;
                 border-bottom:1px solid rgba(148,163,184,.14);
             }}
@@ -1083,11 +1081,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             }}
 
             .book-cover {{
-                width:90px;
-                height:135px;
+                width:96px;
+                height:144px;
                 object-fit:cover;
                 border-radius:12px;
-                flex-shrink:0;
+                display:block;
                 box-shadow:0 8px 20px rgba(0,0,0,.14);
             }}
 
@@ -1095,17 +1093,21 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 display:flex;
                 flex-direction:column;
                 gap:10px;
+                min-width:0;
             }}
 
             .book-title {{
                 font-weight:900;
                 line-height:1.5;
+                word-break:break-word;
             }}
 
             .book-link {{
                 color:#1d4ed8;
                 text-decoration:none;
                 font-weight:800;
+                width:max-content;
+                max-width:100%;
             }}
 
             .contact-card {{
@@ -1129,7 +1131,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             }}
 
             .cta-button {{
-                display:inline-block;
+                display:inline-flex;
+                align-items:center;
+                justify-content:center;
                 background:#111827;
                 color:white;
                 padding:14px 22px;
@@ -1161,7 +1165,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 box-shadow:var(--shadow-sm);
                 color:var(--muted);
                 flex-wrap:wrap;
-                margin:26px 0 44px;
+                margin:26px 0 20px;
             }}
 
             .footer-card strong {{
@@ -1185,12 +1189,52 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 color:var(--muted);
             }}
 
-            .back-link {{
-                display:inline-block;
-                margin-top:10px;
-                color:#1d4ed8;
-                font-weight:800;
+            .footer-actions {{
+                display:flex;
+                flex-direction:column;
+                gap:16px;
+                align-items:center;
+                margin:0 0 10px;
+            }}
+
+            .footer-note {{
+                color:var(--muted);
+                font-size:.92rem;
+                text-align:center;
+                line-height:1.6;
+                max-width:760px;
+            }}
+
+            .actions-bar {{
+                display:flex;
+                justify-content:center;
+                align-items:center;
+                gap:14px;
+                flex-wrap:wrap;
+                width:100%;
+            }}
+
+            .btn-ghost {{
+                display:inline-flex;
+                align-items:center;
+                justify-content:center;
+                min-width:180px;
+                padding:14px 22px;
+                border-radius:12px;
                 text-decoration:none;
+                font-weight:800;
+                font-size:.95rem;
+                background:rgba(255,255,255,.9);
+                color:var(--text);
+                border:1px solid var(--line);
+                box-shadow:var(--shadow-sm);
+            }}
+
+            .btn-ghost:hover,
+            .cta-button:hover,
+            .book-link:hover {{
+                transform:translateY(-1px);
+                opacity:.96;
             }}
 
             @media (max-width:1180px) {{
@@ -1218,11 +1262,105 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 }}
             }}
 
-            @media (max-width:560px) {{
+            @media (max-width:640px) {{
                 .wrap {{
                     width:min(calc(100% - 16px), var(--max));
                 }}
 
+                .topbar {{
+                    padding:16px;
+                    border-radius:20px;
+                }}
+
+                .hero {{
+                    padding:20px;
+                    border-radius:28px;
+                }}
+
+                .section {{
+                    border-radius:26px;
+                }}
+
+                .section-head {{
+                    padding:18px 16px 6px;
+                }}
+
+                .table-shell,
+                .author-card,
+                .books-card,
+                .contact-card,
+                .empty-state {{
+                    margin:16px;
+                    padding:16px;
+                }}
+
+                .story-layout {{
+                    padding:8px 16px 16px;
+                }}
+
+                .metrics-grid {{
+                    grid-template-columns:1fr;
+                    padding:16px 16px 4px;
+                }}
+
+                .alerts-grid {{
+                    padding:0 16px 16px;
+                }}
+
+                .book-item {{
+                    grid-template-columns:1fr;
+                    justify-items:center;
+                    text-align:center;
+                    gap:14px;
+                }}
+
+                .book-cover {{
+                    width:128px;
+                    height:192px;
+                }}
+
+                .book-copy {{
+                    align-items:center;
+                }}
+
+                .book-link {{
+                    width:100%;
+                    text-align:center;
+                }}
+
+                .author-card-inner {{
+                    justify-content:center;
+                    text-align:center;
+                }}
+
+                .author-copy {{
+                    min-width:0;
+                }}
+
+                .contact-card {{
+                    text-align:center;
+                    justify-content:center;
+                }}
+
+                .cta-button,
+                .btn-ghost {{
+                    width:100%;
+                    min-width:0;
+                }}
+
+                .footer-card {{
+                    margin:22px 0 16px;
+                    padding:16px;
+                    justify-content:center;
+                    text-align:center;
+                }}
+
+                .footer-right {{
+                    justify-content:center;
+                }}
+            }}
+
+            @media (max-width:560px) {{
                 .metrics-grid {{
                     grid-template-columns:1fr;
                 }}
@@ -1465,7 +1603,14 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         </div>
                     </div>
 
-                    <a href="/" class="back-link">← Volver</a>
+                    <div class="footer-actions">
+                        <div class="footer-note">
+                            Informe preliminar automático generado a partir de documentos cargados por el usuario.
+                        </div>
+                        <div class="actions-bar">
+                            <a href="/" class="btn-ghost">← Volver</a>
+                        </div>
+                    </div>
                 </footer>
             </main>
         </div>
