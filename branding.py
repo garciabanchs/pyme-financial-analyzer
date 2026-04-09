@@ -25,13 +25,13 @@ BRANDING = {
                 "titulo": "CAMINO A LA RIQUEZA: Desmontando falacias y revelando la ruta",
                 "url": "https://amzn.eu/d/0gYgZQfp",
                 "portada_local": "static/camino-a-la-riqueza.jpg",
-                "portada_html": "/static/camino-a-la-riqueza.jpg"
+                "portada_html": "https://pyme-financial-analyzer.onrender.com/static/camino-a-la-riqueza.jpg"
             },
             {
                 "titulo": "The Artificial Intelligence Millionaire",
                 "url": "https://amzn.eu/d/00BhXvMF",
                 "portada_local": "static/the-artificial-intelligence-millionaire.jpg",
-                "portada_html": "/static/the-artificial-intelligence-millionaire.jpg"
+                "portada_html": "https://pyme-financial-analyzer.onrender.com/static/the-artificial-intelligence-millionaire.jpg"
             }
         ]
     },
