@@ -297,12 +297,12 @@ def upload():
 
     enlaces_descarga = f"""
 <div style="display:flex; justify-content:center; gap:14px; flex-wrap:wrap; margin:24px 0;">
-    <a href="/descargar_html"
+    <a href="/outputs/{output_html_filename}"
        style="display:inline-flex; align-items:center; justify-content:center; min-width:220px; padding:14px 22px; border-radius:12px; text-decoration:none; font-weight:800; background:#2563eb; color:white;">
         Descargar análisis HTML
     </a>
 
-    <a href="/descargar_pdf"
+    <a href="/outputs/{output_pdf_filename}"
        style="display:inline-flex; align-items:center; justify-content:center; min-width:220px; padding:14px 22px; border-radius:12px; text-decoration:none; font-weight:800; background:#16a34a; color:white;">
         Descargar PDF ejecutivo
     </a>
