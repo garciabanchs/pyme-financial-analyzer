@@ -116,12 +116,15 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             return "<p>No hay conciliación disponible.</p>"
 
         total_conciliadas = 0
+        total_parciales = 0
         total_pendientes = 0
         importe_pendiente = 0.0
 
         for item in conciliacion:
             if item["estado"] == "conciliado":
                 total_conciliadas += 1
+            elif item["estado"] == "parcialmente_conciliado":
+                total_parciales += 1
             else:
                 total_pendientes += 1
                 try:
@@ -137,6 +140,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             <div style="background:white; padding:20px; border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,0.08);">
                 <div style="font-size:14px; color:#6b7280;">Facturas conciliadas</div>
                 <div style="font-size:28px; font-weight:bold;">{total_conciliadas}</div>
+            </div>
+            <div style="background:white; padding:20px; border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+                <div style="font-size:14px; color:#6b7280;">Parcialmente conciliadas</div>
+                <div style="font-size:28px; font-weight:bold;">{total_parciales}</div>
             </div>
             <div style="background:white; padding:20px; border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,0.08);">
                 <div style="font-size:14px; color:#6b7280;">Facturas pendientes</div>
@@ -194,12 +201,17 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         filas = ""
         for item in conciliacion:
             importe = f"{item['importe']:.2f}".replace(".", ",")
+            diferencia = "-"
+            if item.get("diferencia") is not None:
+                diferencia = f"{item['diferencia']:.2f}".replace(".", ",")
+
             filas += f"""
             <tr>
                 <td>{item['archivo']}</td>
                 <td>{item['fecha']}</td>
                 <td>{importe}</td>
                 <td>{item['estado']}</td>
+                <td>{diferencia}</td>
             </tr>
             """
 
@@ -212,6 +224,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         <th style="border:1px solid #ddd; padding:10px; text-align:left;">Fecha</th>
                         <th style="border:1px solid #ddd; padding:10px; text-align:left;">Importe</th>
                         <th style="border:1px solid #ddd; padding:10px; text-align:left;">Estado</th>
+                        <th style="border:1px solid #ddd; padding:10px; text-align:left;">Diferencia</th>
                     </tr>
                 </thead>
                 <tbody>
