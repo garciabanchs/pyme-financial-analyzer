@@ -17,28 +17,34 @@ def detectar_inconsistencias(ledger):
         if importe is None:
             continue
 
-        if item.get("tipo") in ["factura_venta", "factura_compra"]:
+        tipo = item.get("tipo")
+
+        if tipo in ["factura_venta", "factura_compra"]:
             facturas.append({
                 "id": item.get("id"),
                 "archivo": item.get("archivo"),
                 "fecha": item.get("fecha"),
-                "tipo": item.get("tipo"),
-                "importe": round(importe, 2),
+                "tipo": tipo,
+                "importe": round(abs(importe), 2),
             })
 
-        elif item.get("tipo") == "extracto_bancario":
+        elif tipo == "extracto_bancario":
             movimientos_banco.append({
                 "id": item.get("id"),
                 "archivo": item.get("archivo"),
                 "fecha": item.get("fecha"),
                 "naturaleza": item.get("naturaleza"),
                 "categoria": item.get("categoria"),
-                "importe": round(importe, 2),
+                "importe": round(abs(importe), 2),
+                "descripcion": item.get("descripcion"),
             })
 
     conciliacion = []
     movimientos_usados = set()
 
+    # =========================
+    # 1. CONCILIAR FACTURAS
+    # =========================
     for factura in facturas:
         estado = "pendiente"
         mejor_diferencia = None
@@ -48,25 +54,27 @@ def detectar_inconsistencias(ledger):
             if movimiento["id"] in movimientos_usados:
                 continue
 
-            # coherencia de sentido económico
+            # coherencia económica
             if factura["tipo"] == "factura_venta" and movimiento["naturaleza"] != "entrada":
                 continue
 
             if factura["tipo"] == "factura_compra" and movimiento["naturaleza"] != "salida":
                 continue
 
-            # evitamos comisiones / retenciones / traspasos como match de factura
+            # excluir categorías no conciliables como contrapartida de factura
             if movimiento.get("categoria") in ["comision", "retencion", "traspaso"]:
                 continue
 
             diferencia = abs(factura["importe"] - movimiento["importe"])
 
+            # conciliación exacta
             if diferencia <= 0.01:
                 estado = "conciliado"
                 mejor_diferencia = diferencia
                 mejor_movimiento = movimiento
                 break
 
+            # conciliación aproximada
             if diferencia <= 5.00:
                 if mejor_movimiento is None or diferencia < mejor_diferencia:
                     estado = "parcialmente_conciliado"
@@ -77,32 +85,42 @@ def detectar_inconsistencias(ledger):
             movimientos_usados.add(mejor_movimiento["id"])
 
         conciliacion.append({
+            "id": factura["id"],
             "archivo": factura["archivo"],
             "fecha": factura["fecha"],
             "tipo": factura["tipo"],
             "importe": round(factura["importe"], 2),
             "estado": estado,
             "diferencia": round(mejor_diferencia, 2) if mejor_diferencia is not None else None,
-            "movimiento_asociado": mejor_movimiento["archivo"] if mejor_movimiento else None
+            "movimiento_asociado": mejor_movimiento["archivo"] if mejor_movimiento else None,
         })
 
-    # movimientos de banco sin soporte / no conciliables
+    # =========================
+    # 2. MOVIMIENTOS BANCARIOS SOBRANTES
+    # =========================
+    # OJO:
+    # ya no los mezclamos como "pendientes de conciliación" normales,
+    # sino como eventos aparte: sin_soporte o no_conciliable.
     for movimiento in movimientos_banco:
         if movimiento["id"] in movimientos_usados:
             continue
 
-        estado_extra = "sin_soporte"
-        if movimiento.get("categoria") in ["comision", "retencion", "traspaso"]:
+        categoria = movimiento.get("categoria")
+
+        if categoria in ["comision", "retencion", "traspaso"]:
             estado_extra = "no_conciliable"
+        else:
+            estado_extra = "sin_soporte"
 
         conciliacion.append({
+            "id": movimiento["id"],
             "archivo": movimiento["archivo"],
             "fecha": movimiento["fecha"],
             "tipo": "movimiento_bancario",
             "importe": round(movimiento["importe"], 2),
             "estado": estado_extra,
             "diferencia": None,
-            "movimiento_asociado": None
+            "movimiento_asociado": None,
         })
 
     return conciliacion
