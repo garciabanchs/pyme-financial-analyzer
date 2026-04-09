@@ -1,3 +1,4 @@
+import os
 from io import BytesIO
 from urllib.request import Request, urlopen
 import ssl
@@ -169,6 +170,36 @@ def _safe_draw_remote_image(c, url, x, y, width=None, height=None):
 
     except Exception as e:
         print(f"Error cargando imagen remota {url}: {e}")
+        return False
+
+
+def _safe_draw_local_image(c, relative_path, x, y, width=None, height=None):
+    if not relative_path:
+        return False
+
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        image_path = os.path.join(base_dir, relative_path)
+
+        if not os.path.exists(image_path):
+            print(f"Imagen local no encontrada: {image_path}")
+            return False
+
+        img = ImageReader(image_path)
+        c.drawImage(
+            img,
+            x,
+            y,
+            width=width,
+            height=height,
+            mask="auto",
+            preserveAspectRatio=True,
+            anchor="c",
+        )
+        return True
+
+    except Exception as e:
+        print(f"Error cargando imagen local {relative_path}: {e}")
         return False
 
 
@@ -387,10 +418,10 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
             portada_y = y - 3.6 * cm
             portada_ok = False
 
-            if libro.get("portada_url"):
-                portada_ok = _safe_draw_remote_image(
+            if libro.get("portada_local"):
+                portada_ok = _safe_draw_local_image(
                     c,
-                    libro["portada_url"],
+                    libro["portada_local"],
                     portada_x,
                     portada_y,
                     width=2.5 * cm,
