@@ -3,6 +3,7 @@ from branding import BRANDING
 
 def generar_html_resultado(total, clasificados, importes, documentos, ledger=None, conciliacion=None):
     branding_data = BRANDING[BRANDING["modo"]]
+    assert BRANDING["modo"] in BRANDING, f"Modo inválido en BRANDING: {BRANDING.get('modo')}"
 
     ledger = ledger or []
     conciliacion = conciliacion or []
