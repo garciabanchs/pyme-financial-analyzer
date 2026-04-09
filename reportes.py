@@ -918,7 +918,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
             .mono {{
                 font-variant-numeric:tabular-nums;
-                font-feature-settings:"tnum";
+                font-feature-settings:'tnum';
                 white-space:nowrap;
                 font-weight:800;
             }}
