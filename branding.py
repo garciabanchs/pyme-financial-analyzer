@@ -9,8 +9,8 @@ BRANDING = {
         "nombre": "Ángel García Banchs",
         "titulo": "Acerca del autor",
         "subtitulo": (
-            "Economista, profesor universitario y consultor financiero "
-            "especializado en creación de patrimonio y planificación financiera a largo plazo."
+            "Economista, profesor universitario y consultor financiero especializado "
+            "en creación de patrimonio y planificación financiera a largo plazo."
         ),
         "descripcion": (
             "Esta herramienta de análisis financiero fue desarrollada para ayudar a transformar "
