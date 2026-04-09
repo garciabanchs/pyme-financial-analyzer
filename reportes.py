@@ -268,23 +268,33 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </div>
             """)
 
-        if BRANDING.get("mostrar_libros", False) and branding_data.get("libros"):
+                if BRANDING.get("mostrar_libros", False) and branding_data.get("libros"):
             items = ""
             for libro in branding_data["libros"]:
+                portada_html = ""
+                if libro.get("portada_url"):
+                    portada_html = f"""
+                    <img src="{libro['portada_url']}" alt="{libro['titulo']}"
+                         style="width:90px; height:135px; object-fit:cover; border-radius:10px; flex-shrink:0; box-shadow:0 6px 16px rgba(0,0,0,0.12);">
+                    """
+
                 items += f"""
-                <li style="margin-bottom:8px;">
-                    <a href="{libro['url']}" target="_blank" style="color:#1d4ed8; text-decoration:none; font-weight:bold;">
-                        {libro['titulo']}
-                    </a>
-                </li>
+                <div style="display:flex; gap:16px; align-items:flex-start; margin-bottom:18px;">
+                    {portada_html}
+                    <div>
+                        <div style="font-weight:bold; margin-bottom:6px;">{libro['titulo']}</div>
+                        <a href="{libro['url']}" target="_blank"
+                           style="color:#1d4ed8; text-decoration:none; font-weight:bold;">
+                            Ver en Amazon
+                        </a>
+                    </div>
+                </div>
                 """
 
             partes.append(f"""
             <div style="background:white; border-radius:14px; padding:22px; box-shadow:0 8px 24px rgba(0,0,0,0.08); margin:24px 0;">
                 <h3 style="margin-top:0;">📚 Libros</h3>
-                <ul style="padding-left:20px; line-height:1.7;">
-                    {items}
-                </ul>
+                {items}
             </div>
             """)
 
