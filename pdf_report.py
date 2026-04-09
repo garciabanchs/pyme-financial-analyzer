@@ -356,65 +356,76 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, ledger, conciliaci
 
         y -= box_h + 16
 
-    # LIBROS
-    if BRANDING.get("mostrar_libros", False) and branding_data.get("libros"):
-        c.setFillColor(HexColor("#111827"))
-        c.setFont("Helvetica-Bold", 13)
-        c.drawString(margin_x, y, "Libros")
-        y -= 18
+    # =========================
+# LIBROS (VERSIÓN PRO)
+# =========================
+if BRANDING.get("mostrar_libros", False) and branding_data.get("libros"):
+    c.setFillColor(HexColor("#111827"))
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(margin_x, y, "Libros")
+    y -= 20
 
-        for libro in branding_data["libros"]:
-            card_h = 3.8 * cm
+    for libro in branding_data["libros"]:
+        card_h = 4.5 * cm
 
-            if y - card_h < 2 * cm:
-                c.showPage()
-                y = height - 2 * cm
+        if y - card_h < 2 * cm:
+            c.showPage()
+            y = height - 2 * cm
 
-            c.setFillColor(HexColor("#ffffff"))
-            c.roundRect(margin_x, y - card_h, width - 2 * margin_x, card_h, 10, fill=1, stroke=1)
+        # Card fondo
+        c.setFillColor(HexColor("#ffffff"))
+        c.roundRect(margin_x, y - card_h, width - 2 * margin_x, card_h, 12, fill=1, stroke=1)
 
-            portada_x = margin_x + 12
-            portada_y = y - 3.1 * cm
-            portada_ok = False
+        # Sombra simulada (muy sutil)
+        c.setStrokeColor(HexColor("#e5e7eb"))
+        c.setLineWidth(0.5)
 
-            if libro.get("portada_url"):
-                portada_ok = _safe_draw_remote_image(
-                    c,
-                    libro["portada_url"],
-                    portada_x,
-                    portada_y,
-                    width=2.2 * cm,
-                    height=3.0 * cm,
-                )
+        portada_x = margin_x + 14
+        portada_y = y - 3.6 * cm
 
-            text_x = portada_x + 2.8 * cm if portada_ok else portada_x
-            text_w = width - text_x - margin_x - 12
+        portada_ok = False
 
-            y_after_title = _draw_paragraph(
+        if libro.get("portada_url"):
+            portada_ok = _safe_draw_remote_image(
                 c,
-                libro.get("titulo", ""),
-                text_x,
-                y - 20,
-                text_w,
-                "Helvetica-Bold",
-                11,
-                13,
-                HexColor("#111827"),
+                libro["portada_url"],
+                portada_x,
+                portada_y,
+                width=2.5 * cm,
+                height=3.5 * cm,
             )
 
-            _draw_paragraph(
-                c,
-                f"Amazon: {libro.get('url', '')}",
-                text_x,
-                y_after_title - 8,
-                text_w,
-                "Helvetica",
-                9,
-                12,
-                HexColor("#1d4ed8"),
-            )
+        # TEXTO
+        text_x = portada_x + 3.2 * cm if portada_ok else portada_x
+        text_w = width - text_x - margin_x - 16
 
-            y -= card_h + 10
+        # Título libro
+        y_text = _draw_paragraph(
+            c,
+            libro.get("titulo", ""),
+            text_x,
+            y - 24,
+            text_w,
+            "Helvetica-Bold",
+            12,
+            14,
+            HexColor("#111827"),
+        )
+
+        # Link Amazon
+        _draw_paragraph(
+            c,
+            f"Ver en Amazon: {libro.get('url', '')}",
+            text_x,
+            y_text - 10,
+            text_w,
+            "Helvetica",
+            10,
+            13,
+            HexColor("#1d4ed8"),
+        )
+
+        y -= card_h + 14
 
     # CONTACTO
     if BRANDING.get("mostrar_contacto", False) and branding_data.get("contacto_url"):
