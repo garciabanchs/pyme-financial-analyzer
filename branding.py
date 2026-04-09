@@ -7,23 +7,29 @@ BRANDING = {
 
     "personal": {
         "nombre": "Ángel García Banchs",
-        "titulo": "About the author",
-        "subtitulo": "Economist, university professor, and financial consultant specializing in wealth building and long-term financial planning.",
+        "titulo": "Acerca del autor",
+        "subtitulo": (
+            "Economista, profesor universitario y consultor financiero "
+            "especializado en creación de patrimonio y planificación financiera a largo plazo."
+        ),
         "descripcion": (
-            "This financial analysis tool was developed to help transform dispersed business documents "
-            "into clearer financial insights, improving decision-making for SMEs."
+            "Esta herramienta de análisis financiero fue desarrollada para ayudar a transformar "
+            "documentos comerciales dispersos en perspectivas financieras más claras, "
+            "mejorando la toma de decisiones para las PYME."
         ),
         "imagen_url": "https://angelgarciabanchs.com/wp-content/uploads/2025/06/imagen-circular.png",
         "contacto_url": "https://linktr.ee/garciabanchs",
         "contacto_texto": "Contáctame",
         "libros": [
             {
-                "titulo": "Libro 1",
-                "url": "https://amzn.eu/d/0gYgZQfp"
+                "titulo": "CAMINO A LA RIQUEZA: Desmontando falacias y revelando la ruta",
+                "url": "https://amzn.eu/d/0gYgZQfp",
+                "portada_url": "https://angelgarciabanchs.com/camino-a-la-riqueza.jpg"
             },
             {
-                "titulo": "Libro 2",
-                "url": "https://amzn.eu/d/00BhXvMF"
+                "titulo": "The Artificial Intelligence Millionaire",
+                "url": "https://amzn.eu/d/00BhXvMF",
+                "portada_url": "https://angelgarciabanchs.com/the-artificial-intelligence-millionaire.jpg"
             }
         ]
     },
