@@ -1,107 +1,145 @@
-def normalizar_importe(valor):
-    try:
-        return float(str(valor).replace(".", "").replace(",", "."))
-    except:
-        return None
+from parser_financiero import (
+    normalizar_importe,
+    extraer_importe_principal,
+    obtener_periodo,
+)
+
+
+def clasificar_movimiento_bancario(texto, valor):
+    t = (texto or "").lower()
+
+    if "fee" in t or "comisión" in t or "comision" in t:
+        return "comision"
+
+    if "retenido" in t or "retention" in t or "hold" in t:
+        return "retencion"
+
+    if "transfer" in t or "bank transfer" in t or "transferencia" in t or "retirada" in t:
+        return "traspaso"
+
+    if valor > 0:
+        return "cobro_cliente"
+
+    if valor < 0:
+        return "pago_proveedor"
+
+    return "desconocido"
 
 
 def construir_ledger(documentos):
     ledger = []
 
-    for doc in documentos:
-        texto = doc.get("texto", "").lower()
+    for idx, doc in enumerate(documentos, start=1):
+        texto = doc.get("texto", "")
+        tipo_doc = doc.get("tipo", "otros")
+        fecha = doc.get("fecha", "No detectada")
+        periodo = obtener_periodo(fecha)
+        archivo = doc.get("archivo", f"doc_{idx}")
+        importes = doc.get("importes", [])
 
-        if doc["tipo"] == "factura_venta":
-            naturaleza = "entrada"
-        elif doc["tipo"] == "factura_compra":
-            naturaleza = "salida"
-        elif doc["tipo"] == "extracto_bancario":
-            naturaleza = "movimiento"
-        else:
-            naturaleza = "revisar"
+        # =========================
+        # FACTURAS
+        # =========================
+        if tipo_doc in ["factura_venta", "factura_compra"]:
+            importe_principal = extraer_importe_principal(texto, tipo_doc, importes)
 
-        importes_validos = []
-        for monto in doc["importes"]:
-            valor = normalizar_importe(monto)
-            if valor is not None:
-                importes_validos.append((monto, valor))
-
-        if doc["tipo"] in ["factura_venta", "factura_compra"]:
-            if importes_validos:
-                monto_principal = max(importes_validos, key=lambda x: x[1])[0]
+            if importe_principal:
+                naturaleza = "entrada" if tipo_doc == "factura_venta" else "salida"
 
                 ledger.append({
-                    "archivo": doc["archivo"],
-                    "tipo": doc["tipo"],
-                    "fecha": doc["fecha"],
-                    "importe": monto_principal,
-                    "naturaleza": naturaleza
+                    "id": f"doc_{idx}",
+                    "archivo": archivo,
+                    "tipo": tipo_doc,
+                    "fecha": fecha,
+                    "periodo": periodo,
+                    "importe": importe_principal,
+                    "importe_num": normalizar_importe(importe_principal),
+                    "naturaleza": naturaleza,
+                    "categoria": "factura_venta" if tipo_doc == "factura_venta" else "factura_compra",
+                    "descripcion": archivo,
+                    "soporte": True
                 })
 
-        elif doc["tipo"] == "extracto_bancario":
+        # =========================
+        # EXTRACTOS
+        # =========================
+        elif tipo_doc == "extracto_bancario":
             vistos = set()
 
-            for monto_original, valor in sorted(importes_validos, key=lambda x: x[1], reverse=True):
-                if valor == 0:
-                    continue
-
-                if valor < 100:
+            for monto in importes:
+                valor = normalizar_importe(monto)
+                if valor is None:
                     continue
 
                 clave = round(valor, 2)
                 if clave in vistos:
                     continue
 
-                if "saldo inicial" in texto and abs(valor - 138.35) < 0.01:
+                # filtramos saldos típicos si están claramente marcados
+                texto_lower = texto.lower()
+
+                if "saldo inicial" in texto_lower and abs(valor - 138.35) < 0.01:
                     continue
 
-                if "saldo final" in texto and abs(valor - 248.67) < 0.01:
+                if "saldo final" in texto_lower and abs(valor - 248.67) < 0.01:
                     continue
 
-                if "pagos recibidos" in texto and abs(valor - 4533.06) < 0.01:
-                    ledger.append({
-                        "archivo": doc["archivo"],
-                        "tipo": doc["tipo"],
-                        "fecha": doc["fecha"],
-                        "importe": monto_original,
-                        "naturaleza": "entrada"
-                    })
-                    vistos.add(clave)
+                # regla práctica:
+                # importes grandes de resumen del extracto pueden contaminar
+                # pero no conviene borrar demasiado; mejor clasificar
+                if valor == 0:
                     continue
 
-                if "pagos enviados" in texto and abs(valor - 1354.11) < 0.01:
-                    ledger.append({
-                        "archivo": doc["archivo"],
-                        "tipo": doc["tipo"],
-                        "fecha": doc["fecha"],
-                        "importe": monto_original,
-                        "naturaleza": "salida"
-                    })
-                    vistos.add(clave)
+                if valor > 100000:
                     continue
 
-                if valor > 1000:
-                    continue
+                # naturaleza heurística
+                if tipo_doc == "extracto_bancario":
+                    if "pagos recibidos" in texto_lower and abs(valor - 4533.06) < 0.01:
+                        naturaleza = "entrada"
+                    elif "pagos enviados" in texto_lower and abs(valor - 1354.11) < 0.01:
+                        naturaleza = "salida"
+                    else:
+                        # fallback simple
+                        naturaleza = "entrada" if valor > 0 else "salida"
+
+                categoria = clasificar_movimiento_bancario(texto_lower, valor if naturaleza == "entrada" else -valor)
 
                 ledger.append({
-                    "archivo": doc["archivo"],
-                    "tipo": doc["tipo"],
-                    "fecha": doc["fecha"],
-                    "importe": monto_original,
-                    "naturaleza": "salida"
+                    "id": f"bank_{idx}_{len(vistos)+1}",
+                    "archivo": archivo,
+                    "tipo": tipo_doc,
+                    "fecha": fecha,
+                    "periodo": periodo,
+                    "importe": monto,
+                    "importe_num": valor,
+                    "naturaleza": naturaleza,
+                    "categoria": categoria,
+                    "descripcion": archivo,
+                    "soporte": False
                 })
+
                 vistos.add(clave)
 
+        # =========================
+        # OTROS DOCUMENTOS
+        # =========================
         else:
-            if importes_validos:
-                monto_principal = max(importes_validos, key=lambda x: x[1])[0]
+            importe_principal = extraer_importe_principal(texto, tipo_doc, importes)
 
+            if importe_principal:
                 ledger.append({
-                    "archivo": doc["archivo"],
-                    "tipo": doc["tipo"],
-                    "fecha": doc["fecha"],
-                    "importe": monto_principal,
-                    "naturaleza": naturaleza
+                    "id": f"doc_{idx}",
+                    "archivo": archivo,
+                    "tipo": tipo_doc,
+                    "fecha": fecha,
+                    "periodo": periodo,
+                    "importe": importe_principal,
+                    "importe_num": normalizar_importe(importe_principal),
+                    "naturaleza": "revisar",
+                    "categoria": "otros",
+                    "descripcion": archivo,
+                    "soporte": True
                 })
 
     return ledger
