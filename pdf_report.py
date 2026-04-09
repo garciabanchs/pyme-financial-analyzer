@@ -1,5 +1,6 @@
 from io import BytesIO
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
+import ssl
 
 from branding import BRANDING
 from reportlab.lib.colors import HexColor
