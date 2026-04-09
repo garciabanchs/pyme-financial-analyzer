@@ -1329,12 +1329,33 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 }}
 
                 .author-card-inner {{
-                    justify-content:center;
+                    display:flex;
+                    flex-direction:column;
+                    align-items:center;
                     text-align:center;
+                    gap:18px;
                 }}
 
                 .author-copy {{
                     min-width:0;
+                    width:100%;
+                    max-width:100%;
+                }}
+
+                .author-name {{
+                    font-size:1.9rem;
+                    line-height:1.15;
+                    margin-bottom:12px;
+                }}
+
+                .author-subtitle,
+                .author-description {{
+                    width:100%;
+                    max-width:100%;
+                    text-align:center;
+                    word-break:normal;
+                    overflow-wrap:break-word;
+                    line-height:1.7;
                 }}
 
                 .contact-card {{
