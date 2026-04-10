@@ -1,5 +1,6 @@
 from flask import Flask, request, send_from_directory
 import os
+import re
 import zipfile
 
 from extractor import extraer_texto_pdf
@@ -137,8 +138,11 @@ def upload():
     extract_subfolder = os.path.join(EXTRACT_FOLDER, os.path.splitext(file.filename)[0])
     os.makedirs(extract_subfolder, exist_ok=True)
 
-    with zipfile.ZipFile(file_path, "r") as zip_ref:
-        zip_ref.extractall(extract_subfolder)
+    try:
+        with zipfile.ZipFile(file_path, "r") as zip_ref:
+            zip_ref.extractall(extract_subfolder)
+    except zipfile.BadZipFile:
+        return "El archivo ZIP está corrupto o no es válido"
 
     total_files = 0
     clasificados = {
@@ -152,21 +156,34 @@ def upload():
     importes_detectados = []
 
     for root, dirs, files in os.walk(extract_subfolder):
+        dirs[:] = [d for d in dirs if not d.startswith("__MACOSX") and not d.startswith(".")]
+
         for filename in files:
+            if filename.startswith("."):
+                continue
+
             total_files += 1
             ruta_archivo = os.path.join(root, filename)
             ruta_relativa = os.path.relpath(ruta_archivo, extract_subfolder)
 
             texto = ""
+            importes = []
+            fecha = "No detectada"
+            resumen_extracto = {}
+
             if filename.lower().endswith(".pdf"):
                 texto = extraer_texto_pdf(ruta_archivo)
+                importes = extraer_importes(texto)
+                fecha = extraer_fecha(f"{filename.lower()} {texto}")
 
             tipo = clasificar_documento(filename, texto)
+            if tipo not in clasificados:
+                tipo = "otros"
+
             clasificados[tipo].append(filename)
 
-            importes = extraer_importes(texto)
-            fecha = extraer_fecha(f"{filename.lower()} {texto}")
-            resumen_extracto = extraer_resumen_extracto(texto) if tipo == "extracto_bancario" else {}
+            if tipo == "extracto_bancario" and texto:
+                resumen_extracto = extraer_resumen_extracto(texto)
 
             documentos.append({
                 "archivo": ruta_relativa,
@@ -196,6 +213,7 @@ def upload():
     )
 
     nombre_base = os.path.splitext(file.filename)[0]
+    nombre_base = re.sub(r"[^A-Za-z0-9_-]+", "_", nombre_base).strip("_") or "reporte"
 
     output_html_filename = f"{nombre_base}_analisis.html"
     output_html_path = os.path.join(OUTPUT_FOLDER, output_html_filename)
