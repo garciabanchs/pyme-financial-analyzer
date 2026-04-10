@@ -39,35 +39,16 @@ def clasificar_movimiento_bancario(texto, valor):
     return "desconocido"
 
 
+def limpiar_descripcion(linea):
+    return " ".join((linea or "").strip().split())
+
+
 def es_linea_ruido(linea_lower):
     if not linea_lower:
         return True
 
     fragmentos_ignorar = [
-        "saldo inicial",
-        "saldo final",
-        "pagos recibidos",
-        "pagos enviados",
-        "retiradas y cargos",
-        "depósitos y créditos",
-        "depositos y creditos",
-        "tarifas",
-        "liberaciones",
-        "retenido",
-        "importe neto",
-        "importe bruto",
         "historial de transacciones - eur",
-        "resumen",
-        "resumen de actividad",
-        "resumen de saldo",
-        "totales",
-        "subtotal",
-        "balance",
-        "tipo de cambio",
-        "conversión",
-        "conversion",
-        "overview",
-        "activity summary",
         "nombre \\ correo electrónico",
         "nombre \\ correo electronico",
         "bruto comisión neto",
@@ -80,22 +61,48 @@ def es_linea_ruido(linea_lower):
         "pagina",
         "descripción eur",
         "descripcion eur",
-        "total ",
+        "payPal (europe)".lower(),
+        "paypal (europe)".lower(),
     ]
 
     return any(fragmento in linea_lower for fragmento in fragmentos_ignorar)
 
 
-def limpiar_descripcion(linea):
-    return " ".join((linea or "").strip().split())
+def es_linea_resumen_o_subtotal(linea_lower):
+    if not linea_lower:
+        return False
+
+    patrones_resumen = [
+        "saldo inicial disponible",
+        "saldo final disponible",
+        "saldo inicial retenido",
+        "saldo final retenido",
+        "pagos recibidos",
+        "pagos enviados",
+        "retiradas y cargos",
+        "depósitos y créditos",
+        "depositos y creditos",
+        "tarifas",
+        "liberaciones",
+        "retenido",
+        "resumen de actividad",
+        "resumen de saldo",
+        "descripción eur",
+        "descripcion eur",
+        "total ",
+    ]
+
+    return any(p in linea_lower for p in patrones_resumen)
 
 
 def es_linea_historial_valida(linea_original):
     """
-    Solo acepta líneas del historial detallado que:
-    - tengan fecha
-    - tengan al menos un importe
-    - no sean resumen/subtotal
+    Acepta líneas del historial bancario real.
+    Regla:
+    - debe tener fecha
+    - debe tener al menos un importe
+    - no debe ser cabecera
+    - no debe ser línea de resumen/subtotal
     """
     linea = limpiar_descripcion(linea_original)
     if not linea:
@@ -106,13 +113,17 @@ def es_linea_historial_valida(linea_original):
     if es_linea_ruido(linea_lower):
         return False
 
+    if es_linea_resumen_o_subtotal(linea_lower):
+        return False
+
     patron_fecha = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")
     patron_importe = re.compile(r"-?\d{1,3}(?:\.\d{3})*,\d{2}")
 
     if not patron_fecha.search(linea):
         return False
 
-    if not patron_importe.search(linea):
+    importes = patron_importe.findall(linea)
+    if len(importes) == 0:
         return False
 
     return True
@@ -149,7 +160,8 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
         if not importes:
             continue
 
-        # Para historial detallado tomamos el primer importe firmado.
+        # Regla:
+        # en historial detallado tomamos el primer importe firmado de la línea
         importe_str = importes[0]
         valor = normalizar_importe(importe_str)
         if valor is None:
@@ -233,7 +245,7 @@ def construir_ledger(documentos):
                 })
 
         elif tipo_doc == "extracto_bancario":
-            # El resumen del extracto se guarda como entidad aparte, NO como movimientos detallados.
+            # El resumen oficial del extracto se guarda aparte
             if resumen_extracto:
                 ledger.append({
                     "id": f"extract_summary_{idx}",
@@ -252,6 +264,7 @@ def construir_ledger(documentos):
                     "estado_conciliacion": "no_aplica",
                 })
 
+            # Y el historial detallado se procesa por separado
             movimientos = extraer_movimientos_extracto(
                 texto=texto,
                 archivo=archivo,
