@@ -61,8 +61,7 @@ def es_linea_ruido(linea_lower):
         "pagina",
         "descripción eur",
         "descripcion eur",
-        "payPal (europe)".lower(),
-        "paypal (europe)".lower(),
+        "paypal (europe)",
     ]
 
     return any(fragmento in linea_lower for fragmento in fragmentos_ignorar)
@@ -124,11 +123,7 @@ def es_linea_historial_valida(linea_original):
 
     importes = patron_importe.findall(linea)
     if len(importes) == 0:
-    return False
-
-# NUEVO: permitir líneas con múltiples importes (típico extracto)
-if len(importes) >= 1:
-    return True
+        return False
 
     return True
 
@@ -164,8 +159,7 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
         if not importes:
             continue
 
-        # Regla:
-        # en historial detallado tomamos el primer importe firmado de la línea
+        # En historial detallado tomamos el primer importe firmado de la línea
         importe_str = importes[0]
         valor = normalizar_importe(importe_str)
         if valor is None:
