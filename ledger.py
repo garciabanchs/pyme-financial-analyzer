@@ -5,6 +5,7 @@ from parser_financiero import (
     obtener_periodo,
 )
 
+
 def clasificar_movimiento_bancario(texto, valor):
     t = (texto or "").lower()
 
@@ -14,7 +15,13 @@ def clasificar_movimiento_bancario(texto, valor):
     if "retenido" in t or "retención" in t or "retencion" in t or "retention" in t or "hold" in t:
         return "retencion"
 
-    if "transfer" in t or "bank transfer" in t or "transferencia" in t or "retirada" in t or "retirada iniciada por el usuario" in t:
+    if (
+        "transfer" in t
+        or "bank transfer" in t
+        or "transferencia" in t
+        or "retirada" in t
+        or "retirada iniciada por el usuario" in t
+    ):
         return "traspaso"
 
     if "cancelación de retención" in t or "cancelacion de retencion" in t:
@@ -32,69 +39,6 @@ def clasificar_movimiento_bancario(texto, valor):
     return "desconocido"
 
 
-def inferir_naturaleza_desde_texto(linea):
-    t = (linea or "").lower()
-
-    patrones_entrada = [
-        "pago recibido",
-        "pagos recibidos",
-        "cobro",
-        "abono",
-        "ingreso",
-        "recibido",
-        "received",
-        "payment received",
-        "bonificación",
-        "bonificacion",
-        "cancelación de retención",
-        "cancelacion de retencion",
-        "depósito",
-        "deposito",
-        "liberación",
-        "liberacion",
-        "pago en punto de venta",
-        "pago estándar",
-        "pago general",
-    ]
-
-    patrones_salida = [
-        "pago enviado",
-        "pagos enviados",
-        "enviado",
-        "enviados",
-        "cargo",
-        "débito",
-        "debito",
-        "compra",
-        "paid",
-        "sent",
-        "withdrawal",
-        "retirada",
-        "fee",
-        "tarifa",
-        "comisión",
-        "comision",
-        "subscription",
-        "payment to",
-        "retención",
-        "retencion",
-        "retención de cuenta",
-        "retencion de cuenta",
-        "transacción de la tarjeta de débito",
-        "transaccion de la tarjeta de debito",
-    ]
-
-    for patron in patrones_entrada:
-        if patron in t:
-            return "entrada"
-
-    for patron in patrones_salida:
-        if patron in t:
-            return "salida"
-
-    return "desconocido"
-
-
 def es_linea_ruido(linea_lower):
     if not linea_lower:
         return True
@@ -104,10 +48,18 @@ def es_linea_ruido(linea_lower):
         "saldo final",
         "pagos recibidos",
         "pagos enviados",
+        "retiradas y cargos",
+        "depósitos y créditos",
+        "depositos y creditos",
+        "tarifas",
+        "liberaciones",
+        "retenido",
         "importe neto",
         "importe bruto",
         "historial de transacciones - eur",
         "resumen",
+        "resumen de actividad",
+        "resumen de saldo",
         "totales",
         "subtotal",
         "balance",
@@ -123,8 +75,12 @@ def es_linea_ruido(linea_lower):
         "fecha descripción",
         "fecha descripcion",
         "id. de cuenta",
+        "id. de paypal",
         "página",
         "pagina",
+        "descripción eur",
+        "descripcion eur",
+        "total ",
     ]
 
     return any(fragmento in linea_lower for fragmento in fragmentos_ignorar)
@@ -132,6 +88,34 @@ def es_linea_ruido(linea_lower):
 
 def limpiar_descripcion(linea):
     return " ".join((linea or "").strip().split())
+
+
+def es_linea_historial_valida(linea_original):
+    """
+    Solo acepta líneas del historial detallado que:
+    - tengan fecha
+    - tengan al menos un importe
+    - no sean resumen/subtotal
+    """
+    linea = limpiar_descripcion(linea_original)
+    if not linea:
+        return False
+
+    linea_lower = linea.lower()
+
+    if es_linea_ruido(linea_lower):
+        return False
+
+    patron_fecha = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")
+    patron_importe = re.compile(r"-?\d{1,3}(?:\.\d{3})*,\d{2}")
+
+    if not patron_fecha.search(linea):
+        return False
+
+    if not patron_importe.search(linea):
+        return False
+
+    return True
 
 
 def extraer_movimientos_extracto(texto, archivo, fecha_doc):
@@ -147,25 +131,25 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
     vistos = set()
     contador = 1
 
-    for i, linea in enumerate(lineas):
+    for linea in lineas:
         linea_original = limpiar_descripcion(linea)
-        linea_lower = linea_original.lower()
-
         if not linea_original:
             continue
+
+        if not es_linea_historial_valida(linea_original):
+            continue
+
+        linea_lower = linea_original.lower()
 
         m_fecha = patron_fecha.search(linea_original)
         if m_fecha:
             fecha_actual = m_fecha.group()
 
-        if es_linea_ruido(linea_lower):
-            continue
-
         importes = patron_importe.findall(linea_original)
         if not importes:
             continue
 
-        # Para historial detallado normalmente tomamos el PRIMER importe firmado de la línea.
+        # Para historial detallado tomamos el primer importe firmado.
         importe_str = importes[0]
         valor = normalizar_importe(importe_str)
         if valor is None:
@@ -179,14 +163,13 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
 
         naturaleza = "entrada" if valor > 0 else "salida"
         categoria = clasificar_movimiento_bancario(linea_lower, valor)
-
         descripcion_base = linea_original[:250]
 
         clave = (
             archivo,
             fecha_actual or "sin_fecha",
             round(valor, 2),
-            descripcion_base[:150],
+            descripcion_base[:180],
         )
 
         if clave in vistos:
@@ -205,7 +188,7 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
             "categoria": categoria,
             "descripcion": descripcion_base,
             "soporte": False,
-            "estado_conciliacion": "pendiente"
+            "estado_conciliacion": "pendiente",
         })
 
         vistos.add(clave)
@@ -231,6 +214,7 @@ def construir_ledger(documentos):
 
             if importe_principal:
                 naturaleza = "entrada" if tipo_doc == "factura_venta" else "salida"
+                importe_num = normalizar_importe(importe_principal) or 0.0
 
                 ledger.append({
                     "id": f"doc_{idx}",
@@ -239,16 +223,17 @@ def construir_ledger(documentos):
                     "fecha": fecha,
                     "periodo": periodo,
                     "importe": importe_principal,
-                    "importe_num": normalizar_importe(importe_principal),
-                    "importe_firmado_num": normalizar_importe(importe_principal) if naturaleza == "entrada" else -normalizar_importe(importe_principal),
+                    "importe_num": importe_num,
+                    "importe_firmado_num": importe_num if naturaleza == "entrada" else -importe_num,
                     "naturaleza": naturaleza,
                     "categoria": tipo_doc,
                     "descripcion": archivo,
                     "soporte": True,
-                    "estado_conciliacion": "pendiente"
+                    "estado_conciliacion": "pendiente",
                 })
 
         elif tipo_doc == "extracto_bancario":
+            # El resumen del extracto se guarda como entidad aparte, NO como movimientos detallados.
             if resumen_extracto:
                 ledger.append({
                     "id": f"extract_summary_{idx}",
@@ -264,7 +249,7 @@ def construir_ledger(documentos):
                     "descripcion": archivo,
                     "soporte": True,
                     "resumen_extracto": resumen_extracto,
-                    "estado_conciliacion": "no_aplica"
+                    "estado_conciliacion": "no_aplica",
                 })
 
             movimientos = extraer_movimientos_extracto(
@@ -288,13 +273,13 @@ def construir_ledger(documentos):
                     "fecha": fecha,
                     "periodo": periodo,
                     "importe": importe_principal,
-                    "importe_num": normalizar_importe(importe_principal),
+                    "importe_num": normalizar_importe(importe_principal) or 0.0,
                     "importe_firmado_num": 0.0,
                     "naturaleza": "revisar",
                     "categoria": "otros",
                     "descripcion": archivo,
                     "soporte": True,
-                    "estado_conciliacion": "pendiente"
+                    "estado_conciliacion": "pendiente",
                 })
 
     return ledger
