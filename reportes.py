@@ -33,131 +33,141 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         }
 
     def resumen_flujo():
-    # PRIORIDAD 1: usar resumen oficial del extracto si existe
-    for item in ledger:
-        if item.get("tipo") == "extracto_resumen":
-            resumen = item.get("resumen_extracto", {}) or {}
+        # PRIORIDAD 1: usar resumen oficial del extracto si existe
+        for item in ledger:
+            if item.get("tipo") == "extracto_resumen":
+                resumen = item.get("resumen_extracto", {}) or {}
 
-            saldo_inicial = resumen.get("saldo_inicial_disponible") or 0.0
-            saldo_final = resumen.get("saldo_final_disponible") or 0.0
-            retenido = abs(resumen.get("retenido") or 0.0)
+                saldo_inicial = normalizar_importe(resumen.get("saldo_inicial_disponible") or 0.0)
+                saldo_final = normalizar_importe(resumen.get("saldo_final_disponible") or 0.0)
+                retenido = abs(normalizar_importe(resumen.get("retenido") or 0.0))
 
-            entradas = max(resumen.get("pagos_recibidos") or 0.0, 0.0)
-            entradas += max(resumen.get("depositos_y_creditos") or 0.0, 0.0)
-            entradas += max(resumen.get("liberaciones") or 0.0, 0.0)
+                entradas = max(normalizar_importe(resumen.get("pagos_recibidos") or 0.0), 0.0)
+                entradas += max(normalizar_importe(resumen.get("depositos_y_creditos") or 0.0), 0.0)
+                entradas += max(normalizar_importe(resumen.get("liberaciones") or 0.0), 0.0)
 
-            salidas = abs(min(resumen.get("pagos_enviados") or 0.0, 0.0))
-            salidas += abs(min(resumen.get("retiradas_y_cargos") or 0.0, 0.0))
-            salidas += abs(min(resumen.get("tarifas") or 0.0, 0.0))
-            salidas += abs(min(resumen.get("retenido") or 0.0, 0.0))
+                salidas = abs(min(normalizar_importe(resumen.get("pagos_enviados") or 0.0), 0.0))
+                salidas += abs(min(normalizar_importe(resumen.get("retiradas_y_cargos") or 0.0), 0.0))
+                salidas += abs(min(normalizar_importe(resumen.get("tarifas") or 0.0), 0.0))
+                salidas += abs(min(normalizar_importe(resumen.get("retenido") or 0.0), 0.0))
 
-            variacion = saldo_final - saldo_inicial
+                variacion = saldo_final - saldo_inicial
 
-            return {
-                "saldo_inicial": saldo_inicial,
-                "entradas": entradas,
-                "salidas": salidas,
-                "saldo_final": saldo_final,
-                "variacion": variacion,
-                "retenido": retenido,
-                "balance": variacion,
-                "movimientos": 0.0,
-                "revisar": 0.0,
-            }
+                return {
+                    "saldo_inicial": saldo_inicial,
+                    "entradas": entradas,
+                    "salidas": salidas,
+                    "saldo_final": saldo_final,
+                    "variacion": variacion,
+                    "retenido": retenido,
+                    "balance": variacion,
+                    "movimientos": entradas + salidas,
+                    "revisar": 0.0,
+                }
 
-    # FALLBACK: si no hay resumen oficial, usar movimientos bancarios
-    saldo_inicial = 0.0
-    entradas = 0.0
-    salidas = 0.0
+        # FALLBACK: si no hay resumen oficial, usar movimientos bancarios
+        saldo_inicial = 0.0
+        entradas = 0.0
+        salidas = 0.0
 
-    for item in ledger:
-        if item.get("tipo") != "extracto_bancario":
-            continue
+        for item in ledger:
+            if item.get("tipo") != "extracto_bancario":
+                continue
 
-        valor_firmado = item.get("importe_firmado_num")
-        if valor_firmado is None:
-            continue
+            valor_firmado = item.get("importe_firmado_num")
+            if valor_firmado is None:
+                naturaleza = item.get("naturaleza", "")
+                importe = normalizar_importe(item.get("importe", 0))
+                if naturaleza == "entrada":
+                    valor_firmado = importe
+                elif naturaleza == "salida":
+                    valor_firmado = -importe
+                else:
+                    valor_firmado = 0.0
 
-        if valor_firmado > 0:
-            entradas += valor_firmado
-        elif valor_firmado < 0:
-            salidas += abs(valor_firmado)
+            if valor_firmado > 0:
+                entradas += valor_firmado
+            elif valor_firmado < 0:
+                salidas += abs(valor_firmado)
 
-    saldo_final = saldo_inicial + entradas - salidas
-    variacion = saldo_final - saldo_inicial
+        saldo_final = saldo_inicial + entradas - salidas
+        variacion = saldo_final - saldo_inicial
 
-    return {
-        "saldo_inicial": saldo_inicial,
-        "entradas": entradas,
-        "salidas": salidas,
-        "saldo_final": saldo_final,
-        "variacion": variacion,
-        "retenido": 0.0,
-        "balance": variacion,
-        "movimientos": entradas + salidas,
-        "revisar": 0.0,
-    }
+        return {
+            "saldo_inicial": saldo_inicial,
+            "entradas": entradas,
+            "salidas": salidas,
+            "saldo_final": saldo_final,
+            "variacion": variacion,
+            "retenido": 0.0,
+            "balance": variacion,
+            "movimientos": entradas + salidas,
+            "revisar": 0.0,
+        }
 
     def resumen_conciliacion():
-    total_exactas = 0
-    total_probables = 0
-    total_pendientes = 0
-    total_sin_soporte = 0
-    total_no_conciliables = 0
-    total_conflictivos = 0
+        total_exactas = 0
+        total_probables = 0
+        total_pendientes = 0
+        total_sin_soporte = 0
+        total_no_conciliables = 0
+        total_conflictivos = 0
 
-    importe_pendiente = 0.0
-    pendiente_cobro = 0.0
-    pendiente_pago = 0.0
+        importe_pendiente = 0.0
+        pendiente_cobro = 0.0
+        pendiente_pago = 0.0
 
-    for item in conciliacion:
-        estado = item.get("estado", "")
-        importe = normalizar_importe(item.get("importe", 0))
-        tipo = item.get("tipo", "")
+        for item in conciliacion:
+            estado = item.get("estado", "")
+            importe = normalizar_importe(item.get("importe", 0))
+            tipo = item.get("tipo", "")
 
-        if estado == "conciliado_exacto":
-            total_exactas += 1
-        elif estado == "probablemente_conciliado":
-            total_probables += 1
-        elif estado == "pendiente":
-            total_pendientes += 1
-            importe_pendiente += importe
-            if tipo == "factura_venta":
-                pendiente_cobro += importe
-            elif tipo == "factura_compra":
-                pendiente_pago += importe
-        elif estado == "sin_soporte":
-            total_sin_soporte += 1
-        elif estado == "no_conciliable":
-            total_no_conciliables += 1
-        elif estado == "duplicado_o_conflictivo":
-            total_conflictivos += 1
+            if estado == "conciliado_exacto":
+                total_exactas += 1
+            elif estado == "probablemente_conciliado":
+                total_probables += 1
+            elif estado == "pendiente":
+                total_pendientes += 1
+                importe_pendiente += importe
+                if tipo == "factura_venta":
+                    pendiente_cobro += importe
+                elif tipo == "factura_compra":
+                    pendiente_pago += importe
+            elif estado == "sin_soporte":
+                total_sin_soporte += 1
+            elif estado == "no_conciliable":
+                total_no_conciliables += 1
+            elif estado == "duplicado_o_conflictivo":
+                total_conflictivos += 1
 
-    return {
-        "conciliadas": total_exactas,
-        "parciales": total_probables,
-        "pendientes": total_pendientes,
-        "sin_soporte": total_sin_soporte,
-        "no_conciliables": total_no_conciliables,
-        "conflictivos": total_conflictivos,
-        "importe_pendiente": importe_pendiente,
-        "pendiente_cobro": pendiente_cobro,
-        "pendiente_pago": pendiente_pago,
-    }
+        return {
+            "conciliadas": total_exactas,
+            "parciales": total_probables,
+            "pendientes": total_pendientes,
+            "sin_soporte": total_sin_soporte,
+            "no_conciliables": total_no_conciliables,
+            "conflictivos": total_conflictivos,
+            "importe_pendiente": importe_pendiente,
+            "pendiente_cobro": pendiente_cobro,
+            "pendiente_pago": pendiente_pago,
+        }
 
     def texto_lectura_ejecutiva(flujo, conc, docs):
+        saldo_inicial = flujo["saldo_inicial"]
         entradas = flujo["entradas"]
         salidas = flujo["salidas"]
-        balance = flujo["balance"]
+        saldo_final = flujo["saldo_final"]
+        variacion = flujo["variacion"]
+
         pendientes = conc["pendientes"]
         sin_soporte = conc.get("sin_soporte", 0)
 
-        if entradas > 0 and balance > 0:
-            titular = "El negocio muestra generación positiva de caja preliminar durante el período analizado."
-        elif entradas > 0 and balance <= 0:
-            titular = "El negocio registra actividad, pero el balance preliminar sugiere presión sobre la caja."
+        if variacion > 0:
+            titular = "La caja del período cerró mejor que como empezó."
+        elif entradas > 0 and variacion <= 0:
+            titular = "La caja del período muestra presión y cerró por debajo del inicio."
         else:
-            titular = "La información disponible es insuficiente para confirmar una generación sólida de caja."
+            titular = "La información disponible es insuficiente para confirmar una lectura sólida de caja."
 
         if pendientes > 0 and sin_soporte > 0:
             complemento = (
@@ -182,9 +192,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             f"{docs['factura_compra']} facturas de compra, "
             f"{docs['extracto_bancario']} extractos bancarios y "
             f"{docs['otros']} documentos clasificados como otros. "
-            f"Las entradas preliminares ascienden a € {fmt(entradas)}, "
-            f"las salidas a € {fmt(salidas)} "
-            f"y el balance preliminar se ubica en € {fmt(balance)}."
+            f"El saldo inicial fue de € {fmt(saldo_inicial)}, "
+            f"entraron € {fmt(entradas)}, "
+            f"salieron € {fmt(salidas)} "
+            f"y el saldo final se ubicó en € {fmt(saldo_final)}, "
+            f"con una variación neta de € {fmt(variacion)}."
             f"{complemento}"
         )
 
@@ -256,9 +268,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             estado = item.get("estado", "-")
             badge_class = "badge-yellow"
 
-            if estado == "conciliado":
+            if estado == "conciliado_exacto":
                 badge_class = "badge-green"
-            elif estado == "parcialmente_conciliado":
+            elif estado == "probablemente_conciliado":
                 badge_class = "badge-yellow"
             elif estado == "pendiente":
                 badge_class = "badge-red"
@@ -266,6 +278,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 badge_class = "badge-red"
             elif estado == "no_conciliable":
                 badge_class = "badge-gray"
+            elif estado == "duplicado_o_conflictivo":
+                badge_class = "badge-yellow"
 
             filas += f"""
             <tr>
@@ -1493,45 +1507,45 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <div class="hero-side">
                         <article class="metric-card metric-primary">
                             <div>
-                                <div class="metric-label">Entradas</div>
-                                <div class="metric-value">€ {fmt(flujo["entradas"])}</div>
+                                <div class="metric-label">Saldo inicial</div>
+                                <div class="metric-value">€ {fmt(flujo["saldo_inicial"])}</div>
                             </div>
                             <div class="metric-delta">
-                                <span>Actividad detectada</span>
-                                <span>Ledger</span>
+                                <span>Inicio del período</span>
+                                <span>Caja</span>
                             </div>
                         </article>
 
                         <article class="metric-card metric-in">
                             <div>
-                                <div class="metric-label">Salidas</div>
-                                <div class="metric-value">€ {fmt(flujo["salidas"])}</div>
+                                <div class="metric-label">Entradas</div>
+                                <div class="metric-value">€ {fmt(flujo["entradas"])}</div>
                             </div>
                             <div class="metric-delta">
-                                <span>Impacto en caja</span>
-                                <span>Ledger</span>
+                                <span>Dinero que entró</span>
+                                <span>Período</span>
                             </div>
                         </article>
 
                         <article class="metric-card metric-out">
                             <div>
-                                <div class="metric-label">Pendiente de cobro</div>
-                                <div class="metric-value">€ {fmt(conc["pendiente_cobro"])}</div>
+                                <div class="metric-label">Salidas</div>
+                                <div class="metric-value">€ {fmt(flujo["salidas"])}</div>
                             </div>
                             <div class="metric-delta">
-                                <span>Conciliación</span>
-                                <span>Por revisar</span>
+                                <span>Dinero que salió</span>
+                                <span>Período</span>
                             </div>
                         </article>
 
                         <article class="metric-card metric-end">
                             <div>
-                                <div class="metric-label">Balance preliminar</div>
-                                <div class="metric-value">€ {fmt(flujo["balance"])}</div>
+                                <div class="metric-label">Saldo final</div>
+                                <div class="metric-value">€ {fmt(flujo["saldo_final"])}</div>
                             </div>
                             <div class="metric-delta">
-                                <span>Resultado neto</span>
-                                <span>Preliminar</span>
+                                <span>Variación: € {fmt(flujo["variacion"])}</span>
+                                <span>Cierre</span>
                             </div>
                         </article>
                     </div>
@@ -1547,25 +1561,25 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
                     <div class="metrics-grid">
                         <article class="kpi">
-                            <div class="label">Movimientos bancarios</div>
+                            <div class="label">Movimiento del período</div>
                             <div class="amount">€ {fmt(flujo["movimientos"])}</div>
-                            <div class="meta"><span class="trend up">Detectados</span><span>Extractos</span></div>
+                            <div class="meta"><span class="trend up">Actividad</span><span>Caja</span></div>
                         </article>
 
                         <article class="kpi">
-                            <div class="label">Por revisar</div>
-                            <div class="amount">€ {fmt(flujo["revisar"])}</div>
-                            <div class="meta"><span class="trend warn">Pendiente</span><span>Clasificación</span></div>
+                            <div class="label">Retenido</div>
+                            <div class="amount">€ {fmt(flujo["retenido"])}</div>
+                            <div class="meta"><span class="trend warn">Liquidez</span><span>Bloqueada</span></div>
                         </article>
 
                         <article class="kpi">
-                            <div class="label">Conciliadas</div>
+                            <div class="label">Conciliadas exactas</div>
                             <div class="amount">{conc["conciliadas"]}</div>
                             <div class="meta"><span class="trend up">Estado</span><span>Facturas</span></div>
                         </article>
 
                         <article class="kpi">
-                            <div class="label">Parciales</div>
+                            <div class="label">Probables</div>
                             <div class="amount">{conc["parciales"]}</div>
                             <div class="meta"><span class="trend warn">Revisar</span><span>Coincidencias</span></div>
                         </article>
@@ -1580,9 +1594,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <div class="story-layout">
                         <article class="story-card">
                             <h3>Qué muestra este procesamiento</h3>
-                            <p>El sistema ya transforma documentación comercial dispersa en una lectura financiera preliminar útil para gestión. A partir de facturas, extractos y otros soportes, identifica entradas, salidas, movimientos, pendientes y una primera estructura de conciliación.</p>
-                            <p>En esta ejecución, las entradas preliminares alcanzan € {fmt(flujo["entradas"])} y las salidas € {fmt(flujo["salidas"])}, con un balance preliminar de € {fmt(flujo["balance"])}. El importe pendiente total en conciliación asciende a € {fmt(conc["importe_pendiente"])}.</p>
-                            <p>Además, se detectan {conc.get("sin_soporte", 0)} movimientos bancarios sin soporte claro y {conc.get("no_conciliables", 0)} movimientos clasificados como no conciliables automáticamente.</p>
+                            <p>El sistema ya transforma documentación comercial dispersa en una lectura financiera preliminar útil para gestión. A partir de facturas, extractos y otros soportes, identifica entradas, salidas, pendientes y una primera estructura de conciliación.</p>
+                            <p>En esta ejecución, el saldo inicial fue de € {fmt(flujo["saldo_inicial"])}, las entradas alcanzan € {fmt(flujo["entradas"])}, las salidas € {fmt(flujo["salidas"])} y el saldo final queda en € {fmt(flujo["saldo_final"])}, con una variación neta de € {fmt(flujo["variacion"])}.</p>
+                            <p>Además, se detectan {conc.get("sin_soporte", 0)} movimientos bancarios sin soporte claro, {conc.get("no_conciliables", 0)} movimientos no conciliables y un importe pendiente total en conciliación de € {fmt(conc["importe_pendiente"])}.</p>
                         </article>
 
                         <aside class="insight-card">
@@ -1653,13 +1667,13 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
                     <div class="metrics-grid">
                         <article class="kpi">
-                            <div class="label">Facturas conciliadas</div>
+                            <div class="label">Facturas conciliadas exactas</div>
                             <div class="amount">{conc["conciliadas"]}</div>
                             <div class="meta"><span class="trend up">Correcto</span><span>Estado</span></div>
                         </article>
 
                         <article class="kpi">
-                            <div class="label">Parcialmente conciliadas</div>
+                            <div class="label">Facturas probables</div>
                             <div class="amount">{conc["parciales"]}</div>
                             <div class="meta"><span class="trend warn">Revisión</span><span>Estado</span></div>
                         </article>
