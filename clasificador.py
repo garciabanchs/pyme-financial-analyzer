@@ -1,37 +1,47 @@
 def clasificar_documento(nombre, texto):
-    nombre = nombre.lower()
-    texto = texto.lower()
+    nombre = (nombre or "").lower()
+    texto = (texto or "").lower()
 
+    # Extractos
     if (
-        "extracto" in nombre
-        or "saldo" in texto
-        or "paypal" in texto
-        or "resumen de actividad" in texto
+        "paypal" in texto
+        or "extracto bancario" in texto
         or "resumen de saldo" in texto
+        or "historial de transacciones" in texto
+        or "resumen de actividad" in texto
+        or "extracto" in nombre
     ):
         return "extracto_bancario"
 
+    # Facturas
     if "factura" in nombre or "factura" in texto or "invoice" in texto:
         indicadores_venta = [
             "cliente:",
             "nro. de factura",
             "fecha de factura",
-            "yudigar"
+            "forma de pago",
+            "anticipo cuenta",
+            "hmy yudigar"
         ]
 
         indicadores_compra = [
-            "factura cliente",
             "albarán",
             "f. envío",
-            "subtotal albarán"
+            "subtotal",
+            "desglose impositivo",
+            "verdnatura",
+            "rec. eq.",
         ]
 
-        if any(ind in texto for ind in indicadores_compra):
+        score_venta = sum(1 for ind in indicadores_venta if ind in texto)
+        score_compra = sum(1 for ind in indicadores_compra if ind in texto)
+
+        if score_venta > score_compra:
+            return "factura_venta"
+        if score_compra > score_venta:
             return "factura_compra"
 
-        if any(ind in texto for ind in indicadores_venta):
-            return "factura_venta"
-
-        return "factura_compra"
+        # fallback prudente
+        return "otros"
 
     return "otros"
