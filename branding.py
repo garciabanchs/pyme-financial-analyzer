@@ -1,51 +1,34 @@
 BRANDING = {
-    "modo": "personal",  # "personal" o "empresa"
-
+    "modo": "garciabanchs",
     "mostrar_bio": True,
     "mostrar_libros": True,
     "mostrar_contacto": True,
 
-    "personal": {
-        "nombre": "Ángel García Banchs",
+    "garciabanchs": {
         "titulo": "Acerca del autor",
-        "subtitulo": (
-            "Economista, profesor universitario y consultor financiero especializado "
-            "en creación de patrimonio y planificación financiera a largo plazo."
-        ),
+        "nombre": "Ángel García Banchs",
+        "subtitulo": "Economista, profesor universitario y consultor financiero especializado en creación de patrimonio y planificación financiera a largo plazo.",
         "descripcion": (
             "Esta herramienta de análisis financiero fue desarrollada para ayudar a transformar "
-            "documentos comerciales dispersos en perspectivas financieras más claras, "
-            "mejorando la toma de decisiones para las PYME."
+            "documentos comerciales dispersos en perspectivas financieras más claras, mejorando "
+            "la toma de decisiones para las PYME."
         ),
-        "imagen_url": "https://angelgarciabanchs.com/wp-content/uploads/2025/06/imagen-circular.png",
-        "contacto_url": "https://linktr.ee/garciabanchs",
+        "imagen_url": "",
         "contacto_texto": "Contáctame",
+        "contacto_url": "https://linktr.ee/garciabanchs",
         "libros": [
             {
                 "titulo": "CAMINO A LA RIQUEZA: Desmontando falacias y revelando la ruta",
                 "url": "https://amzn.eu/d/0gYgZQfp",
-                "portada_local": "static/camino-a-la-riqueza.jpg",
-                "portada_html": "https://pyme-financial-analyzer.onrender.com/static/camino-a-la-riqueza.jpg"
+                "portada_local": "",
+                "portada_html": ""
             },
             {
                 "titulo": "The Artificial Intelligence Millionaire",
                 "url": "https://amzn.eu/d/00BhXvMF",
-                "portada_local": "static/the-artificial-intelligence-millionaire.jpg",
-                "portada_html": "https://pyme-financial-analyzer.onrender.com/static/the-artificial-intelligence-millionaire.jpg"
+                "portada_local": "",
+                "portada_html": ""
             }
         ]
-    },
-
-    "empresa": {
-        "nombre": "Nombre de la empresa",
-        "titulo": "Sobre la empresa",
-        "subtitulo": "Financial analysis solution for SMEs.",
-        "descripcion": (
-            "This report was generated for business decision-making and financial review."
-        ),
-        "imagen_url": "",
-        "contacto_url": "https://tuempresa.com",
-        "contacto_texto": "Visitar sitio web",
-        "libros": []
     }
 }
