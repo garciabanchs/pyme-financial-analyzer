@@ -24,6 +24,7 @@ def detectar_inconsistencias(ledger):
                 "id": item.get("id"),
                 "archivo": item.get("archivo"),
                 "fecha": item.get("fecha"),
+                "periodo": item.get("periodo"),
                 "tipo": tipo,
                 "importe": round(abs(importe), 2),
             })
@@ -33,6 +34,7 @@ def detectar_inconsistencias(ledger):
                 "id": item.get("id"),
                 "archivo": item.get("archivo"),
                 "fecha": item.get("fecha"),
+                "periodo": item.get("periodo"),
                 "naturaleza": item.get("naturaleza"),
                 "categoria": item.get("categoria"),
                 "importe": round(abs(importe), 2),
@@ -42,47 +44,72 @@ def detectar_inconsistencias(ledger):
     conciliacion = []
     movimientos_usados = set()
 
-    # =========================
-    # 1. CONCILIAR FACTURAS
-    # =========================
+    # 1. Conciliación de facturas contra banco
     for factura in facturas:
-        estado = "pendiente"
-        mejor_diferencia = None
-        mejor_movimiento = None
+        candidatos = []
 
         for movimiento in movimientos_banco:
             if movimiento["id"] in movimientos_usados:
                 continue
 
-            # coherencia económica
             if factura["tipo"] == "factura_venta" and movimiento["naturaleza"] != "entrada":
                 continue
 
             if factura["tipo"] == "factura_compra" and movimiento["naturaleza"] != "salida":
                 continue
 
-            # excluir categorías no conciliables como contrapartida de factura
-            if movimiento.get("categoria") in ["comision", "retencion", "traspaso"]:
+            if movimiento.get("categoria") in ["comision", "retencion", "traspaso", "ajuste"]:
                 continue
 
             diferencia = abs(factura["importe"] - movimiento["importe"])
+            misma_fecha_aprox = factura["fecha"] == movimiento["fecha"] or factura["periodo"] == movimiento["periodo"]
 
-            # conciliación exacta
+            score = 0
             if diferencia <= 0.01:
-                estado = "conciliado"
-                mejor_diferencia = diferencia
-                mejor_movimiento = movimiento
-                break
+                score += 100
+            elif diferencia <= 5:
+                score += 70
+            elif diferencia <= 30:
+                score += 40
 
-            # conciliación aproximada
-            if diferencia <= 5.00:
-                if mejor_movimiento is None or diferencia < mejor_diferencia:
-                    estado = "parcialmente_conciliado"
-                    mejor_diferencia = diferencia
-                    mejor_movimiento = movimiento
+            if misma_fecha_aprox:
+                score += 10
 
-        if mejor_movimiento:
-            movimientos_usados.add(mejor_movimiento["id"])
+            if score > 0:
+                candidatos.append((score, diferencia, movimiento))
+
+        candidatos.sort(key=lambda x: (-x[0], x[1]))
+
+        if len(candidatos) > 1 and candidatos[0][1] == candidatos[1][1]:
+            conciliacion.append({
+                "id": factura["id"],
+                "archivo": factura["archivo"],
+                "fecha": factura["fecha"],
+                "tipo": factura["tipo"],
+                "importe": round(factura["importe"], 2),
+                "estado": "duplicado_o_conflictivo",
+                "diferencia": round(candidatos[0][1], 2),
+                "movimiento_asociado": None,
+            })
+            continue
+
+        if not candidatos:
+            conciliacion.append({
+                "id": factura["id"],
+                "archivo": factura["archivo"],
+                "fecha": factura["fecha"],
+                "tipo": factura["tipo"],
+                "importe": round(factura["importe"], 2),
+                "estado": "pendiente",
+                "diferencia": None,
+                "movimiento_asociado": None,
+            })
+            continue
+
+        mejor_score, mejor_dif, mejor_mov = candidatos[0]
+        movimientos_usados.add(mejor_mov["id"])
+
+        estado = "conciliado_exacto" if mejor_dif <= 0.01 else "probablemente_conciliado"
 
         conciliacion.append({
             "id": factura["id"],
@@ -91,23 +118,18 @@ def detectar_inconsistencias(ledger):
             "tipo": factura["tipo"],
             "importe": round(factura["importe"], 2),
             "estado": estado,
-            "diferencia": round(mejor_diferencia, 2) if mejor_diferencia is not None else None,
-            "movimiento_asociado": mejor_movimiento["archivo"] if mejor_movimiento else None,
+            "diferencia": round(mejor_dif, 2),
+            "movimiento_asociado": mejor_mov["archivo"],
         })
 
-    # =========================
-    # 2. MOVIMIENTOS BANCARIOS SOBRANTES
-    # =========================
-    # OJO:
-    # ya no los mezclamos como "pendientes de conciliación" normales,
-    # sino como eventos aparte: sin_soporte o no_conciliable.
+    # 2. Movimientos bancarios sobrantes
     for movimiento in movimientos_banco:
         if movimiento["id"] in movimientos_usados:
             continue
 
         categoria = movimiento.get("categoria")
 
-        if categoria in ["comision", "retencion", "traspaso"]:
+        if categoria in ["comision", "retencion", "traspaso", "ajuste"]:
             estado_extra = "no_conciliable"
         else:
             estado_extra = "sin_soporte"
