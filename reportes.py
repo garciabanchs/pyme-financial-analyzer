@@ -33,86 +33,117 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         }
 
     def resumen_flujo():
-        total_entradas = 0.0
-        total_salidas = 0.0
-        total_movimientos_bancarios = 0.0
-        total_revisar = 0.0
+    # PRIORIDAD 1: usar resumen oficial del extracto si existe
+    for item in ledger:
+        if item.get("tipo") == "extracto_resumen":
+            resumen = item.get("resumen_extracto", {}) or {}
 
-        for item in ledger:
-            valor = item.get("importe_num")
-            if valor is None:
-                valor = normalizar_importe(item.get("importe", 0))
+            saldo_inicial = resumen.get("saldo_inicial_disponible") or 0.0
+            saldo_final = resumen.get("saldo_final_disponible") or 0.0
+            retenido = abs(resumen.get("retenido") or 0.0)
 
-            naturaleza = item.get("naturaleza", "")
-            tipo = item.get("tipo", "")
+            entradas = max(resumen.get("pagos_recibidos") or 0.0, 0.0)
+            entradas += max(resumen.get("depositos_y_creditos") or 0.0, 0.0)
+            entradas += max(resumen.get("liberaciones") or 0.0, 0.0)
 
-            if naturaleza == "entrada":
-                total_entradas += valor
-            elif naturaleza == "salida":
-                total_salidas += valor
-            elif naturaleza == "revisar":
-                total_revisar += valor
+            salidas = abs(min(resumen.get("pagos_enviados") or 0.0, 0.0))
+            salidas += abs(min(resumen.get("retiradas_y_cargos") or 0.0, 0.0))
+            salidas += abs(min(resumen.get("tarifas") or 0.0, 0.0))
+            salidas += abs(min(resumen.get("retenido") or 0.0, 0.0))
 
-            if tipo == "extracto_bancario":
-                total_movimientos_bancarios += valor
+            variacion = saldo_final - saldo_inicial
 
-        balance = total_entradas - total_salidas
+            return {
+                "saldo_inicial": saldo_inicial,
+                "entradas": entradas,
+                "salidas": salidas,
+                "saldo_final": saldo_final,
+                "variacion": variacion,
+                "retenido": retenido,
+                "balance": variacion,
+                "movimientos": 0.0,
+                "revisar": 0.0,
+            }
 
-        return {
-            "entradas": total_entradas,
-            "salidas": total_salidas,
-            "movimientos": total_movimientos_bancarios,
-            "revisar": total_revisar,
-            "balance": balance,
-        }
+    # FALLBACK: si no hay resumen oficial, usar movimientos bancarios
+    saldo_inicial = 0.0
+    entradas = 0.0
+    salidas = 0.0
+
+    for item in ledger:
+        if item.get("tipo") != "extracto_bancario":
+            continue
+
+        valor_firmado = item.get("importe_firmado_num")
+        if valor_firmado is None:
+            continue
+
+        if valor_firmado > 0:
+            entradas += valor_firmado
+        elif valor_firmado < 0:
+            salidas += abs(valor_firmado)
+
+    saldo_final = saldo_inicial + entradas - salidas
+    variacion = saldo_final - saldo_inicial
+
+    return {
+        "saldo_inicial": saldo_inicial,
+        "entradas": entradas,
+        "salidas": salidas,
+        "saldo_final": saldo_final,
+        "variacion": variacion,
+        "retenido": 0.0,
+        "balance": variacion,
+        "movimientos": entradas + salidas,
+        "revisar": 0.0,
+    }
 
     def resumen_conciliacion():
-        total_conciliadas = 0
-        total_parciales = 0
-        total_pendientes = 0
-        total_sin_soporte = 0
-        total_no_conciliables = 0
+    total_exactas = 0
+    total_probables = 0
+    total_pendientes = 0
+    total_sin_soporte = 0
+    total_no_conciliables = 0
+    total_conflictivos = 0
 
-        importe_pendiente = 0.0
-        pendiente_cobro = 0.0
-        pendiente_pago = 0.0
+    importe_pendiente = 0.0
+    pendiente_cobro = 0.0
+    pendiente_pago = 0.0
 
-        for item in conciliacion:
-            estado = item.get("estado", "")
-            importe = normalizar_importe(item.get("importe", 0))
-            tipo = item.get("tipo", "")
+    for item in conciliacion:
+        estado = item.get("estado", "")
+        importe = normalizar_importe(item.get("importe", 0))
+        tipo = item.get("tipo", "")
 
-            if estado == "conciliado":
-                total_conciliadas += 1
+        if estado == "conciliado_exacto":
+            total_exactas += 1
+        elif estado == "probablemente_conciliado":
+            total_probables += 1
+        elif estado == "pendiente":
+            total_pendientes += 1
+            importe_pendiente += importe
+            if tipo == "factura_venta":
+                pendiente_cobro += importe
+            elif tipo == "factura_compra":
+                pendiente_pago += importe
+        elif estado == "sin_soporte":
+            total_sin_soporte += 1
+        elif estado == "no_conciliable":
+            total_no_conciliables += 1
+        elif estado == "duplicado_o_conflictivo":
+            total_conflictivos += 1
 
-            elif estado == "parcialmente_conciliado":
-                total_parciales += 1
-
-            elif estado == "pendiente":
-                total_pendientes += 1
-                importe_pendiente += importe
-
-                if tipo == "factura_venta":
-                    pendiente_cobro += importe
-                elif tipo == "factura_compra":
-                    pendiente_pago += importe
-
-            elif estado == "sin_soporte":
-                total_sin_soporte += 1
-
-            elif estado == "no_conciliable":
-                total_no_conciliables += 1
-
-        return {
-            "conciliadas": total_conciliadas,
-            "parciales": total_parciales,
-            "pendientes": total_pendientes,
-            "sin_soporte": total_sin_soporte,
-            "no_conciliables": total_no_conciliables,
-            "importe_pendiente": importe_pendiente,
-            "pendiente_cobro": pendiente_cobro,
-            "pendiente_pago": pendiente_pago,
-        }
+    return {
+        "conciliadas": total_exactas,
+        "parciales": total_probables,
+        "pendientes": total_pendientes,
+        "sin_soporte": total_sin_soporte,
+        "no_conciliables": total_no_conciliables,
+        "conflictivos": total_conflictivos,
+        "importe_pendiente": importe_pendiente,
+        "pendiente_cobro": pendiente_cobro,
+        "pendiente_pago": pendiente_pago,
+    }
 
     def texto_lectura_ejecutiva(flujo, conc, docs):
         entradas = flujo["entradas"]
