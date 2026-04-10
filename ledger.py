@@ -98,10 +98,11 @@ def es_linea_historial_valida(linea_original):
     """
     Acepta líneas del historial bancario real.
     Regla:
-    - debe tener fecha
-    - debe tener al menos un importe
     - no debe ser cabecera
     - no debe ser línea de resumen/subtotal
+    - debe tener al menos un importe
+    - la fecha es opcional, porque algunos extractos parten una transacción
+      entre varias líneas o arrastran la fecha desde arriba
     """
     linea = limpiar_descripcion(linea_original)
     if not linea:
@@ -115,12 +116,7 @@ def es_linea_historial_valida(linea_original):
     if es_linea_resumen_o_subtotal(linea_lower):
         return False
 
-    patron_fecha = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")
     patron_importe = re.compile(r"-?\d{1,3}(?:\.\d{3})*,\d{2}")
-
-    if not patron_fecha.search(linea):
-        return False
-
     importes = patron_importe.findall(linea)
     if len(importes) == 0:
         return False
@@ -262,7 +258,6 @@ def construir_ledger(documentos):
                     "estado_conciliacion": "no_aplica",
                 })
 
-            # Y el historial detallado se procesa por separado
             movimientos = extraer_movimientos_extracto(
                 texto=texto,
                 archivo=archivo,
