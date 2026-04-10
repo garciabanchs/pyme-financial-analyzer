@@ -124,7 +124,11 @@ def es_linea_historial_valida(linea_original):
 
     importes = patron_importe.findall(linea)
     if len(importes) == 0:
-        return False
+    return False
+
+# NUEVO: permitir líneas con múltiples importes (típico extracto)
+if len(importes) >= 1:
+    return True
 
     return True
 
