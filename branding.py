@@ -15,7 +15,7 @@ BRANDING = {
         ),
 
         # 👇 ASEGÚRATE de que este archivo exista en /static
-        "imagen_url": "/static/angel.jpg",
+        "imagen_url": "https://angelgarciabanchs.com/wp-content/uploads/2025/06/imagen-circular.png",
 
         "contacto_texto": "Contáctame",
         "contacto_url": "https://linktr.ee/garciabanchs",
