@@ -10,6 +10,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     documentos = documentos or []
     importes = importes or []
 
+    UMBRAL_RELEVANTE = 100.0
+
     def fmt(numero):
         try:
             return f"{numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -24,6 +26,32 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         except Exception:
             return 0.0
 
+    def humanizar_estado(estado):
+        mapa = {
+            "conciliado_exacto": "conciliado exacto",
+            "probablemente_conciliado": "probablemente conciliado",
+            "sin_soporte": "sin soporte",
+            "no_conciliable": "no conciliable",
+            "duplicado_o_conflictivo": "duplicado o conflictivo",
+            "pendiente": "pendiente",
+        }
+        return mapa.get(estado, str(estado).replace("_", " "))
+
+    def badge_class_estado(estado):
+        if estado == "conciliado_exacto":
+            return "badge-green"
+        if estado == "probablemente_conciliado":
+            return "badge-yellow"
+        if estado == "pendiente":
+            return "badge-red"
+        if estado == "sin_soporte":
+            return "badge-red"
+        if estado == "no_conciliable":
+            return "badge-gray"
+        if estado == "duplicado_o_conflictivo":
+            return "badge-yellow"
+        return "badge-gray"
+
     def contar_docs():
         return {
             "factura_venta": len(clasificados.get("factura_venta", [])),
@@ -33,23 +61,22 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         }
 
     def resumen_flujo():
-        # PRIORIDAD 1: usar resumen oficial del extracto si existe
         for item in ledger:
             if item.get("tipo") == "extracto_resumen":
                 resumen = item.get("resumen_extracto", {}) or {}
 
-                saldo_inicial = normalizar_importe(resumen.get("saldo_inicial_disponible") or 0.0)
-                saldo_final = normalizar_importe(resumen.get("saldo_final_disponible") or 0.0)
-                retenido = abs(normalizar_importe(resumen.get("retenido") or 0.0))
+                saldo_inicial = resumen.get("saldo_inicial_disponible") or 0.0
+                saldo_final = resumen.get("saldo_final_disponible") or 0.0
+                retenido = abs(resumen.get("retenido") or 0.0)
 
-                entradas = max(normalizar_importe(resumen.get("pagos_recibidos") or 0.0), 0.0)
-                entradas += max(normalizar_importe(resumen.get("depositos_y_creditos") or 0.0), 0.0)
-                entradas += max(normalizar_importe(resumen.get("liberaciones") or 0.0), 0.0)
+                entradas = max(resumen.get("pagos_recibidos") or 0.0, 0.0)
+                entradas += max(resumen.get("depositos_y_creditos") or 0.0, 0.0)
+                entradas += max(resumen.get("liberaciones") or 0.0, 0.0)
 
-                salidas = abs(min(normalizar_importe(resumen.get("pagos_enviados") or 0.0), 0.0))
-                salidas += abs(min(normalizar_importe(resumen.get("retiradas_y_cargos") or 0.0), 0.0))
-                salidas += abs(min(normalizar_importe(resumen.get("tarifas") or 0.0), 0.0))
-                salidas += abs(min(normalizar_importe(resumen.get("retenido") or 0.0), 0.0))
+                salidas = abs(min(resumen.get("pagos_enviados") or 0.0, 0.0))
+                salidas += abs(min(resumen.get("retiradas_y_cargos") or 0.0, 0.0))
+                salidas += abs(min(resumen.get("tarifas") or 0.0, 0.0))
+                salidas += abs(min(resumen.get("retenido") or 0.0, 0.0))
 
                 variacion = saldo_final - saldo_inicial
 
@@ -65,7 +92,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     "revisar": 0.0,
                 }
 
-        # FALLBACK: si no hay resumen oficial, usar movimientos bancarios
         saldo_inicial = 0.0
         entradas = 0.0
         salidas = 0.0
@@ -76,14 +102,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
             valor_firmado = item.get("importe_firmado_num")
             if valor_firmado is None:
-                naturaleza = item.get("naturaleza", "")
-                importe = normalizar_importe(item.get("importe", 0))
-                if naturaleza == "entrada":
-                    valor_firmado = importe
-                elif naturaleza == "salida":
-                    valor_firmado = -importe
-                else:
-                    valor_firmado = 0.0
+                continue
 
             if valor_firmado > 0:
                 entradas += valor_firmado
@@ -152,27 +171,77 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             "pendiente_pago": pendiente_pago,
         }
 
+    def analizar_movimientos_bancarios():
+        entradas_relevantes = []
+        salidas_relevantes = []
+
+        otros_cobros = []
+        otros_pagos = []
+
+        for item in ledger:
+            if item.get("tipo") != "extracto_bancario":
+                continue
+
+            valor = item.get("importe_firmado_num")
+            if valor is None:
+                valor = normalizar_importe(item.get("importe", 0))
+                if item.get("naturaleza") == "salida":
+                    valor = -abs(valor)
+
+            fila = {
+                "archivo": item.get("archivo", "-"),
+                "fecha": item.get("fecha", "-"),
+                "importe_abs": abs(valor),
+                "importe_fmt": fmt(abs(valor)),
+                "naturaleza": item.get("naturaleza", "-"),
+                "descripcion": item.get("descripcion", "-"),
+                "categoria": item.get("categoria", "-"),
+                "moneda": item.get("moneda", "") or "",
+            }
+
+            if abs(valor) >= UMBRAL_RELEVANTE:
+                if valor >= 0:
+                    entradas_relevantes.append(fila)
+                else:
+                    salidas_relevantes.append(fila)
+            else:
+                if valor >= 0:
+                    otros_cobros.append(fila)
+                else:
+                    otros_pagos.append(fila)
+
+        entradas_relevantes.sort(key=lambda x: (x["fecha"], -x["importe_abs"]))
+        salidas_relevantes.sort(key=lambda x: (x["fecha"], -x["importe_abs"]))
+
+        return {
+            "entradas_relevantes": entradas_relevantes,
+            "salidas_relevantes": salidas_relevantes,
+            "otros_cobros_cantidad": len(otros_cobros),
+            "otros_cobros_total": sum(x["importe_abs"] for x in otros_cobros),
+            "otros_pagos_cantidad": len(otros_pagos),
+            "otros_pagos_total": sum(x["importe_abs"] for x in otros_pagos),
+        }
+
     def texto_lectura_ejecutiva(flujo, conc, docs):
         saldo_inicial = flujo["saldo_inicial"]
         entradas = flujo["entradas"]
         salidas = flujo["salidas"]
         saldo_final = flujo["saldo_final"]
         variacion = flujo["variacion"]
-
         pendientes = conc["pendientes"]
         sin_soporte = conc.get("sin_soporte", 0)
 
         if variacion > 0:
             titular = "La caja del período cerró mejor que como empezó."
-        elif entradas > 0 and variacion <= 0:
-            titular = "La caja del período muestra presión y cerró por debajo del inicio."
+        elif variacion < 0:
+            titular = "La caja del período cerró peor que como empezó."
         else:
-            titular = "La información disponible es insuficiente para confirmar una lectura sólida de caja."
+            titular = "La caja del período cerró prácticamente igual que como empezó."
 
         if pendientes > 0 and sin_soporte > 0:
             complemento = (
-                f" Existen {pendientes} facturas pendientes de conciliación y {sin_soporte} "
-                f"movimientos bancarios sin soporte claramente asociado."
+                f" Existen {pendientes} facturas pendientes de conciliación y "
+                f"{sin_soporte} movimientos bancarios sin soporte claramente asociado."
             )
         elif pendientes > 0:
             complemento = (
@@ -180,9 +249,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 "antes de tomar decisiones definitivas."
             )
         elif sin_soporte > 0:
-            complemento = (
-                f" Se detectaron {sin_soporte} movimientos bancarios sin soporte claramente asociado."
-            )
+            complemento = f" Se detectaron {sin_soporte} movimientos bancarios sin soporte claramente asociado."
         else:
             complemento = " No se observan pendientes relevantes de conciliación en la estructura analizada."
 
@@ -250,6 +317,98 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
+    def tabla_movimientos_relevantes_html():
+        analisis = analizar_movimientos_bancarios()
+        entradas = analisis["entradas_relevantes"]
+        salidas = analisis["salidas_relevantes"]
+
+        if not entradas and not salidas:
+            return """
+            <div class="empty-state">
+                <p>No hay movimientos bancarios relevantes para mostrar.</p>
+            </div>
+            """
+
+        secciones = []
+
+        if entradas:
+            filas_entradas = ""
+            for item in entradas:
+                filas_entradas += f"""
+                <tr>
+                    <td class="mono">{item['fecha']}</td>
+                    <td class="mono">€ {item['importe_fmt']}</td>
+                    <td>{item['descripcion']}</td>
+                    <td>{item['categoria']}</td>
+                </tr>
+                """
+            secciones.append(f"""
+            <div class="table-shell">
+                <div class="table-head">
+                    <div>
+                        <h3>Entradas relevantes</h3>
+                        <p>Movimientos de entrada iguales o mayores a € {fmt(UMBRAL_RELEVANTE)}.</p>
+                    </div>
+                    <div class="chip">{len(entradas)} entradas</div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Importe</th>
+                                <th>Descripción</th>
+                                <th>Categoría</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filas_entradas}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            """)
+
+        if salidas:
+            filas_salidas = ""
+            for item in salidas:
+                filas_salidas += f"""
+                <tr>
+                    <td class="mono">{item['fecha']}</td>
+                    <td class="mono">€ {item['importe_fmt']}</td>
+                    <td>{item['descripcion']}</td>
+                    <td>{item['categoria']}</td>
+                </tr>
+                """
+            secciones.append(f"""
+            <div class="table-shell">
+                <div class="table-head">
+                    <div>
+                        <h3>Salidas relevantes</h3>
+                        <p>Movimientos de salida iguales o mayores a € {fmt(UMBRAL_RELEVANTE)}.</p>
+                    </div>
+                    <div class="chip">{len(salidas)} salidas</div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Importe</th>
+                                <th>Descripción</th>
+                                <th>Categoría</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filas_salidas}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            """)
+
+        return "".join(secciones)
+
     def tabla_conciliacion_html():
         if not conciliacion:
             return """
@@ -265,21 +424,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             if item.get("diferencia") is not None:
                 diferencia = fmt(normalizar_importe(item.get("diferencia", 0)))
 
-            estado = item.get("estado", "-")
-            badge_class = "badge-yellow"
-
-            if estado == "conciliado_exacto":
-                badge_class = "badge-green"
-            elif estado == "probablemente_conciliado":
-                badge_class = "badge-yellow"
-            elif estado == "pendiente":
-                badge_class = "badge-red"
-            elif estado == "sin_soporte":
-                badge_class = "badge-red"
-            elif estado == "no_conciliable":
-                badge_class = "badge-gray"
-            elif estado == "duplicado_o_conflictivo":
-                badge_class = "badge-yellow"
+            estado_raw = item.get("estado", "-")
+            estado = humanizar_estado(estado_raw)
+            badge_class = badge_class_estado(estado_raw)
 
             filas += f"""
             <tr>
@@ -406,6 +553,25 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
+    def bloque_movimientos_menores_html():
+        analisis = analizar_movimientos_bancarios()
+
+        return f"""
+        <div class="metrics-grid">
+            <article class="kpi">
+                <div class="label">Otros cobros menores</div>
+                <div class="amount">{analisis['otros_cobros_cantidad']}</div>
+                <div class="meta"><span class="trend up">€ {fmt(analisis['otros_cobros_total'])}</span><span>Menores a € {fmt(UMBRAL_RELEVANTE)}</span></div>
+            </article>
+
+            <article class="kpi">
+                <div class="label">Otros pagos menores</div>
+                <div class="amount">{analisis['otros_pagos_cantidad']}</div>
+                <div class="meta"><span class="trend warn">€ {fmt(analisis['otros_pagos_total'])}</span><span>Menores a € {fmt(UMBRAL_RELEVANTE)}</span></div>
+            </article>
+        </div>
+        """
+
     def bloque_branding_html():
         partes = []
 
@@ -413,8 +579,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             imagen_html = ""
             if branding_data.get("imagen_url"):
                 imagen_html = f"""
-                <img src="{branding_data['imagen_url']}" alt="{branding_data['nombre']}"
-                     class="author-photo">
+                <img src="{branding_data['imagen_url']}" alt="{branding_data['nombre']}" class="author-photo">
                 """
 
             partes.append(f"""
@@ -1079,6 +1244,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 font-weight:900;
                 white-space:nowrap;
                 border:1px solid transparent;
+                text-transform:capitalize;
             }}
 
             .badge::before {{
@@ -1645,6 +1811,17 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     </div>
                     {documentos_html()}
                     {importes_html()}
+                </section>
+
+                <section class="section">
+                    <div class="section-head">
+                        <div>
+                            <h3 class="section-title">Movimientos bancarios relevantes</h3>
+                            <p class="section-sub">Primero se muestran las entradas y salidas relevantes. Los movimientos menores al umbral se agrupan aparte para no ensuciar la lectura ejecutiva.</p>
+                        </div>
+                    </div>
+                    {tabla_movimientos_relevantes_html()}
+                    {bloque_movimientos_menores_html()}
                 </section>
 
                 <section class="section">
