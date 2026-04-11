@@ -25,48 +25,36 @@ def normalizar_estado_conciliacion(estado):
 
     mapa = {
         "conciliado_exacto": "conciliado_exacto",
-        "conciliado_exacto": "conciliado_exacto",
         "conciliado exacto": "conciliado_exacto",
-
         "conciliado_exacto_multi": "conciliado_exacto_multi",
         "conciliado exacto multi": "conciliado_exacto_multi",
-        "conciliado_exacto_multi": "conciliado_exacto_multi",
-
         "conciliado_probable": "conciliado_probable",
         "probablemente_conciliado": "conciliado_probable",
         "conciliado probable": "conciliado_probable",
-
         "conciliado_probable_multi": "conciliado_probable_multi",
         "conciliado probable multi": "conciliado_probable_multi",
         "probablemente_conciliado_multi": "conciliado_probable_multi",
-
         "pendiente": "pendiente",
         "pendiente_cobro": "pendiente_cobro",
         "pendiente cobro": "pendiente_cobro",
         "pendiente_pago": "pendiente_pago",
         "pendiente pago": "pendiente_pago",
-
         "sin_soporte": "sin_soporte",
         "sin soporte": "sin_soporte",
         "sin_soporte_menor": "sin_soporte_menor",
         "sin soporte menor": "sin_soporte_menor",
-
         "no_conciliable": "no_conciliable",
         "no conciliable": "no_conciliable",
-
         "duplicado_potencial": "duplicado_potencial",
         "duplicado potencial": "duplicado_potencial",
         "duplicado_o_conflictivo": "duplicado_potencial",
         "duplicado o conflictivo": "duplicado_potencial",
-
         "movimiento_interno": "movimiento_interno",
         "movimiento interno": "movimiento_interno",
-
         "movimiento_bancario_no_conciliable": "movimiento_bancario_no_conciliable",
         "movimiento bancario no conciliable": "movimiento_bancario_no_conciliable",
         "movimiento_bancario_no_conciliable_menor": "movimiento_bancario_no_conciliable_menor",
         "movimiento bancario no conciliable menor": "movimiento_bancario_no_conciliable_menor",
-
         "movimiento_agrupado": "movimiento_agrupado",
         "movimiento agrupado": "movimiento_agrupado",
         "agrupado": "agrupado",
@@ -79,25 +67,25 @@ def humanizar_estado_conciliacion(estado):
     estado_norm = normalizar_estado_conciliacion(estado)
 
     mapa = {
-        "conciliado_exacto": "conciliado exacto",
-        "conciliado_exacto_multi": "conciliado exacto (múltiples movimientos)",
-        "conciliado_probable": "conciliado probable",
-        "conciliado_probable_multi": "conciliado probable (múltiples movimientos)",
-        "pendiente": "pendiente",
-        "pendiente_cobro": "pendiente de cobro",
-        "pendiente_pago": "pendiente de pago",
-        "sin_soporte": "sin soporte",
-        "sin_soporte_menor": "sin soporte menor",
-        "no_conciliable": "no conciliable",
-        "duplicado_potencial": "duplicado potencial",
-        "movimiento_interno": "movimiento interno",
-        "movimiento_bancario_no_conciliable": "movimiento bancario no conciliable",
-        "movimiento_bancario_no_conciliable_menor": "movimiento bancario no conciliable menor",
-        "movimiento_agrupado": "movimiento agrupado",
-        "agrupado": "agrupado",
+        "conciliado_exacto": "Conciliado exacto",
+        "conciliado_exacto_multi": "Conciliado exacto (múltiples movimientos)",
+        "conciliado_probable": "Conciliado probable",
+        "conciliado_probable_multi": "Conciliado probable (múltiples movimientos)",
+        "pendiente": "Pendiente",
+        "pendiente_cobro": "Pendiente de cobro",
+        "pendiente_pago": "Pendiente de pago",
+        "sin_soporte": "Sin soporte",
+        "sin_soporte_menor": "Sin soporte menor",
+        "no_conciliable": "No conciliable",
+        "duplicado_potencial": "Duplicado potencial",
+        "movimiento_interno": "Movimiento interno",
+        "movimiento_bancario_no_conciliable": "Movimiento bancario no conciliable",
+        "movimiento_bancario_no_conciliable_menor": "Movimiento bancario no conciliable menor",
+        "movimiento_agrupado": "Movimiento agrupado",
+        "agrupado": "Agrupado",
     }
 
-    return mapa.get(estado_norm, str(estado).replace("_", " "))
+    return mapa.get(estado_norm, str(estado).replace("_", " ").title())
 
 
 def badge_class_estado_conciliacion(estado):
@@ -131,6 +119,63 @@ def badge_class_estado_conciliacion(estado):
     return "badge-gray"
 
 
+def humanizar_categoria(categoria):
+    categoria = (categoria or "").strip().lower()
+
+    mapa = {
+        "factura_venta": "Factura de venta",
+        "factura_compra": "Factura de compra",
+        "extracto_bancario": "Extracto bancario",
+        "extracto_resumen": "Resumen del extracto",
+        "resumen_extracto": "Resumen del extracto",
+        "otros": "Otros",
+        "cobro_cliente": "Cobro de cliente",
+        "pago_proveedor": "Pago a proveedor",
+        "retiro_propio": "Retiro propio",
+        "gasto_operativo": "Gasto operativo",
+        "transferencia_interna": "Transferencia interna",
+        "traspaso": "Transferencia interna",
+        "comision": "Comisión",
+        "impuesto": "Impuesto",
+        "retencion": "Retención",
+        "ajuste": "Ajuste",
+        "otros_cobros": "Otros cobros",
+        "otros_pagos": "Otros pagos",
+        "movimiento_interno": "Movimiento interno",
+        "no_conciliable": "No conciliable",
+    }
+
+    return mapa.get(categoria, str(categoria).replace("_", " ").title())
+
+
+def humanizar_tipo_documento(tipo):
+    tipo = (tipo or "").strip().lower()
+
+    mapa = {
+        "factura_venta": "Factura de venta",
+        "factura_compra": "Factura de compra",
+        "extracto_bancario": "Extracto bancario",
+        "extracto_resumen": "Resumen del extracto",
+        "otros": "Otros",
+    }
+
+    return mapa.get(tipo, str(tipo).replace("_", " ").title())
+
+
+def humanizar_naturaleza(naturaleza):
+    naturaleza = (naturaleza or "").strip().lower()
+
+    mapa = {
+        "entrada": "Entrada",
+        "salida": "Salida",
+        "revisar": "Revisar",
+        "resumen": "Resumen",
+        "desconocido": "Desconocido",
+    }
+
+    return mapa.get(naturaleza, str(naturaleza).replace("_", " ").title())
+
+
 def construir_resumen_documentos(clasificados):
     clasificados = clasificados or {}
     return {
@@ -144,7 +189,6 @@ def construir_resumen_documentos(clasificados):
 def construir_resumen_flujo(ledger):
     ledger = ledger or []
 
-    # Prioridad: usar resumen oficial del extracto si existe
     for item in ledger:
         if item.get("tipo") == "extracto_resumen":
             resumen = item.get("resumen_extracto", {}) or {}
@@ -176,7 +220,6 @@ def construir_resumen_flujo(ledger):
                 "revisar": 0.0,
             }
 
-    # Fallback: sumar solo movimientos bancarios
     saldo_inicial = 0.0
     entradas = 0.0
     salidas = 0.0
@@ -356,12 +399,14 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "importe_abs": abs(valor),
             "importe_fmt": fmt_importe_reporte(abs(valor)),
             "naturaleza": item.get("naturaleza", "-"),
+            "naturaleza_humana": humanizar_naturaleza(item.get("naturaleza", "-")),
             "descripcion": item.get("descripcion", "-"),
             "categoria": categoria,
+            "categoria_humana": humanizar_categoria(categoria),
             "moneda": item.get("moneda", "") or "",
+            "clase_fila": "row-entrada" if valor >= 0 else "row-salida",
         }
 
-        # Si ya viene agrupado desde ledger, reflejarlo en KPIs de otros menores
         if categoria == "otros_cobros":
             otros_cobros_total += abs(valor)
             desc = item.get("descripcion", "")
@@ -421,6 +466,7 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     sin_soporte = conc.get("sin_soporte", 0)
     sin_soporte_menor = conc.get("sin_soporte_menor", 0)
     duplicados = conc.get("duplicados", 0)
+    movimientos_internos = conc.get("movimientos_internos", 0)
     nivel_cierre = conc.get("nivel_cierre", "medio")
 
     if variacion > 0:
@@ -431,39 +477,54 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
         titular = "La caja del período cerró prácticamente igual que como empezó."
 
     if nivel_cierre == "bajo":
-        complemento = (
-            f" El cierre todavía no puede considerarse definitivo: hay {pendientes} pendientes, "
-            f"{probables} conciliaciones probables, {probables_multi} conciliaciones probables múltiples "
-            f"y {sin_soporte} movimientos relevantes sin respaldo documental."
-        )
+        partes = []
+        if pendientes > 0:
+            partes.append(f"{pendientes} pendiente(s)")
+        if probables > 0:
+            partes.append(f"{probables} conciliación(es) probable(s)")
+        if probables_multi > 0:
+            partes.append(f"{probables_multi} conciliación(es) probable(s) múltiples")
+        if sin_soporte > 0:
+            partes.append(f"{sin_soporte} movimiento(s) relevante(s) sin soporte")
+        if duplicados > 0:
+            partes.append(f"{duplicados} duplicado(s) potencial(es)")
+        if movimientos_internos > 0:
+            partes.append(f"{movimientos_internos} movimiento(s) interno(s)")
+
+        detalle = ", ".join(partes) if partes else "elementos que todavía requieren validación"
+        complemento = f" El cierre todavía no puede considerarse definitivo: persisten {detalle}."
     elif nivel_cierre == "medio":
-        complemento = (
-            f" La lectura es útil, pero todavía requiere validación: se observan "
-            f"{exactas_multi} conciliaciones exactas múltiples, {probables_multi} conciliaciones probables múltiples "
-            f"y {duplicados} duplicados potenciales."
-        )
+        partes = []
+        if exactas_multi > 0:
+            partes.append(f"{exactas_multi} conciliación(es) exacta(s) múltiple(s)")
+        if probables_multi > 0:
+            partes.append(f"{probables_multi} conciliación(es) probable(s) múltiple(s)")
+        if duplicados > 0:
+            partes.append(f"{duplicados} duplicado(s) potencial(es)")
+        if movimientos_internos > 0:
+            partes.append(f"{movimientos_internos} movimiento(s) interno(s)")
+
+        detalle = ", ".join(partes) if partes else "validaciones adicionales"
+        complemento = f" La lectura es útil, pero todavía requiere validación adicional: se observan {detalle}."
     elif sin_soporte > 0:
         complemento = (
             f" No se observan pendientes fuertes de conciliación, pero existen "
-            f"{sin_soporte} movimientos bancarios relevantes sin respaldo documental."
-        )
-    elif duplicados > 0:
-        complemento = (
-            f" No se observan pendientes relevantes, aunque existen {duplicados} movimientos potencialmente duplicados que conviene revisar."
+            f"{sin_soporte} movimientos relevantes sin soporte documental."
         )
     elif sin_soporte_menor > 0:
         complemento = (
-            f" No se observan pendientes relevantes, aunque existen {sin_soporte_menor} movimientos menores sin respaldo directo."
+            f" No se observan pendientes relevantes, aunque existen "
+            f"{sin_soporte_menor} movimientos menores sin soporte directo."
         )
     else:
         complemento = " No se observan pendientes relevantes de conciliación en la estructura analizada."
 
     narrativa = (
-        f"Se analizaron {total} archivos en total: "
-        f"{docs['factura_venta']} factura de venta, "
-        f"{docs['factura_compra']} factura de compra, "
-        f"{docs['extracto_bancario']} extracto bancario y "
-        f"{docs['otros']} documentos clasificados como otros. "
+        f"Se analizaron {total} archivo(s): "
+        f"{docs['factura_venta']} factura(s) de venta, "
+        f"{docs['factura_compra']} factura(s) de compra, "
+        f"{docs['extracto_bancario']} extracto(s) bancario(s) y "
+        f"{docs['otros']} documento(s) clasificado(s) como otros. "
         f"El saldo inicial fue de € {fmt_importe_reporte(saldo_inicial)}, "
         f"entraron € {fmt_importe_reporte(entradas)}, "
         f"salieron € {fmt_importe_reporte(salidas)} "
@@ -513,6 +574,38 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     def texto_lectura_ejecutiva(flujo, conc, docs):
         return construir_narrativa_ejecutiva(total, docs, flujo, conc)
 
+    def clase_badge_categoria(categoria):
+        categoria = (categoria or "").lower()
+        if categoria in ["cobro_cliente", "otros_cobros"]:
+            return "badge-green"
+        if categoria in ["pago_proveedor", "gasto_operativo", "otros_pagos"]:
+            return "badge-red"
+        if categoria in ["retiro_propio", "transferencia_interna", "traspaso"]:
+            return "badge-gray"
+        if categoria in ["comision", "retencion", "impuesto", "ajuste"]:
+            return "badge-yellow"
+        return "badge-gray"
+
+    def construir_botones_filtro():
+        botones = [
+            ("all", "Ver todo"),
+            ("entradas", "Entradas"),
+            ("salidas", "Salidas"),
+            ("cobros", "Cobros"),
+            ("pagos", "Pagos"),
+            ("internos", "Movimientos internos"),
+            ("pendientes", "Facturas pendientes"),
+            ("conciliadas", "Facturas conciliadas"),
+            ("sin-soporte", "Sin soporte"),
+            ("no-conciliables", "No conciliables"),
+        ]
+
+        html = ""
+        for valor, etiqueta in botones:
+            clase = "filter-btn active" if valor == "all" else "filter-btn"
+            html += f'<button class="{clase}" type="button" data-filter="{valor}">{etiqueta}</button>'
+        return html
+
     def tabla_ledger_html():
         if not ledger:
             return """
@@ -523,13 +616,19 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
         filas = ""
         for item in ledger:
+            naturaleza = (item.get("naturaleza") or "").lower()
+            clase_fila = "row-entrada" if naturaleza == "entrada" else "row-salida" if naturaleza == "salida" else ""
+            categoria = humanizar_categoria(item.get("categoria", "-"))
+            tipo = humanizar_tipo_documento(item.get("tipo", "-"))
+
             filas += f"""
-            <tr>
+            <tr class="{clase_fila}">
                 <td>{item.get('archivo', '-')}</td>
-                <td>{item.get('tipo', '-')}</td>
+                <td>{tipo}</td>
                 <td class="mono">{item.get('fecha', '-')}</td>
-                <td class="mono">{item.get('importe', '-')}</td>
-                <td>{item.get('naturaleza', '-')}</td>
+                <td class="mono">€ {fmt(normalizar_importe(item.get('importe', 0)))}</td>
+                <td>{humanizar_naturaleza(item.get('naturaleza', '-'))}</td>
+                <td><span class="badge {clase_badge_categoria(item.get('categoria'))}">{categoria}</span></td>
             </tr>
             """
 
@@ -537,7 +636,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         <div class="table-shell">
             <div class="table-head">
                 <div>
-                    <h3>Ledger base</h3>
+                    <h3>Movimiento financiero base</h3>
                     <p>Registro preliminar de movimientos identificados a partir de la documentación cargada.</p>
                 </div>
                 <div class="chip">{len(ledger)} movimientos</div>
@@ -551,12 +650,46 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <th>Fecha</th>
                             <th>Importe</th>
                             <th>Naturaleza</th>
+                            <th>Categoría</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filas}
                     </tbody>
                 </table>
+            </div>
+        </div>
+        """
+
+    def tarjetas_moviles_movimientos(items, titulo, clase):
+        if not items:
+            return ""
+
+        cards = ""
+        for item in items:
+            cards += f"""
+            <article class="mobile-movement-card {clase}">
+                <div class="mobile-movement-head">
+                    <span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span>
+                    <span class="mobile-amount">€ {item['importe_fmt']}</span>
+                </div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Fecha</span>
+                    <span class="mono">{item['fecha']}</span>
+                </div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Naturaleza</span>
+                    <span>{item['naturaleza_humana']}</span>
+                </div>
+                <div class="mobile-description">{item['descripcion']}</div>
+            </article>
+            """
+
+        return f"""
+        <div class="mobile-movements-block">
+            <div class="mobile-block-title">{titulo}</div>
+            <div class="mobile-movements-grid">
+                {cards}
             </div>
         </div>
         """
@@ -579,11 +712,13 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             filas_entradas = ""
             for item in entradas:
                 filas_entradas += f"""
-                <tr>
+                <tr class="row-entrada mov-row"
+                    data-kind="entradas cobros all"
+                    data-category="{item['categoria']}">
                     <td class="mono">{item['fecha']}</td>
                     <td class="mono">€ {item['importe_fmt']}</td>
                     <td>{item['descripcion']}</td>
-                    <td>{item['categoria']}</td>
+                    <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
                 </tr>
                 """
             secciones.append(f"""
@@ -611,17 +746,27 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     </table>
                 </div>
             </div>
+            {tarjetas_moviles_movimientos(entradas, "Entradas relevantes", "row-entrada")}
             """)
 
         if salidas:
             filas_salidas = ""
             for item in salidas:
+                tags = ["salidas", "all"]
+                if item["categoria"] == "pago_proveedor":
+                    tags.append("pagos")
+                if item["categoria"] == "gasto_operativo":
+                    tags.append("pagos")
+                if item["categoria"] in ["retiro_propio", "transferencia_interna", "traspaso"]:
+                    tags.append("internos")
                 filas_salidas += f"""
-                <tr>
+                <tr class="row-salida mov-row"
+                    data-kind="{' '.join(tags)}"
+                    data-category="{item['categoria']}">
                     <td class="mono">{item['fecha']}</td>
                     <td class="mono">€ {item['importe_fmt']}</td>
                     <td>{item['descripcion']}</td>
-                    <td>{item['categoria']}</td>
+                    <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
                 </tr>
                 """
             secciones.append(f"""
@@ -649,6 +794,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     </table>
                 </div>
             </div>
+            {tarjetas_moviles_movimientos(salidas, "Salidas relevantes", "row-salida")}
             """)
 
         return "".join(secciones)
@@ -662,6 +808,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             """
 
         filas = ""
+        cards = ""
+
         for item in conciliacion:
             importe = fmt(normalizar_importe(item.get("importe", 0)))
             diferencia = "-"
@@ -669,27 +817,69 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 diferencia = fmt(normalizar_importe(item.get("diferencia", 0)))
 
             estado_raw = item.get("estado", "-")
+            estado_norm = normalizar_estado_conciliacion(estado_raw)
             estado = humanizar_estado(estado_raw)
             badge_class = badge_class_estado(estado_raw)
 
+            tags = ["all"]
+            if estado_norm in ["pendiente", "pendiente_cobro", "pendiente_pago"]:
+                tags.append("pendientes")
+            if estado_norm in ["conciliado_exacto", "conciliado_exacto_multi", "conciliado_probable", "conciliado_probable_multi"]:
+                tags.append("conciliadas")
+            if estado_norm in ["sin_soporte", "sin_soporte_menor"]:
+                tags.append("sin-soporte")
+            if estado_norm in ["no_conciliable", "movimiento_bancario_no_conciliable", "movimiento_bancario_no_conciliable_menor"]:
+                tags.append("no-conciliables")
+            if estado_norm == "movimiento_interno":
+                tags.append("internos")
+
             filas += f"""
-            <tr>
+            <tr class="conc-row" data-kind="{' '.join(tags)}">
                 <td>{item.get('archivo', '-')}</td>
                 <td class="mono">{item.get('fecha', '-')}</td>
                 <td class="mono">€ {importe}</td>
                 <td><span class="badge {badge_class}">{estado}</span></td>
                 <td class="mono">{diferencia if diferencia == '-' else '€ ' + diferencia}</td>
+                <td><span class="badge {clase_badge_categoria(item.get('categoria'))}">{humanizar_categoria(item.get('categoria'))}</span></td>
             </tr>
+            """
+
+            cards += f"""
+            <article class="mobile-conc-card" data-kind="{' '.join(tags)}">
+                <div class="mobile-conc-head">
+                    <span class="badge {badge_class}">{estado}</span>
+                    <span class="mobile-amount">€ {importe}</span>
+                </div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Archivo</span>
+                    <span>{item.get('archivo', '-')}</span>
+                </div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Fecha</span>
+                    <span class="mono">{item.get('fecha', '-')}</span>
+                </div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Diferencia</span>
+                    <span class="mono">{diferencia if diferencia == '-' else '€ ' + diferencia}</span>
+                </div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Categoría</span>
+                    <span>{humanizar_categoria(item.get('categoria'))}</span>
+                </div>
+            </article>
             """
 
         return f"""
         <div class="table-shell">
             <div class="table-head">
                 <div>
-                    <h3>Conciliación básica</h3>
-                    <p>Estado preliminar de coincidencia entre documentos y movimientos detectados.</p>
+                    <h3>Conciliación</h3>
+                    <p>Estado de coincidencia entre facturas y movimientos detectados en banco.</p>
                 </div>
                 <div class="chip">{len(conciliacion)} registros</div>
+            </div>
+            <div class="filter-toolbar">
+                {construir_botones_filtro()}
             </div>
             <div class="table-wrap">
                 <table>
@@ -700,12 +890,16 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <th>Importe</th>
                             <th>Estado</th>
                             <th>Diferencia</th>
+                            <th>Categoría</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="conc-body">
                         {filas}
                     </tbody>
                 </table>
+            </div>
+            <div class="mobile-conc-grid" id="conc-mobile-grid">
+                {cards}
             </div>
         </div>
         """
@@ -719,13 +913,29 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             """
 
         filas = ""
+        cards = ""
         for item in documentos:
+            tipo_humano = humanizar_tipo_documento(item.get("tipo", "-"))
             filas += f"""
             <tr>
                 <td>{item.get('archivo', '-')}</td>
-                <td>{item.get('tipo', '-')}</td>
+                <td>{tipo_humano}</td>
                 <td class="mono">{item.get('fecha', '-')}</td>
             </tr>
+            """
+
+            cards += f"""
+            <article class="mobile-doc-card">
+                <div class="mobile-doc-title">{item.get('archivo', '-')}</div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Tipo</span>
+                    <span>{tipo_humano}</span>
+                </div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Fecha</span>
+                    <span class="mono">{item.get('fecha', '-')}</span>
+                </div>
+            </article>
             """
 
         return f"""
@@ -751,48 +961,83 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     </tbody>
                 </table>
             </div>
+            <div class="mobile-doc-grid">
+                {cards}
+            </div>
         </div>
         """
+
+    def _formatear_lista_importes(importes_lista):
+        if not importes_lista:
+            return "No se detectaron montos"
+
+        visibles = importes_lista[:18]
+        texto = "  ;  ".join(visibles)
+
+        if len(importes_lista) > 18:
+            texto += f"  ;  ... (+{len(importes_lista) - 18} más)"
+
+        return texto
 
     def importes_html():
         if not importes:
             return """
             <div class="empty-state">
-                <p>No hay importes detectados.</p>
+                <p>No hay montos detectados.</p>
             </div>
             """
 
         filas = ""
+        cards = ""
         for item in importes:
-            montos = ", ".join(item.get("importes", [])) if item.get("importes") else "No se detectaron importes"
+            importes_lista = item.get("importes", []) or []
+            montos = _formatear_lista_importes(importes_lista)
+            cantidad = len(importes_lista)
+
             filas += f"""
             <tr>
                 <td>{item.get('archivo', '-')}</td>
-                <td>{montos}</td>
+                <td class="mono">{cantidad}</td>
+                <td class="amounts-cell">{montos}</td>
             </tr>
+            """
+
+            cards += f"""
+            <article class="mobile-amount-card">
+                <div class="mobile-doc-title">{item.get('archivo', '-')}</div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Cantidad de montos</span>
+                    <span class="mono">{cantidad}</span>
+                </div>
+                <div class="mobile-amount-list">{montos}</div>
+            </article>
             """
 
         return f"""
         <div class="table-shell">
             <div class="table-head">
                 <div>
-                    <h3>Importes detectados</h3>
-                    <p>Montos identificados automáticamente en la documentación procesada.</p>
+                    <h3>Montos identificados</h3>
+                    <p>Montos encontrados automáticamente en cada documento. Se muestran separados para facilitar la lectura.</p>
                 </div>
-                <div class="chip">{len(importes)} registros</div>
+                <div class="chip">{len(importes)} documentos con montos</div>
             </div>
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
                             <th>Archivo</th>
-                            <th>Importes detectados</th>
+                            <th>Cantidad</th>
+                            <th>Montos identificados</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filas}
                     </tbody>
                 </table>
+            </div>
+            <div class="mobile-amount-grid">
+                {cards}
             </div>
         </div>
         """
@@ -801,7 +1046,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         analisis = analizar_movimientos_bancarios()
 
         return f"""
-        <div class="metrics-grid">
+        <div class="metrics-grid compact-grid">
             <article class="kpi">
                 <div class="label">Otros cobros menores</div>
                 <div class="amount">{analisis['otros_cobros_cantidad']}</div>
@@ -869,7 +1114,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 """
 
             partes.append(f"""
-            <section class="section">
+            <section class="section books-section">
                 <div class="section-head solo">
                     <div>
                         <h3 class="section-title">Libros</h3>
@@ -901,11 +1146,17 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
         return "".join(partes)
 
+    def texto_calidad_cierre(nivel):
+        if nivel == "alto":
+            return "Cierre preliminar alto"
+        if nivel == "medio":
+            return "Cierre preliminar medio"
+        return "Cierre preliminar bajo"
+
     docs = contar_docs()
     flujo = resumen_flujo()
     conc = resumen_conciliacion()
     titular_ejecutivo, narrativa_ejecutiva = texto_lectura_ejecutiva(flujo, conc, docs)
-    analisis_mov = analizar_movimientos_bancarios()
 
     total_docs_clasificados = docs["factura_venta"] + docs["factura_compra"] + docs["extracto_bancario"] + docs["otros"]
 
@@ -928,16 +1179,18 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 --blue-2:#5ea7ff;
                 --green:#16a34a;
                 --green-soft:#ecfdf3;
+                --green-line:#d8f5e4;
                 --yellow:#ca8a04;
                 --yellow-soft:#fff9e8;
                 --red:#dc2626;
                 --red-soft:#fef2f2;
+                --red-line:#ffdede;
                 --gray:#475569;
                 --gray-soft:#f1f5f9;
                 --shadow-sm:0 10px 25px rgba(15,23,42,.06);
                 --shadow-md:0 20px 45px rgba(15,23,42,.08);
                 --shadow-lg:0 30px 80px rgba(15,23,42,.12);
-                --max:1320px;
+                --max:1340px;
             }}
 
             * {{
@@ -1032,6 +1285,12 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 font-weight:600;
             }}
 
+            .chip-strong {{
+                background:#eef5ff;
+                color:var(--blue-1);
+                border-color:#d9e7ff;
+            }}
+
             main {{
                 padding:24px 0 44px;
             }}
@@ -1079,10 +1338,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
             .hero p {{
                 margin:0;
-                max-width:64ch;
+                max-width:72ch;
                 color:var(--muted);
                 font-size:1.02rem;
-                line-height:1.7;
+                line-height:1.72;
             }}
 
             .hero-side {{
@@ -1155,7 +1414,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 backdrop-filter:blur(14px);
                 border:1px solid rgba(255,255,255,.7);
                 box-shadow:var(--shadow-md);
-                overflow:hidden;
+                overflow:visible;
             }}
 
             .section-head {{
@@ -1190,6 +1449,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 grid-template-columns:repeat(5,1fr);
                 gap:14px;
                 padding:18px 22px 6px;
+            }}
+
+            .compact-grid {{
+                grid-template-columns:repeat(2,1fr);
+                padding-top:0;
             }}
 
             .kpi {{
@@ -1360,6 +1624,38 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 flex:none;
             }}
 
+            .filter-toolbar {{
+                display:flex;
+                gap:10px;
+                flex-wrap:wrap;
+                padding:0 22px 8px;
+            }}
+
+            .filter-btn {{
+                appearance:none;
+                border:none;
+                background:#eef2ff;
+                color:#334155;
+                padding:12px 14px;
+                border-radius:999px;
+                cursor:pointer;
+                font-weight:800;
+                font-size:.86rem;
+                transition:all .18s ease;
+                border:1px solid #dbe5ff;
+            }}
+
+            .filter-btn:hover {{
+                transform:translateY(-1px);
+                opacity:.96;
+            }}
+
+            .filter-btn.active {{
+                background:#111827;
+                color:#ffffff;
+                border-color:#111827;
+            }}
+
             .table-shell {{
                 overflow:hidden;
                 margin:18px 22px 22px;
@@ -1389,7 +1685,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 width:100%;
                 border-collapse:separate;
                 border-spacing:0;
-                min-width:760px;
+                min-width:860px;
             }}
 
             thead th {{
@@ -1411,6 +1707,17 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 font-size:.95rem;
                 color:#1e293b;
                 vertical-align:middle;
+                line-height:1.55;
+            }}
+
+            .row-entrada td {{
+                background:linear-gradient(180deg, rgba(236,253,243,.55), rgba(255,255,255,.88));
+                border-bottom-color:var(--green-line);
+            }}
+
+            .row-salida td {{
+                background:linear-gradient(180deg, rgba(254,242,242,.55), rgba(255,255,255,.88));
+                border-bottom-color:var(--red-line);
             }}
 
             .mono {{
@@ -1418,6 +1725,13 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 font-feature-settings:'tnum';
                 white-space:nowrap;
                 font-weight:800;
+            }}
+
+            .amounts-cell {{
+                line-height:1.9;
+                word-break:break-word;
+                white-space:normal;
+                color:#334155;
             }}
 
             .alerts-grid {{
@@ -1491,7 +1805,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 font-weight:900;
                 white-space:nowrap;
                 border:1px solid transparent;
-                text-transform:capitalize;
+                text-transform:none;
             }}
 
             .badge::before {{
@@ -1520,6 +1834,88 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             .badge-gray {{
                 color:var(--gray);
                 background:var(--gray-soft);
+            }}
+
+            .mobile-doc-grid,
+            .mobile-amount-grid,
+            .mobile-movements-block,
+            .mobile-conc-grid {{
+                display:none;
+            }}
+
+            .mobile-doc-card,
+            .mobile-amount-card,
+            .mobile-movement-card,
+            .mobile-conc-card {{
+                background:#ffffff;
+                border:1px solid var(--line);
+                border-radius:22px;
+                padding:16px;
+                box-shadow:var(--shadow-sm);
+            }}
+
+            .mobile-doc-title,
+            .mobile-block-title {{
+                font-size:1rem;
+                font-weight:900;
+                color:var(--text);
+                margin-bottom:12px;
+            }}
+
+            .mobile-meta-row {{
+                display:flex;
+                justify-content:space-between;
+                gap:12px;
+                padding:8px 0;
+                border-bottom:1px dashed rgba(148,163,184,.25);
+            }}
+
+            .mobile-meta-row:last-child {{
+                border-bottom:none;
+            }}
+
+            .mobile-label {{
+                color:var(--muted);
+                font-weight:700;
+                flex-shrink:0;
+            }}
+
+            .mobile-amount {{
+                font-weight:900;
+                font-size:1rem;
+            }}
+
+            .mobile-description,
+            .mobile-amount-list {{
+                margin-top:12px;
+                color:#334155;
+                line-height:1.75;
+                word-break:break-word;
+            }}
+
+            .mobile-movements-grid,
+            .mobile-doc-grid,
+            .mobile-amount-grid,
+            .mobile-conc-grid {{
+                gap:14px;
+                padding:0 16px 16px;
+            }}
+
+            .mobile-movement-card.row-entrada {{
+                background:linear-gradient(180deg, rgba(236,253,243,.70), #ffffff);
+            }}
+
+            .mobile-movement-card.row-salida {{
+                background:linear-gradient(180deg, rgba(254,242,242,.70), #ffffff);
+            }}
+
+            .mobile-movement-head,
+            .mobile-conc-head {{
+                display:flex;
+                justify-content:space-between;
+                align-items:flex-start;
+                gap:12px;
+                margin-bottom:12px;
             }}
 
             .author-card,
@@ -1740,6 +2136,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 opacity:.96;
             }}
 
+            .is-hidden {{
+                display:none !important;
+            }}
+
             @media (max-width:1180px) {{
                 .hero,
                 .story-layout {{
@@ -1755,13 +2155,46 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 }}
             }}
 
+            @media (max-width:900px) {{
+                .metrics-grid {{
+                    grid-template-columns:1fr 1fr;
+                }}
+
+                .compact-grid {{
+                    grid-template-columns:1fr 1fr;
+                }}
+            }}
+
             @media (max-width:820px) {{
                 .hero-side {{
                     grid-template-columns:1fr;
                 }}
+            }}
 
-                .metrics-grid {{
-                    grid-template-columns:1fr 1fr;
+            @media (max-width:760px) {{
+                .table-wrap {{
+                    display:none;
+                }}
+
+                .mobile-doc-grid,
+                .mobile-amount-grid,
+                .mobile-conc-grid {{
+                    display:grid;
+                }}
+
+                .mobile-movements-block {{
+                    display:block;
+                }}
+
+                .filter-toolbar {{
+                    padding:0 16px 10px;
+                    overflow:auto;
+                    flex-wrap:nowrap;
+                }}
+
+                .filter-btn {{
+                    white-space:nowrap;
+                    flex:0 0 auto;
                 }}
             }}
 
@@ -1804,6 +2237,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 .metrics-grid {{
                     grid-template-columns:1fr;
                     padding:16px 16px 4px;
+                }}
+
+                .compact-grid {{
+                    grid-template-columns:1fr;
                 }}
 
                 .alerts-grid {{
@@ -1882,11 +2319,27 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 .footer-right {{
                     justify-content:center;
                 }}
+
+                .books-section,
+                .books-card {{
+                    display:block !important;
+                    visibility:visible !important;
+                    opacity:1 !important;
+                }}
             }}
 
             @media (max-width:560px) {{
                 .metrics-grid {{
                     grid-template-columns:1fr;
+                }}
+
+                .company-meta {{
+                    gap:8px;
+                }}
+
+                .chip {{
+                    font-size:.82rem;
+                    padding:9px 12px;
                 }}
             }}
         </style>
@@ -1902,7 +2355,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <div class="company-meta">
                         <div class="chip">Archivos analizados: {total}</div>
                         <div class="chip">Documentos clasificados: {total_docs_clasificados}</div>
-                        <div class="chip">Modo branding: {BRANDING["modo"]}</div>
+                        <div class="chip chip-strong">{texto_calidad_cierre(conc["nivel_cierre"])}</div>
                     </div>
                 </header>
             </div>
@@ -1968,7 +2421,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <div class="section-head">
                         <div>
                             <h3 class="section-title">Resumen ejecutivo</h3>
-                            <p class="section-sub">Vista sintética del flujo, calidad de conciliación y puntos de atención más relevantes para la gestión del negocio.</p>
+                            <p class="section-sub">Vista sintética del flujo, la calidad del cierre y los principales puntos de atención para la gestión del negocio.</p>
                         </div>
                     </div>
 
@@ -1986,30 +2439,30 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         </article>
 
                         <article class="kpi">
-                            <div class="label">Conciliadas exactas</div>
+                            <div class="label">Facturas conciliadas</div>
                             <div class="amount">{conc["conciliadas"]}</div>
-                            <div class="meta"><span class="trend up">Estado</span><span>Facturas</span></div>
+                            <div class="meta"><span class="trend up">Correcto</span><span>Exactas</span></div>
                         </article>
 
                         <article class="kpi">
-                            <div class="label">Probables</div>
-                            <div class="amount">{conc["parciales"]}</div>
-                            <div class="meta"><span class="trend warn">Revisión</span><span>Coincidencias</span></div>
+                            <div class="label">Facturas pendientes</div>
+                            <div class="amount">{conc["pendientes"]}</div>
+                            <div class="meta"><span class="trend down">Seguimiento</span><span>Documental</span></div>
                         </article>
 
                         <article class="kpi">
-                            <div class="label">Probables (multi)</div>
-                            <div class="amount">{conc.get("probables_multi", 0)}</div>
-                            <div class="meta"><span class="trend gray">Validar</span><span>Conciliación</span></div>
+                            <div class="label">Movimientos sin soporte</div>
+                            <div class="amount">{conc.get("sin_soporte", 0)}</div>
+                            <div class="meta"><span class="trend down">Banco</span><span>Revisar</span></div>
                         </article>
                     </div>
 
                     <div class="story-layout">
                         <article class="story-card">
-                            <h3>Qué muestra este procesamiento</h3>
-                            <p>El sistema transforma documentación comercial dispersa en una lectura financiera preliminar útil para gestión. A partir de facturas, extractos y otros soportes, identifica entradas, salidas, pendientes y respaldo documental del flujo.</p>
+                            <h3>Qué muestra este informe</h3>
+                            <p>Este informe resume qué ocurrió con la caja durante el período, qué documentos fueron reconocidos, qué facturas quedaron conciliadas y qué movimientos todavía requieren revisión adicional.</p>
                             <p>En esta ejecución, el saldo inicial fue de € {fmt(flujo["saldo_inicial"])}, las entradas alcanzan € {fmt(flujo["entradas"])}, las salidas € {fmt(flujo["salidas"])} y el saldo final queda en € {fmt(flujo["saldo_final"])}, con una variación neta de € {fmt(flujo["variacion"])}.</p>
-                            <p>Además, se detectan {conc.get("sin_soporte", 0)} movimientos bancarios relevantes sin respaldo directo, {conc.get("sin_soporte_menor", 0)} movimientos menores sin respaldo directo, {conc.get("probables_multi", 0)} conciliaciones que agrupan múltiples movimientos y {conc.get("duplicados", 0)} duplicados potenciales.</p>
+                            <p>Además, se observan {conc.get("sin_soporte", 0)} movimientos relevantes sin soporte directo, {conc.get("movimientos_internos", 0)} movimientos internos, {conc.get("pendientes", 0)} facturas pendientes y {conc.get("duplicados", 0)} duplicados potenciales.</p>
                         </article>
 
                         <aside class="insight-card">
@@ -2024,6 +2477,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                                 <div class="bullet">Facturas de compra: {docs["factura_compra"]}</div>
                                 <div class="bullet">Extractos bancarios: {docs["extracto_bancario"]}</div>
                                 <div class="bullet">Otros documentos: {docs["otros"]}</div>
+                                <div class="bullet">{texto_calidad_cierre(conc["nivel_cierre"])}</div>
                             </div>
                         </aside>
                     </div>
@@ -2031,20 +2485,20 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <section class="alerts-grid">
                         <article class="alert-card green">
                             <div class="alert-tag">Bien</div>
-                            <h4>Documentación estructurada</h4>
-                            <p>La información ya está organizada en un formato útil para lectura gerencial y revisión financiera.</p>
+                            <h4>Información estructurada</h4>
+                            <p>La documentación ya está organizada en un formato útil para lectura gerencial y revisión financiera.</p>
                         </article>
 
                         <article class="alert-card yellow">
                             <div class="alert-tag">Revisar</div>
                             <h4>Validaciones pendientes</h4>
-                            <p>Hay {conc["pendientes"]} elementos pendientes, {conc.get("probables_multi", 0)} conciliaciones multi que conviene validar y un importe pendiente de € {fmt(conc["importe_pendiente"])}.</p>
+                            <p>Se observan {conc["pendientes"]} factura(s) pendiente(s), € {fmt(conc["importe_pendiente"])} por validar y {conc.get("movimientos_internos", 0)} movimiento(s) interno(s).</p>
                         </article>
 
                         <article class="alert-card red">
                             <div class="alert-tag">Atención</div>
-                            <h4>Movimientos sin respaldo</h4>
-                            <p>Se detectan {conc.get("sin_soporte", 0)} movimientos relevantes sin respaldo documental, {conc.get("sin_soporte_menor", 0)} menores sin respaldo directo y {conc.get("duplicados", 0)} duplicados potenciales.</p>
+                            <h4>Movimientos sin soporte</h4>
+                            <p>Se detectan {conc.get("sin_soporte", 0)} movimientos relevantes sin soporte documental y {conc.get("sin_soporte_menor", 0)} movimientos menores sin soporte directo.</p>
                         </article>
                     </section>
                 </section>
@@ -2052,8 +2506,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <section class="section">
                     <div class="section-head">
                         <div>
-                            <h3 class="section-title">Documentos e importes detectados</h3>
-                            <p class="section-sub">Visibilidad estructurada sobre los documentos reconocidos por el sistema y los importes extraídos durante el procesamiento.</p>
+                            <h3 class="section-title">Documentos y montos identificados</h3>
+                            <p class="section-sub">Visibilidad estructurada sobre los documentos reconocidos por el sistema y los montos extraídos automáticamente durante el procesamiento.</p>
                         </div>
                     </div>
                     {documentos_html()}
@@ -2067,6 +2521,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <p class="section-sub">Primero se muestran las entradas y salidas relevantes. Los movimientos menores al umbral se agrupan aparte para no ensuciar la lectura ejecutiva.</p>
                         </div>
                     </div>
+                    <div class="filter-toolbar">
+                        {construir_botones_filtro()}
+                    </div>
                     {tabla_movimientos_relevantes_html()}
                     {bloque_movimientos_menores_html()}
                 </section>
@@ -2074,7 +2531,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <section class="section">
                     <div class="section-head">
                         <div>
-                            <h3 class="section-title">Movimiento financiero base</h3>
+                            <h3 class="section-title">Ledger base</h3>
                             <p class="section-sub">Trazabilidad preliminar del flujo de caja construida a partir del ledger generado automáticamente.</p>
                         </div>
                     </div>
@@ -2085,7 +2542,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <div class="section-head">
                         <div>
                             <h3 class="section-title">Conciliación</h3>
-                            <p class="section-sub">Resumen de coincidencias, pendientes, movimientos sin respaldo y diferencias detectadas entre documentos y movimientos.</p>
+                            <p class="section-sub">Resumen de coincidencias, pendientes, movimientos sin soporte y diferencias detectadas entre documentos y movimientos bancarios.</p>
                         </div>
                     </div>
 
@@ -2097,19 +2554,19 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         </article>
 
                         <article class="kpi">
-                            <div class="label">Facturas exactas (multi)</div>
+                            <div class="label">Conciliadas exactas múltiples</div>
                             <div class="amount">{conc.get("conciliadas_multi", 0)}</div>
                             <div class="meta"><span class="trend up">Correcto</span><span>Múltiples movimientos</span></div>
                         </article>
 
                         <article class="kpi">
-                            <div class="label">Facturas probables</div>
+                            <div class="label">Conciliadas probables</div>
                             <div class="amount">{conc["parciales"]}</div>
                             <div class="meta"><span class="trend warn">Revisión</span><span>Estado</span></div>
                         </article>
 
                         <article class="kpi">
-                            <div class="label">Facturas probables (multi)</div>
+                            <div class="label">Conciliadas probables múltiples</div>
                             <div class="amount">{conc.get("probables_multi", 0)}</div>
                             <div class="meta"><span class="trend gray">Validar</span><span>Múltiples movimientos</span></div>
                         </article>
@@ -2153,7 +2610,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         </article>
                     </div>
 
-                    <div class="metrics-grid">
+                    <div class="metrics-grid compact-grid">
                         <article class="kpi">
                             <div class="label">Pendiente de cobro</div>
                             <div class="amount">€ {fmt(conc["pendiente_cobro"])}</div>
@@ -2175,12 +2632,12 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <footer>
                     <div class="footer-card">
                         <div>
-                            <strong>PYME Financial Analyzer</strong> · Informe financiero visual para revisión ejecutiva, control documental y lectura preliminar de caja.
+                            <strong>PYME Financial Analyzer</strong> · Informe visual para revisión ejecutiva, control documental y lectura preliminar de caja.
                         </div>
                         <div class="footer-right">
                             <span class="footer-pill">Archivos: {total}</span>
                             <span class="footer-pill">Clasificados: {total_docs_clasificados}</span>
-                            <span class="footer-pill">Modo: {BRANDING["modo"]}</span>
+                            <span class="footer-pill">{texto_calidad_cierre(conc["nivel_cierre"])}</span>
                         </div>
                     </div>
 
@@ -2195,6 +2652,41 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 </footer>
             </main>
         </div>
+
+        <script>
+            (function() {{
+                function applyFilter(value) {{
+                    const allRows = document.querySelectorAll("[data-kind]");
+                    const buttons = document.querySelectorAll(".filter-btn");
+
+                    buttons.forEach(btn => {{
+                        if (btn.getAttribute("data-filter") === value) {{
+                            btn.classList.add("active");
+                        }} else {{
+                            btn.classList.remove("active");
+                        }}
+                    }});
+
+                    allRows.forEach(el => {{
+                        const kinds = (el.getAttribute("data-kind") || "").split(" ");
+                        if (value === "all" || kinds.includes(value)) {{
+                            el.classList.remove("is-hidden");
+                        }} else {{
+                            el.classList.add("is-hidden");
+                        }}
+                    }});
+                }}
+
+                document.querySelectorAll(".filter-btn").forEach(btn => {{
+                    btn.addEventListener("click", function() {{
+                        const value = this.getAttribute("data-filter") || "all";
+                        applyFilter(value);
+                    }});
+                }});
+
+                applyFilter("all");
+            }})();
+        </script>
     </body>
     </html>
     """
