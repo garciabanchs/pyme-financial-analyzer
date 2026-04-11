@@ -13,6 +13,9 @@ PATRON_MONEDA = re.compile(
     flags=re.IGNORECASE,
 )
 
+# Ajusta este valor si quieres un ledger más fino o más ejecutivo.
+UMBRAL_MOVIMIENTO_RELEVANTE = 50.0
+
 
 def limpiar_descripcion(linea):
     return " ".join((linea or "").strip().split())
@@ -109,9 +112,6 @@ def es_linea_ruido(linea_lower):
 
 
 def es_linea_componente(linea_lower):
-    """
-    Detecta líneas que parecen parte de un evento, pero no el hecho económico principal.
-    """
     patrones = [
         "fee",
         "tarifa",
@@ -136,9 +136,6 @@ def es_linea_componente(linea_lower):
 
 
 def tiene_huella_transaccional(linea_lower):
-    """
-    Heurística amplia y genérica para distintos bancos/países.
-    """
     patrones = [
         "pago",
         "payment",
@@ -179,12 +176,6 @@ def tiene_huella_transaccional(linea_lower):
 
 
 def partir_en_bloques_transaccionales(texto):
-    """
-    Agrupa líneas del extracto en bloques.
-    Regla:
-    - una nueva fecha suele abrir un bloque nuevo
-    - si una línea tiene mucha huella transaccional e importe, también puede abrir bloque
-    """
     bloques = []
     bloque_actual = []
 
@@ -212,7 +203,6 @@ def partir_en_bloques_transaccionales(texto):
             if bloque_actual:
                 bloque_actual.append(linea)
             else:
-                # Si todavía no hay bloque, intentamos iniciar uno
                 if tiene_importe or huella:
                     bloque_actual = [linea]
 
@@ -239,10 +229,6 @@ def extraer_moneda_de_bloque(bloque):
 
 
 def seleccionar_importe_principal_bloque(bloque):
-    """
-    Selecciona un importe principal de bloque, evitando bloques claramente resumidos
-    o con demasiados importes propios de bruto/neto/comisión.
-    """
     texto_bloque = " ".join(bloque)
     texto_lower = texto_bloque.lower()
     importes = PATRON_IMPORTE.findall(texto_bloque)
@@ -250,11 +236,9 @@ def seleccionar_importe_principal_bloque(bloque):
     if not importes:
         return None
 
-    # Si parece bloque muy contaminado, descartarlo.
     if es_linea_componente(texto_lower) and len(importes) >= 2:
         return None
 
-    # Si tiene demasiados importes, suele ser agregado o resumen.
     if len(importes) >= 4:
         return None
 
@@ -267,9 +251,6 @@ def seleccionar_importe_principal_bloque(bloque):
     if not candidatos:
         return None
 
-    # Preferencia:
-    # 1) si hay un único importe, ese
-    # 2) si hay dos o tres, preferimos el de mayor absoluto
     if len(candidatos) == 1:
         return candidatos[0][1]
 
@@ -278,14 +259,9 @@ def seleccionar_importe_principal_bloque(bloque):
 
 
 def extraer_descripcion_bloque(bloque):
-    """
-    Une el bloque, pero intentando dejar algo legible y corto.
-    """
     if not bloque:
         return ""
-
-    texto = " | ".join(bloque)
-    return texto[:250]
+    return " | ".join(bloque)[:250]
 
 
 def inferir_naturaleza_bloque(texto_lower, valor):
@@ -332,17 +308,28 @@ def inferir_naturaleza_bloque(texto_lower, valor):
 def bloque_es_agregado_o_resumen(bloque):
     texto = " ".join(bloque).lower()
 
-    # Si el bloque contiene términos de resumen o subtotal, fuera.
     if es_linea_ruido(texto):
         return True
 
-    # Si no tiene huella transaccional real, fuera.
     if not tiene_huella_transaccional(texto):
         return True
 
-    # Si tiene demasiadas líneas y demasiados importes, suele ser agregado OCR.
     total_importes = len(PATRON_IMPORTE.findall(texto))
     if len(bloque) >= 4 and total_importes >= 4:
+        return True
+
+    return False
+
+
+def es_movimiento_relevante(valor, categoria):
+    """
+    Mantiene en el ledger ejecutivo solo movimientos materialmente relevantes.
+    Excepción: los no conciliables estructurales pueden conservarse si son grandes.
+    """
+    if valor is None:
+        return False
+
+    if abs(valor) >= UMBRAL_MOVIMIENTO_RELEVANTE:
         return True
 
     return False
@@ -377,6 +364,11 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
         if abs(valor) > 100000:
             continue
 
+        categoria = clasificar_movimiento_bancario(texto_lower, valor)
+
+        if not es_movimiento_relevante(valor, categoria):
+            continue
+
         fecha = extraer_fecha_de_bloque(bloque, fecha_doc)
         descripcion = extraer_descripcion_bloque(bloque)
         moneda = extraer_moneda_de_bloque(bloque)
@@ -384,8 +376,6 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
         naturaleza = inferir_naturaleza_bloque(texto_lower, valor)
         if naturaleza == "desconocido":
             naturaleza = "entrada" if valor > 0 else "salida"
-
-        categoria = clasificar_movimiento_bancario(texto_lower, valor)
 
         clave = (
             archivo,
@@ -458,7 +448,6 @@ def construir_ledger(documentos):
                 })
 
         elif tipo_doc == "extracto_bancario":
-            # Resumen oficial del extracto para caja macro
             if resumen_extracto:
                 ledger.append({
                     "id": f"extract_summary_{idx}",
