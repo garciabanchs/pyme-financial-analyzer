@@ -164,15 +164,15 @@ def _extraer_total_desde_base_iva_total(texto):
 
     return None
 
-
 def extraer_importe_principal(texto, tipo_documento, importes):
     """
     Devuelve el mejor importe principal detectado.
 
     Reglas:
-    - Facturas: priorizar TOTAL FINAL real del documento.
-    - Nunca priorizar base imponible o subtotal si existe un total final claro.
-    - Extractos: no devuelven un único importe aquí.
+    - factura_venta: usar el MAYOR importe detectado, porque normalmente el total final
+      supera base imponible e IVA por separado.
+    - factura_compra: intentar total explícito; si no, usar el mayor.
+    - extractos: no devuelven un único importe aquí.
     """
     if not importes:
         return None
@@ -186,40 +186,31 @@ def extraer_importe_principal(texto, tipo_documento, importes):
     if not importes_numericos:
         return None
 
-    texto_lower = (texto or "").lower()
+    # Venta: aquí queremos total final, no base imponible.
+    if tipo_documento == "factura_venta":
+        return max(importes_numericos, key=lambda x: x[1])[0]
 
-    if tipo_documento in ["factura_venta", "factura_compra"]:
-        # 1) Mejor opción: la última mención válida a TOTAL en el documento
-        candidato = _extraer_ultimo_total_documento(texto)
-        if candidato:
-            return candidato
+    # Compra: intentamos total explícito primero.
+    if tipo_documento == "factura_compra":
+        texto_lower = (texto or "").lower()
 
-        # 2) Segunda opción: líneas explícitas con TOTAL
-        candidatos_linea = _extraer_totales_por_linea(texto)
-        if candidatos_linea:
-            candidatos_linea.sort(key=lambda x: x[1])  # por valor
-            return candidatos_linea[-1][0]
+        patrones_total = [
+            r"\btotal factura\s*[:\-]?\s*(\d{1,3}(?:\.\d{3})*,\d{2})\b",
+            r"\bimporte total\s*[:\-]?\s*(\d{1,3}(?:\.\d{3})*,\d{2})\b",
+            r"\btotal eur\s*[:\-]?\s*(\d{1,3}(?:\.\d{3})*,\d{2})\b",
+            r"\btotal\s*[:\-]?\s*(\d{1,3}(?:\.\d{3})*,\d{2})\b",
+        ]
 
-        # 3) Tercera opción: patrón base + iva + total
-        candidato = _extraer_total_desde_base_iva_total(texto)
-        if candidato:
-            return candidato
+        for patron in patrones_total:
+            m = re.search(patron, texto_lower, flags=re.IGNORECASE | re.DOTALL)
+            if m:
+                candidato = m.group(1)
+                if normalizar_importe(candidato) is not None:
+                    return candidato
 
-        # 4) Fallback defensivo:
-        # excluir subtotales/base imponible si se detectan palabras fuertes
-        candidatos_filtrados = []
-        for imp, valor in importes_numericos:
-            contexto = texto_lower
-            # no podemos ligar contexto exacto por posición fácilmente aquí,
-            # así que hacemos fallback por importe mayor, que suele ser el total
-            candidatos_filtrados.append((imp, valor))
+        return max(importes_numericos, key=lambda x: x[1])[0]
 
-        if candidatos_filtrados:
-            return max(candidatos_filtrados, key=lambda x: x[1])[0]
-
-    # Para extractos no devolvemos uno único
     return None
-
 
 def extraer_resumen_extracto(texto):
     texto = texto or ""
