@@ -13,7 +13,7 @@ PATRON_MONEDA = re.compile(
     flags=re.IGNORECASE,
 )
 
-# Ajusta este valor si quieres un ledger más fino o más ejecutivo.
+# Ledger ejecutivo: deja fuera micro-movimientos y ruido.
 UMBRAL_MOVIMIENTO_RELEVANTE = 50.0
 
 
@@ -323,16 +323,23 @@ def bloque_es_agregado_o_resumen(bloque):
 
 def es_movimiento_relevante(valor, categoria):
     """
-    Mantiene en el ledger ejecutivo solo movimientos materialmente relevantes.
-    Excepción: los no conciliables estructurales pueden conservarse si son grandes.
+    Filtro fuerte de relevancia financiera.
+    Elimina microtransacciones y ruido bancario.
     """
     if valor is None:
         return False
 
-    if abs(valor) >= UMBRAL_MOVIMIENTO_RELEVANTE:
-        return True
+    v = abs(valor)
 
-    return False
+    # Regla dura principal
+    if v < UMBRAL_MOVIMIENTO_RELEVANTE:
+        return False
+
+    # Segunda capa: micro-ruido de categorías accesorias
+    if v < 100 and categoria in ["comision", "retencion", "ajuste", "impuesto"]:
+        return False
+
+    return True
 
 
 def extraer_movimientos_extracto(texto, archivo, fecha_doc):
@@ -367,6 +374,10 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
         categoria = clasificar_movimiento_bancario(texto_lower, valor)
 
         if not es_movimiento_relevante(valor, categoria):
+            continue
+
+        # Filtro final de seguridad
+        if abs(valor) < UMBRAL_MOVIMIENTO_RELEVANTE:
             continue
 
         fecha = extraer_fecha_de_bloque(bloque, fecha_doc)
