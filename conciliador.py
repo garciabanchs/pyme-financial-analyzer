@@ -28,6 +28,8 @@ def _es_categoria_no_conciliable(categoria):
         "impuesto",
         "ajuste",
         "traspaso",
+        "transferencia_interna",
+        "retiro_propio",
     ]
 
 
@@ -35,6 +37,8 @@ def _es_categoria_operativa_no_facturable(categoria):
     categoria = (categoria or "").lower()
     return categoria in [
         "traspaso",
+        "transferencia_interna",
+        "retiro_propio",
         "comision",
         "retencion",
         "impuesto",
@@ -44,12 +48,45 @@ def _es_categoria_operativa_no_facturable(categoria):
     ]
 
 
+def _es_categoria_comercial_facturable(categoria):
+    categoria = (categoria or "").lower()
+    return categoria in [
+        "cobro_cliente",
+        "pago_proveedor",
+        "gasto_operativo",
+    ]
+
+
+def _movimiento_puede_conciliar_con_factura(factura, mov):
+    categoria = (mov.get("categoria") or "").lower()
+    tipo_factura = (factura.get("tipo") or "").lower()
+
+    if _es_categoria_no_conciliable(categoria):
+        return False
+
+    if categoria in ["otros_cobros", "otros_pagos"]:
+        return False
+
+    if tipo_factura == "factura_venta":
+        return categoria in ["cobro_cliente"]
+
+    if tipo_factura == "factura_compra":
+        return categoria in ["pago_proveedor", "gasto_operativo"]
+
+    return False
+
+
 def _clasificar_movimiento_suelto(mov):
     importe = abs(mov.get("importe_abs", 0.0))
     categoria = (mov.get("categoria") or "desconocido").lower()
 
-    if categoria == "traspaso":
+    if categoria in ["traspaso", "transferencia_interna"]:
         return "movimiento interno", "bajo"
+
+    if categoria == "retiro_propio":
+        if importe >= 100:
+            return "movimiento bancario no conciliable", "medio"
+        return "movimiento bancario no conciliable menor", "bajo"
 
     if categoria in ["comision", "retencion", "impuesto", "ajuste"]:
         if importe >= 100:
@@ -58,6 +95,21 @@ def _clasificar_movimiento_suelto(mov):
 
     if categoria in ["otros_cobros", "otros_pagos"]:
         return "movimiento agrupado", "bajo"
+
+    if categoria == "gasto_operativo":
+        if importe >= 100:
+            return "sin soporte", "alto"
+        return "sin soporte menor", "bajo"
+
+    if categoria == "pago_proveedor":
+        if importe >= 100:
+            return "sin soporte", "alto"
+        return "sin soporte menor", "bajo"
+
+    if categoria == "cobro_cliente":
+        if importe >= 100:
+            return "sin soporte", "alto"
+        return "sin soporte menor", "bajo"
 
     if importe >= 100:
         return "sin soporte", "alto"
@@ -119,7 +171,7 @@ def _buscar_match_exacto(factura, movimientos_banco, usados_banco):
         if i in usados_banco:
             continue
 
-        if _es_categoria_no_conciliable(mov.get("categoria")):
+        if not _movimiento_puede_conciliar_con_factura(factura, mov):
             continue
 
         importe_banco = mov.get("importe_firmado", 0.0)
@@ -150,7 +202,7 @@ def _buscar_match_probable_simple(factura, movimientos_banco, usados_banco):
         if i in usados_banco:
             continue
 
-        if _es_categoria_no_conciliable(mov.get("categoria")):
+        if not _movimiento_puede_conciliar_con_factura(factura, mov):
             continue
 
         importe_banco = mov.get("importe_firmado", 0.0)
@@ -186,7 +238,7 @@ def _buscar_match_multi(factura, movimientos_banco, usados_banco, max_componente
         if i in usados_banco:
             continue
 
-        if _es_categoria_no_conciliable(mov.get("categoria")):
+        if not _movimiento_puede_conciliar_con_factura(factura, mov):
             continue
 
         importe_banco = mov.get("importe_firmado", 0.0)
