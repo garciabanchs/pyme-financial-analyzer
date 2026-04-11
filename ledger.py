@@ -14,7 +14,7 @@ PATRON_MONEDA = re.compile(
 )
 
 # Ledger ejecutivo: deja fuera micro-movimientos y ruido.
-UMBRAL_MOVIMIENTO_RELEVANTE = 50.0
+UMBRAL_MOVIMIENTO_RELEVANTE = 100.0
 
 
 def limpiar_descripcion(linea):
