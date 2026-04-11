@@ -13,7 +13,6 @@ PATRON_MONEDA = re.compile(
     flags=re.IGNORECASE,
 )
 
-# Ledger ejecutivo: deja fuera micro-movimientos y ruido.
 UMBRAL_MOVIMIENTO_RELEVANTE = 100.0
 
 
@@ -324,18 +323,16 @@ def bloque_es_agregado_o_resumen(bloque):
 def es_movimiento_relevante(valor, categoria):
     """
     Filtro fuerte de relevancia financiera.
-    Elimina microtransacciones y ruido bancario.
+    Lo que no pase este filtro no se pierde: se agrupa.
     """
     if valor is None:
         return False
 
     v = abs(valor)
 
-    # Regla dura principal
     if v < UMBRAL_MOVIMIENTO_RELEVANTE:
         return False
 
-    # Segunda capa: micro-ruido de categorías accesorias
     if v < 100 and categoria in ["comision", "retencion", "ajuste", "impuesto"]:
         return False
 
@@ -350,6 +347,11 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
     bloques = partir_en_bloques_transaccionales(texto)
     vistos = set()
     contador = 1
+
+    otros_cobros_total = 0.0
+    otros_pagos_total = 0.0
+    otros_cobros_cantidad = 0
+    otros_pagos_cantidad = 0
 
     for bloque in bloques:
         texto_bloque = " ".join(bloque)
@@ -372,14 +374,6 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
             continue
 
         categoria = clasificar_movimiento_bancario(texto_lower, valor)
-
-        if not es_movimiento_relevante(valor, categoria):
-            continue
-
-        # Filtro final de seguridad
-        if abs(valor) < UMBRAL_MOVIMIENTO_RELEVANTE:
-            continue
-
         fecha = extraer_fecha_de_bloque(bloque, fecha_doc)
         descripcion = extraer_descripcion_bloque(bloque)
         moneda = extraer_moneda_de_bloque(bloque)
@@ -387,6 +381,16 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
         naturaleza = inferir_naturaleza_bloque(texto_lower, valor)
         if naturaleza == "desconocido":
             naturaleza = "entrada" if valor > 0 else "salida"
+
+        # Si no es relevante, se agrupa y NO se pierde
+        if not es_movimiento_relevante(valor, categoria):
+            if valor > 0:
+                otros_cobros_total += abs(valor)
+                otros_cobros_cantidad += 1
+            else:
+                otros_pagos_total += abs(valor)
+                otros_pagos_cantidad += 1
+            continue
 
         clave = (
             archivo,
@@ -417,6 +421,44 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
 
         vistos.add(clave)
         contador += 1
+
+    # Añadir agrupados al ledger
+    if otros_cobros_cantidad > 0:
+        movimientos.append({
+            "id": f"bank_{contador}",
+            "archivo": archivo,
+            "tipo": "extracto_bancario",
+            "fecha": fecha_doc or "No detectada",
+            "periodo": obtener_periodo(fecha_doc or "No detectada"),
+            "importe": f"{otros_cobros_total:.2f}".replace(".", ","),
+            "importe_num": otros_cobros_total,
+            "importe_firmado_num": otros_cobros_total,
+            "naturaleza": "entrada",
+            "categoria": "otros_cobros",
+            "descripcion": f"{otros_cobros_cantidad} movimientos menores agrupados",
+            "moneda": detectar_moneda(texto),
+            "soporte": False,
+            "estado_conciliacion": "agrupado",
+        })
+        contador += 1
+
+    if otros_pagos_cantidad > 0:
+        movimientos.append({
+            "id": f"bank_{contador}",
+            "archivo": archivo,
+            "tipo": "extracto_bancario",
+            "fecha": fecha_doc or "No detectada",
+            "periodo": obtener_periodo(fecha_doc or "No detectada"),
+            "importe": f"{otros_pagos_total:.2f}".replace(".", ","),
+            "importe_num": otros_pagos_total,
+            "importe_firmado_num": -otros_pagos_total,
+            "naturaleza": "salida",
+            "categoria": "otros_pagos",
+            "descripcion": f"{otros_pagos_cantidad} movimientos menores agrupados",
+            "moneda": detectar_moneda(texto),
+            "soporte": False,
+            "estado_conciliacion": "agrupado",
+        })
 
     return movimientos
 
