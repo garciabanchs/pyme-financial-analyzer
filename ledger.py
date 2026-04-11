@@ -6,6 +6,14 @@ from parser_financiero import (
 )
 
 
+PATRON_FECHA = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")
+PATRON_IMPORTE = re.compile(r"-?\d{1,3}(?:\.\d{3})*,\d{2}")
+
+
+def limpiar_descripcion(linea):
+    return " ".join((linea or "").strip().split())
+
+
 def clasificar_movimiento_bancario(texto, valor):
     t = (texto or "").lower()
 
@@ -39,10 +47,6 @@ def clasificar_movimiento_bancario(texto, valor):
     return "desconocido"
 
 
-def limpiar_descripcion(linea):
-    return " ".join((linea or "").strip().split())
-
-
 def es_linea_ruido(linea_lower):
     if not linea_lower:
         return True
@@ -62,16 +66,8 @@ def es_linea_ruido(linea_lower):
         "descripción eur",
         "descripcion eur",
         "paypal (europe)",
-    ]
-
-    return any(fragmento in linea_lower for fragmento in fragmentos_ignorar)
-
-
-def es_linea_resumen_o_subtotal(linea_lower):
-    if not linea_lower:
-        return False
-
-    patrones_resumen = [
+        "resumen de actividad",
+        "resumen de saldo",
         "saldo inicial disponible",
         "saldo final disponible",
         "saldo inicial retenido",
@@ -84,55 +80,118 @@ def es_linea_resumen_o_subtotal(linea_lower):
         "tarifas",
         "liberaciones",
         "retenido",
-        "resumen de actividad",
-        "resumen de saldo",
-        "descripción eur",
-        "descripcion eur",
-        "total ",
     ]
 
-    return any(p in linea_lower for p in patrones_resumen)
+    return any(fragmento in linea_lower for fragmento in fragmentos_ignorar)
 
 
-def es_linea_historial_valida(linea_original):
+def es_linea_evento_principal(linea_lower):
     """
-    Acepta líneas del historial bancario real.
-    Regla:
-    - no debe ser cabecera
-    - no debe ser línea de resumen/subtotal
-    - debe tener al menos un importe
-    - la fecha es opcional, porque algunos extractos parten una transacción
-      entre varias líneas o arrastran la fecha desde arriba
+    Solo deja pasar hechos económicos principales.
     """
-    linea = limpiar_descripcion(linea_original)
-    if not linea:
-        return False
+    patrones_principales = [
+        "pago en punto de venta",
+        "pago estándar",
+        "pago estandar",
+        "pago general",
+        "pago recibido",
+        "payment received",
+        "pago enviado",
+        "retirada iniciada por el usuario",
+        "depósito bancario",
+        "deposito bancario",
+        "transacción de la tarjeta",
+        "transaccion de la tarjeta",
+        "compra con tarjeta",
+        "bank transfer",
+        "transferencia",
+        "transfer",
+        "reembolso",
+        "refund",
+    ]
 
-    linea_lower = linea.lower()
+    return any(p in linea_lower for p in patrones_principales)
 
-    if es_linea_ruido(linea_lower):
-        return False
 
-    if es_linea_resumen_o_subtotal(linea_lower):
-        return False
+def es_linea_componente_evento(linea_lower):
+    """
+    Líneas que pertenecen al detalle bancario de un evento,
+    pero no deben contaminar ventas/compras ni ledger operativo principal.
+    """
+    patrones_componentes = [
+        "fee",
+        "tarifa",
+        "comisión",
+        "comision",
+        "retenido",
+        "retención",
+        "retencion",
+        "retention",
+        "hold",
+        "liberación",
+        "liberacion",
+        "cancelación de retención",
+        "cancelacion de retencion",
+        "importe neto",
+        "importe bruto",
+        "neto",
+        "bruto",
+    ]
 
-    patron_importe = re.compile(r"-?\d{1,3}(?:\.\d{3})*,\d{2}")
-    importes = patron_importe.findall(linea)
-    if len(importes) == 0:
-        return False
+    return any(p in linea_lower for p in patrones_componentes)
 
-    return True
+
+def inferir_naturaleza_desde_texto(linea_lower, valor):
+    if valor > 0:
+        return "entrada"
+    if valor < 0:
+        return "salida"
+
+    entradas = [
+        "pago recibido",
+        "payment received",
+        "depósito bancario",
+        "deposito bancario",
+        "reembolso",
+        "refund",
+        "liberación",
+        "liberacion",
+    ]
+    salidas = [
+        "pago enviado",
+        "retirada iniciada por el usuario",
+        "compra con tarjeta",
+        "transacción de la tarjeta",
+        "transaccion de la tarjeta",
+        "tarifa",
+        "fee",
+        "comisión",
+        "comision",
+        "retención",
+        "retencion",
+    ]
+
+    if any(p in linea_lower for p in entradas):
+        return "entrada"
+    if any(p in linea_lower for p in salidas):
+        return "salida"
+
+    return "desconocido"
 
 
 def extraer_movimientos_extracto(texto, archivo, fecha_doc):
+    """
+    Extrae solo eventos principales del historial detallado.
+    Excluye:
+    - resumen del período
+    - subtotales
+    - netos/brutos/comisiones/retenciones/liberaciones
+    """
     movimientos = []
     if not texto:
         return movimientos
 
     lineas = texto.split("\n")
-    patron_fecha = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")
-    patron_importe = re.compile(r"-?\d{1,3}(?:\.\d{3})*,\d{2}")
-
     fecha_actual = fecha_doc if fecha_doc and fecha_doc != "No detectada" else None
     vistos = set()
     contador = 1
@@ -142,20 +201,26 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
         if not linea_original:
             continue
 
-        if not es_linea_historial_valida(linea_original):
-            continue
-
         linea_lower = linea_original.lower()
 
-        m_fecha = patron_fecha.search(linea_original)
-        if m_fecha:
-            fecha_actual = m_fecha.group()
+        if es_linea_ruido(linea_lower):
+            continue
 
-        importes = patron_importe.findall(linea_original)
+        if not es_linea_evento_principal(linea_lower):
+            continue
+
+        if es_linea_componente_evento(linea_lower):
+            continue
+
+        importes = PATRON_IMPORTE.findall(linea_original)
         if not importes:
             continue
 
-        # En historial detallado tomamos el primer importe firmado de la línea
+        m_fecha = PATRON_FECHA.search(linea_original)
+        if m_fecha:
+            fecha_actual = m_fecha.group()
+
+        # Si la línea trae varios importes, tomamos el primero firmado.
         importe_str = importes[0]
         valor = normalizar_importe(importe_str)
         if valor is None:
@@ -167,7 +232,10 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
         if abs(valor) > 100000:
             continue
 
-        naturaleza = "entrada" if valor > 0 else "salida"
+        naturaleza = inferir_naturaleza_desde_texto(linea_lower, valor)
+        if naturaleza == "desconocido":
+            naturaleza = "entrada" if valor > 0 else "salida"
+
         categoria = clasificar_movimiento_bancario(linea_lower, valor)
         descripcion_base = linea_original[:250]
 
@@ -176,6 +244,7 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
             fecha_actual or "sin_fecha",
             round(valor, 2),
             descripcion_base[:180],
+            categoria,
         )
 
         if clave in vistos:
@@ -239,7 +308,7 @@ def construir_ledger(documentos):
                 })
 
         elif tipo_doc == "extracto_bancario":
-            # El resumen oficial del extracto se guarda aparte
+            # El resumen oficial del extracto se guarda aparte para la caja macro
             if resumen_extracto:
                 ledger.append({
                     "id": f"extract_summary_{idx}",
@@ -258,6 +327,7 @@ def construir_ledger(documentos):
                     "estado_conciliacion": "no_aplica",
                 })
 
+            # El historial detallado solo aporta eventos principales
             movimientos = extraer_movimientos_extracto(
                 texto=texto,
                 archivo=archivo,
