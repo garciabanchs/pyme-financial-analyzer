@@ -10,147 +10,78 @@ from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.pdfgen import canvas
 
+from reportes import (
+    fmt_importe_reporte,
+    normalizar_importe_reporte,
+    construir_resumen_documentos,
+    construir_resumen_flujo,
+    construir_resumen_conciliacion,
+    construir_narrativa_ejecutiva,
+    normalizar_estado_conciliacion,
+    humanizar_estado_conciliacion,
+)
+
 
 def _fmt_eur(numero):
-    try:
-        return f"{numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    except Exception:
-        return "0,00"
+    return fmt_importe_reporte(numero)
 
 
 def _num(valor):
-    if isinstance(valor, (int, float)):
-        return float(valor)
-
-    try:
-        texto = str(valor).strip()
-        return float(texto.replace(".", "").replace(",", "."))
-    except Exception:
-        return 0.0
+    return normalizar_importe_reporte(valor)
 
 
 def _resumen_flujo(documentos, ledger):
-    # PRIORIDAD 1: usar resumen oficial del extracto si existe
-    for doc in documentos or []:
-        if doc.get("tipo") != "extracto_bancario":
-            continue
-
-        resumen = doc.get("resumen_extracto", {}) or {}
-        if not resumen:
-            continue
-
-        saldo_inicial = _num(resumen.get("saldo_inicial_disponible"))
-        saldo_final = _num(resumen.get("saldo_final_disponible"))
-        retenido = abs(_num(resumen.get("retenido")))
-
-        pagos_recibidos = max(_num(resumen.get("pagos_recibidos")), 0.0)
-        depositos_y_creditos = max(_num(resumen.get("depositos_y_creditos")), 0.0)
-        liberaciones = max(_num(resumen.get("liberaciones")), 0.0)
-
-        pagos_enviados = abs(min(_num(resumen.get("pagos_enviados")), 0.0))
-        retiradas_y_cargos = abs(min(_num(resumen.get("retiradas_y_cargos")), 0.0))
-        tarifas = abs(min(_num(resumen.get("tarifas")), 0.0))
-        retenido_salida = abs(min(_num(resumen.get("retenido")), 0.0))
-
-        entradas = pagos_recibidos + depositos_y_creditos + liberaciones
-        salidas = pagos_enviados + retiradas_y_cargos + tarifas + retenido_salida
-        variacion = saldo_final - saldo_inicial
-
-        return {
-            "saldo_inicial": saldo_inicial,
-            "entradas": entradas,
-            "salidas": salidas,
-            "saldo_final": saldo_final,
-            "variacion": variacion,
-            "retenido": retenido,
-            "balance": variacion,
-        }
-
-    # FALLBACK: usar solo movimientos bancarios, nunca facturas
-    saldo_inicial = 0.0
-    entradas = 0.0
-    salidas = 0.0
-
-    for item in ledger or []:
-        if item.get("tipo") != "extracto_bancario":
-            continue
-
-        valor_firmado = item.get("importe_firmado_num")
-        if valor_firmado is None:
-            naturaleza = item.get("naturaleza")
-            importe = _num(item.get("importe", 0))
-            if naturaleza == "entrada":
-                valor_firmado = importe
-            elif naturaleza == "salida":
-                valor_firmado = -importe
-            else:
-                valor_firmado = 0.0
-
-        if valor_firmado > 0:
-            entradas += valor_firmado
-        elif valor_firmado < 0:
-            salidas += abs(valor_firmado)
-
-    saldo_final = saldo_inicial + entradas - salidas
-    variacion = saldo_final - saldo_inicial
-
-    return {
-        "saldo_inicial": saldo_inicial,
-        "entradas": entradas,
-        "salidas": salidas,
-        "saldo_final": saldo_final,
-        "variacion": variacion,
-        "retenido": 0.0,
-        "balance": variacion,
-    }
+    # Se mantiene la firma por compatibilidad, pero la lógica vive en reportes.py
+    return construir_resumen_flujo(ledger)
 
 
 def _resumen_conciliacion(conciliacion):
-    conciliadas = 0
-    probables = 0
-    pendientes = 0
-    sin_soporte = 0
-    no_conciliables = 0
-    conflictivos = 0
+    # Se mantiene la firma por compatibilidad, pero la lógica vive en reportes.py
+    return construir_resumen_conciliacion(conciliacion)
 
-    pendiente_cobro = 0.0
-    pendiente_pago = 0.0
-    importe_pendiente = 0.0
 
-    for item in conciliacion or []:
-        estado = item.get("estado", "")
-        tipo = item.get("tipo", "")
-        importe = _num(item.get("importe", 0))
+def _resumen_documentos(clasificados):
+    return construir_resumen_documentos(clasificados)
 
-        if estado == "conciliado_exacto":
-            conciliadas += 1
-        elif estado == "probablemente_conciliado":
-            probables += 1
-        elif estado == "pendiente":
-            pendientes += 1
-            importe_pendiente += importe
-            if tipo == "factura_venta":
-                pendiente_cobro += importe
-            elif tipo == "factura_compra":
-                pendiente_pago += importe
-        elif estado == "sin_soporte":
-            sin_soporte += 1
-        elif estado == "no_conciliable":
-            no_conciliables += 1
-        elif estado == "duplicado_o_conflictivo":
-            conflictivos += 1
 
-    return {
-        "conciliadas": conciliadas,
-        "parciales": probables,
-        "pendientes": pendientes,
-        "sin_soporte": sin_soporte,
-        "no_conciliables": no_conciliables,
-        "conflictivos": conflictivos,
-        "pendiente_cobro": pendiente_cobro,
-        "pendiente_pago": pendiente_pago,
-        "importe_pendiente": importe_pendiente,
-    }
+def _narrativa_pdf(total_documentos, docs, flujo, conc):
+    return construir_narrativa_ejecutiva(total_documentos, docs, flujo, conc)
+
+
+def _hallazgos_conciliacion_texto(conc):
+    return (
+        f"Pendiente de cobro estimado: € {_fmt_eur(conc['pendiente_cobro'])}. "
+        f"Pendiente de pago estimado: € {_fmt_eur(conc['pendiente_pago'])}. "
+        f"Facturas conciliadas exactas: {conc['conciliadas']}. "
+        f"Facturas exactas múltiples: {conc.get('conciliadas_multi', 0)}. "
+        f"Facturas probables: {conc['parciales']}. "
+        f"Facturas probables múltiples: {conc.get('probables_multi', 0)}. "
+        f"Registros pendientes: {conc['pendientes']}. "
+        f"Movimientos sin soporte: {conc.get('sin_soporte', 0)}. "
+        f"Duplicados potenciales: {conc.get('duplicados', 0)}."
+    )
+
+
+def _observacion_ejecutiva(conc):
+    nivel = conc.get("nivel_cierre", "medio")
+
+    if nivel == "bajo":
+        return (
+            "La lectura financiera todavía no puede considerarse cerrada. "
+            "Aunque el flujo del período ya es visible, existen conciliaciones no definitivas, "
+            "movimientos sin soporte o duplicados potenciales que reducen la confiabilidad del cierre."
+        )
+
+    if nivel == "medio":
+        return (
+            "La lectura financiera ya es útil, pero todavía requiere validaciones antes de considerarse cierre limpio. "
+            "Persisten coincidencias múltiples, validaciones prudenciales o señales de revisión que conviene confirmar."
+        )
+
+    return (
+        "La lectura financiera del período es razonablemente consistente para revisión ejecutiva preliminar. "
+        "Aun así, el informe sigue siendo automático y no sustituye validación contable o fiscal definitiva."
+    )
 
 
 def _draw_paragraph(
@@ -369,14 +300,30 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, documentos, ledger
     usable_w = width - 2 * margin_x
 
     branding_data = BRANDING[BRANDING["modo"]]
+    docs = _resumen_documentos(clasificados)
     flujo = _resumen_flujo(documentos, ledger)
     conc = _resumen_conciliacion(conciliacion)
+    titular, narrativa = _narrativa_pdf(
+        total_documentos=sum(docs.values()),
+        docs=docs,
+        flujo=flujo,
+        conc=conc,
+    )
 
     total_docs_clasificados = (
         len(clasificados.get("factura_venta", []))
         + len(clasificados.get("factura_compra", []))
         + len(clasificados.get("extracto_bancario", []))
         + len(clasificados.get("otros", []))
+    )
+
+    nivel_cierre = conc.get("nivel_cierre", "medio")
+    cierre_texto = (
+        "Cierre preliminar alto"
+        if nivel_cierre == "alto"
+        else "Cierre preliminar medio"
+        if nivel_cierre == "medio"
+        else "Cierre preliminar bajo"
     )
 
     # =========================
@@ -407,6 +354,7 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, documentos, ledger
         f"Documentos clasificados: {total_docs_clasificados}",
         f"Pendientes: {conc['pendientes']}",
         f"Variación: € {_fmt_eur(flujo['variacion'])}",
+        cierre_texto,
     ]
     current_x = chip_x
     for chip in chips:
@@ -456,27 +404,8 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, documentos, ledger
         "Resumen narrativo del flujo, la conciliación y las principales señales detectadas durante el procesamiento.",
     )
 
-    titular = (
-        "La caja del período cerró mejor que como empezó."
-        if flujo["variacion"] > 0
-        else "La caja del período muestra presión y cerró por debajo del inicio."
-        if flujo["entradas"] > 0
-        else "La información disponible es insuficiente para confirmar una lectura sólida de caja."
-    )
-
-    narrativa = (
-        f"Durante el período analizado el saldo inicial fue de € {_fmt_eur(flujo['saldo_inicial'])}, "
-        f"entraron € {_fmt_eur(flujo['entradas'])} y salieron € {_fmt_eur(flujo['salidas'])}. "
-        f"El saldo final fue de € {_fmt_eur(flujo['saldo_final'])}, con una variación neta de "
-        f"€ {_fmt_eur(flujo['variacion'])}. "
-        f"Se observan {conc['pendientes']} registros pendientes de conciliación, con "
-        f"€ {_fmt_eur(conc['importe_pendiente'])} todavía sujetos a validación documental. "
-        f"El objetivo de este informe es mostrar qué pasó con la caja, qué movimientos ya tienen soporte "
-        f"y qué elementos siguen pendientes de revisión."
-    )
-
     c.setFillColor(HexColor("#ffffff"))
-    c.roundRect(margin_x, y - 2.9 * cm, usable_w, 2.9 * cm, 16, fill=1, stroke=0)
+    c.roundRect(margin_x, y - 3.25 * cm, usable_w, 3.25 * cm, 16, fill=1, stroke=0)
 
     c.setFillColor(HexColor("#0f172a"))
     c.setFont("Helvetica-Bold", 12)
@@ -494,11 +423,11 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, documentos, ledger
         HexColor("#475569"),
     )
 
-    y -= 3.35 * cm
+    y -= 3.7 * cm
 
     box_gap = 10
     box_w = (usable_w - (2 * box_gap)) / 3
-    alert_h = 3.0 * cm
+    alert_h = 3.2 * cm
 
     _draw_alert_card(
         c,
@@ -508,7 +437,7 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, documentos, ledger
         alert_h,
         "BIEN",
         "Documentación estructurada",
-        "El sistema ya clasifica documentos y arma una base útil para revisión gerencial.",
+        "El sistema ya clasifica documentos, reconstruye flujo y genera una base útil para revisión financiera preliminar.",
         "#ecfdf3",
         "#16a34a",
     )
@@ -520,8 +449,12 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, documentos, ledger
         box_w,
         alert_h,
         "REVISAR",
-        "Pendientes de conciliación",
-        f"Hay {conc['pendientes']} registros por revisar y un importe asociado de € {_fmt_eur(conc['importe_pendiente'])}.",
+        "Calidad del cierre",
+        (
+            f"Nivel preliminar del cierre: {nivel_cierre}. "
+            f"Pendientes: {conc['pendientes']}. "
+            f"Probables multi: {conc.get('probables_multi', 0)}."
+        ),
         "#fff9e8",
         "#ca8a04",
     )
@@ -533,8 +466,12 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, documentos, ledger
         box_w,
         alert_h,
         "ATENCIÓN",
-        "Resultado del período",
-        "Este informe orienta decisiones, pero no sustituye una revisión contable definitiva.",
+        "Señales relevantes",
+        (
+            f"Sin soporte: {conc.get('sin_soporte', 0)}. "
+            f"Duplicados potenciales: {conc.get('duplicados', 0)}. "
+            f"No conciliables: {conc.get('no_conciliables', 0)}."
+        ),
         "#fef2f2",
         "#dc2626",
     )
@@ -558,7 +495,7 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, documentos, ledger
         "Clasificación documental, conciliación y contexto complementario del informe.",
     )
 
-    info_h = 3.3 * cm
+    info_h = 3.35 * cm
     _draw_info_box(
         c,
         margin_x,
@@ -585,13 +522,7 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, documentos, ledger
         usable_w,
         info_h,
         "Hallazgos clave de conciliación",
-        (
-            f"Pendiente de cobro estimado: € {_fmt_eur(conc['pendiente_cobro'])}. "
-            f"Pendiente de pago estimado: € {_fmt_eur(conc['pendiente_pago'])}. "
-            f"Facturas conciliadas exactas: {conc['conciliadas']}. "
-            f"Facturas probablemente conciliadas: {conc['parciales']}. "
-            f"Registros pendientes: {conc['pendientes']}."
-        ),
+        _hallazgos_conciliacion_texto(conc),
         bg="#ffffff",
         accent="#0f172a",
     )
@@ -599,17 +530,13 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, documentos, ledger
     y -= info_h + 18
 
     c.setFillColor(HexColor("#fff7ed"))
-    c.roundRect(margin_x, y - 3.2 * cm, usable_w, 3.2 * cm, 16, fill=1, stroke=0)
+    c.roundRect(margin_x, y - 3.4 * cm, usable_w, 3.4 * cm, 16, fill=1, stroke=0)
 
     c.setFillColor(HexColor("#9a3412"))
     c.setFont("Helvetica-Bold", 12)
     c.drawString(margin_x + 14, y - 18, "Observación ejecutiva")
 
-    texto_observacion = (
-        "Este informe es preliminar. El sistema ya identifica estructura financiera, clasifica documentos, "
-        "resume el comportamiento de la caja y detecta conciliaciones pendientes. El siguiente nivel consiste "
-        "en refinar la lectura de extractos, mejorar la conciliación y consolidar el resumen final para toma de decisiones."
-    )
+    texto_observacion = _observacion_ejecutiva(conc)
 
     _draw_paragraph(
         c,
@@ -623,7 +550,7 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, documentos, ledger
         HexColor("#7c2d12"),
     )
 
-    y -= 3.7 * cm
+    y -= 3.95 * cm
 
     if BRANDING.get("mostrar_bio", False):
         c.setFillColor(HexColor("#ffffff"))
