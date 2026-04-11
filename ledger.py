@@ -36,6 +36,114 @@ def detectar_moneda(texto):
     return valor
 
 
+def _contiene_alguno(texto, patrones):
+    t = (texto or "").lower()
+    return any(p in t for p in patrones)
+
+
+def _es_texto_retiro_propio(texto):
+    patrones = [
+        "retirada iniciada por el usuario",
+        "withdrawal initiated by user",
+        "retirada",
+        "withdrawal",
+        "cash withdrawal",
+        "transfer to bank",
+        "transferencia a banco",
+        "retirar fondos",
+        "retiro",
+        "withdraw funds",
+        "transferencia realizada por el usuario",
+    ]
+    return _contiene_alguno(texto, patrones)
+
+
+def _es_texto_transferencia_interna(texto):
+    patrones = [
+        "transfer",
+        "bank transfer",
+        "transferencia",
+        "traspaso",
+        "bizum",
+        "sepa",
+        "wire",
+        "entre cuentas",
+        "internal transfer",
+        "transferencia interna",
+        "transfer between",
+        "movimiento entre cuentas",
+    ]
+    return _contiene_alguno(texto, patrones)
+
+
+def _es_texto_gasto_operativo(texto):
+    patrones = [
+        "transacción de la tarjeta de débito",
+        "transaccion de la tarjeta de debito",
+        "card",
+        "tarjeta",
+        "debit card",
+        "purchase",
+        "compra",
+        "merchant",
+        "store",
+        "vendor",
+        "general de paypal",
+        "pos",
+        "punto de venta",
+        "suscripción",
+        "suscripcion",
+        "subscription",
+        "office",
+        "software",
+        "hosting",
+        "restaurant",
+        "hotel",
+        "travel",
+        "uber",
+        "taxi",
+    ]
+    return _contiene_alguno(texto, patrones)
+
+
+def _es_texto_pago_proveedor(texto):
+    patrones = [
+        "supplier",
+        "proveedor",
+        "vendor payment",
+        "payment sent",
+        "pago enviado",
+        "invoice payment",
+        "payment to",
+        "bill payment",
+        "factura proveedor",
+        "pago proveedor",
+        "al proveedor",
+    ]
+    return _contiene_alguno(texto, patrones)
+
+
+def _es_texto_cobro_cliente(texto):
+    patrones = [
+        "payment received",
+        "pago recibido",
+        "received from",
+        "cobro",
+        "abono",
+        "ingreso",
+        "credit",
+        "crédito",
+        "credito",
+        "deposit",
+        "depósito",
+        "deposito",
+        "pago en punto de venta",
+        "customer payment",
+        "client payment",
+    ]
+    return _contiene_alguno(texto, patrones)
+
+
 def clasificar_movimiento_bancario(texto, valor):
     t = (texto or "").lower()
 
@@ -51,11 +159,38 @@ def clasificar_movimiento_bancario(texto, valor):
     if any(x in t for x in ["reembolso", "refund", "devolución", "devolucion"]):
         return "reembolso"
 
-    if any(x in t for x in ["transfer", "bank transfer", "transferencia", "traspaso"]):
-        return "traspaso"
-
     if any(x in t for x in ["ajuste", "adjustment", "corrección", "correccion"]):
         return "ajuste"
+
+    # =========================================================
+    # REFINAMIENTO DE INTELIGENCIA BANCARIA
+    # Orden importante:
+    # 1) retiro propio
+    # 2) transferencia interna
+    # 3) gasto operativo
+    # 4) pago proveedor
+    # 5) cobro cliente
+    # =========================================================
+    if valor < 0 and _es_texto_retiro_propio(t):
+        return "retiro_propio"
+
+    if _es_texto_transferencia_interna(t):
+        if "internal transfer" in t or "transferencia interna" in t or "traspaso" in t:
+            return "transferencia_interna"
+
+        # Evitar que toda transferencia se coma operaciones comerciales.
+        # Solo se clasifica como interna si no parece cobro/compra operativa.
+        if not _es_texto_gasto_operativo(t) and not _es_texto_cobro_cliente(t) and not _es_texto_pago_proveedor(t):
+            return "transferencia_interna"
+
+    if valor < 0 and _es_texto_gasto_operativo(t):
+        return "gasto_operativo"
+
+    if valor < 0 and _es_texto_pago_proveedor(t):
+        return "pago_proveedor"
+
+    if valor > 0 and _es_texto_cobro_cliente(t):
+        return "cobro_cliente"
 
     if valor > 0:
         return "cobro_cliente"
@@ -333,10 +468,41 @@ def es_movimiento_relevante(valor, categoria):
     if v < UMBRAL_MOVIMIENTO_RELEVANTE:
         return False
 
-    if v < 100 and categoria in ["comision", "retencion", "ajuste", "impuesto"]:
+    if v < 100 and categoria in [
+        "comision",
+        "retencion",
+        "ajuste",
+        "impuesto",
+    ]:
         return False
 
     return True
+
+
+def _normalizar_categoria_agrupada(categoria, valor):
+    categoria = (categoria or "").lower()
+
+    # Conservamos categorías agrupadas ya existentes para no romper reportes actuales.
+    if valor > 0:
+        if categoria in ["cobro_cliente"]:
+            return "otros_cobros"
+        return "otros_cobros"
+
+    if valor < 0:
+        if categoria in [
+            "pago_proveedor",
+            "retiro_propio",
+            "gasto_operativo",
+            "transferencia_interna",
+            "comision",
+            "retencion",
+            "impuesto",
+            "ajuste",
+        ]:
+            return "otros_pagos"
+        return "otros_pagos"
+
+    return "otros_pagos"
 
 
 def extraer_movimientos_extracto(texto, archivo, fecha_doc):
@@ -384,12 +550,18 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
 
         # Si no es relevante, se agrupa y NO se pierde
         if not es_movimiento_relevante(valor, categoria):
+            categoria_agrupada = _normalizar_categoria_agrupada(categoria, valor)
+
             if valor > 0:
                 otros_cobros_total += abs(valor)
                 otros_cobros_cantidad += 1
             else:
                 otros_pagos_total += abs(valor)
                 otros_pagos_cantidad += 1
+
+            # Se mantiene categoria_agrupada calculada para evolución futura,
+            # aunque por ahora los agrupados siguen saliendo como otros_cobros / otros_pagos.
+            _ = categoria_agrupada
             continue
 
         clave = (
