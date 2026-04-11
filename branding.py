@@ -13,21 +13,30 @@ BRANDING = {
             "documentos comerciales dispersos en perspectivas financieras más claras, mejorando "
             "la toma de decisiones para las PYME."
         ),
-        "imagen_url": "",
+
+        # 👇 ASEGÚRATE de que este archivo exista en /static
+        "imagen_url": "/static/angel.jpg",
+
         "contacto_texto": "Contáctame",
         "contacto_url": "https://linktr.ee/garciabanchs",
+
         "libros": [
             {
                 "titulo": "CAMINO A LA RIQUEZA: Desmontando falacias y revelando la ruta",
                 "url": "https://amzn.eu/d/0gYgZQfp",
-                "portada_local": "",
-                "portada_html": ""
+
+                # opcional (backend)
+                "portada_local": "static/camino-a-la-riqueza.jpg",
+
+                # 👇 ESTE ES EL QUE USA EL HTML
+                "portada_html": "/static/camino-a-la-riqueza.jpg"
             },
             {
                 "titulo": "The Artificial Intelligence Millionaire",
                 "url": "https://amzn.eu/d/00BhXvMF",
-                "portada_local": "",
-                "portada_html": ""
+
+                "portada_local": "static/the-artificial-intelligence-millionaire.jpg",
+                "portada_html": "/static/the-artificial-intelligence-millionaire.jpg"
             }
         ]
     }
