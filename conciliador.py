@@ -83,10 +83,12 @@ def _clasificar_movimiento_suelto(mov):
     if categoria in ["traspaso", "transferencia_interna"]:
         return "movimiento interno", "bajo"
 
+    # AJUSTE IMPORTANTE:
+    # retiro_propio deja de contaminar el KPI de no conciliables.
+    # Sigue siendo retiro_propio como categoría bancaria,
+    # pero en conciliación se presenta como movimiento interno/no comercial.
     if categoria == "retiro_propio":
-        if importe >= 100:
-            return "movimiento bancario no conciliable", "medio"
-        return "movimiento bancario no conciliable menor", "bajo"
+        return "movimiento interno", "bajo"
 
     if categoria in ["comision", "retencion", "impuesto", "ajuste"]:
         if importe >= 100:
