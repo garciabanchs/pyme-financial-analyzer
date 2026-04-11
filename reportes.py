@@ -1,6 +1,480 @@
 from branding import BRANDING
 
 
+UMBRAL_RELEVANTE_REPORTE = 100.0
+
+
+def fmt_importe_reporte(numero):
+    try:
+        return f"{numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except Exception:
+        return "0,00"
+
+
+def normalizar_importe_reporte(valor):
+    try:
+        if isinstance(valor, (int, float)):
+            return float(valor)
+        return float(str(valor).replace(".", "").replace(",", "."))
+    except Exception:
+        return 0.0
+
+
+def normalizar_estado_conciliacion(estado):
+    estado = (estado or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+    mapa = {
+        "conciliado_exacto": "conciliado_exacto",
+        "conciliado_exacto": "conciliado_exacto",
+        "conciliado exacto": "conciliado_exacto",
+
+        "conciliado_exacto_multi": "conciliado_exacto_multi",
+        "conciliado exacto multi": "conciliado_exacto_multi",
+        "conciliado_exacto_multi": "conciliado_exacto_multi",
+
+        "conciliado_probable": "conciliado_probable",
+        "probablemente_conciliado": "conciliado_probable",
+        "conciliado probable": "conciliado_probable",
+
+        "conciliado_probable_multi": "conciliado_probable_multi",
+        "conciliado probable multi": "conciliado_probable_multi",
+        "probablemente_conciliado_multi": "conciliado_probable_multi",
+
+        "pendiente": "pendiente",
+        "pendiente_cobro": "pendiente_cobro",
+        "pendiente cobro": "pendiente_cobro",
+        "pendiente_pago": "pendiente_pago",
+        "pendiente pago": "pendiente_pago",
+
+        "sin_soporte": "sin_soporte",
+        "sin soporte": "sin_soporte",
+        "sin_soporte_menor": "sin_soporte_menor",
+        "sin soporte menor": "sin_soporte_menor",
+
+        "no_conciliable": "no_conciliable",
+        "no conciliable": "no_conciliable",
+
+        "duplicado_potencial": "duplicado_potencial",
+        "duplicado potencial": "duplicado_potencial",
+        "duplicado_o_conflictivo": "duplicado_potencial",
+        "duplicado o conflictivo": "duplicado_potencial",
+
+        "movimiento_interno": "movimiento_interno",
+        "movimiento interno": "movimiento_interno",
+
+        "movimiento_bancario_no_conciliable": "movimiento_bancario_no_conciliable",
+        "movimiento bancario no conciliable": "movimiento_bancario_no_conciliable",
+        "movimiento_bancario_no_conciliable_menor": "movimiento_bancario_no_conciliable_menor",
+        "movimiento bancario no conciliable menor": "movimiento_bancario_no_conciliable_menor",
+
+        "movimiento_agrupado": "movimiento_agrupado",
+        "movimiento agrupado": "movimiento_agrupado",
+        "agrupado": "agrupado",
+    }
+
+    return mapa.get(estado, estado)
+
+
+def humanizar_estado_conciliacion(estado):
+    estado_norm = normalizar_estado_conciliacion(estado)
+
+    mapa = {
+        "conciliado_exacto": "conciliado exacto",
+        "conciliado_exacto_multi": "conciliado exacto (múltiples movimientos)",
+        "conciliado_probable": "conciliado probable",
+        "conciliado_probable_multi": "conciliado probable (múltiples movimientos)",
+        "pendiente": "pendiente",
+        "pendiente_cobro": "pendiente de cobro",
+        "pendiente_pago": "pendiente de pago",
+        "sin_soporte": "sin soporte",
+        "sin_soporte_menor": "sin soporte menor",
+        "no_conciliable": "no conciliable",
+        "duplicado_potencial": "duplicado potencial",
+        "movimiento_interno": "movimiento interno",
+        "movimiento_bancario_no_conciliable": "movimiento bancario no conciliable",
+        "movimiento_bancario_no_conciliable_menor": "movimiento bancario no conciliable menor",
+        "movimiento_agrupado": "movimiento agrupado",
+        "agrupado": "agrupado",
+    }
+
+    return mapa.get(estado_norm, str(estado).replace("_", " "))
+
+
+def badge_class_estado_conciliacion(estado):
+    estado_norm = normalizar_estado_conciliacion(estado)
+
+    if estado_norm in ["conciliado_exacto", "conciliado_exacto_multi"]:
+        return "badge-green"
+
+    if estado_norm in ["conciliado_probable", "conciliado_probable_multi", "duplicado_potencial"]:
+        return "badge-yellow"
+
+    if estado_norm in [
+        "pendiente",
+        "pendiente_cobro",
+        "pendiente_pago",
+        "sin_soporte",
+        "sin_soporte_menor",
+    ]:
+        return "badge-red"
+
+    if estado_norm in [
+        "no_conciliable",
+        "movimiento_interno",
+        "movimiento_bancario_no_conciliable",
+        "movimiento_bancario_no_conciliable_menor",
+        "movimiento_agrupado",
+        "agrupado",
+    ]:
+        return "badge-gray"
+
+    return "badge-gray"
+
+
+def construir_resumen_documentos(clasificados):
+    clasificados = clasificados or {}
+    return {
+        "factura_venta": len(clasificados.get("factura_venta", [])),
+        "factura_compra": len(clasificados.get("factura_compra", [])),
+        "extracto_bancario": len(clasificados.get("extracto_bancario", [])),
+        "otros": len(clasificados.get("otros", [])),
+    }
+
+
+def construir_resumen_flujo(ledger):
+    ledger = ledger or []
+
+    # Prioridad: usar resumen oficial del extracto si existe
+    for item in ledger:
+        if item.get("tipo") == "extracto_resumen":
+            resumen = item.get("resumen_extracto", {}) or {}
+
+            saldo_inicial = resumen.get("saldo_inicial_disponible") or 0.0
+            saldo_final = resumen.get("saldo_final_disponible") or 0.0
+            retenido = abs(resumen.get("retenido") or 0.0)
+
+            entradas = max(resumen.get("pagos_recibidos") or 0.0, 0.0)
+            entradas += max(resumen.get("depositos_y_creditos") or 0.0, 0.0)
+            entradas += max(resumen.get("liberaciones") or 0.0, 0.0)
+
+            salidas = abs(min(resumen.get("pagos_enviados") or 0.0, 0.0))
+            salidas += abs(min(resumen.get("retiradas_y_cargos") or 0.0, 0.0))
+            salidas += abs(min(resumen.get("tarifas") or 0.0, 0.0))
+            salidas += abs(min(resumen.get("retenido") or 0.0, 0.0))
+
+            variacion = saldo_final - saldo_inicial
+
+            return {
+                "saldo_inicial": saldo_inicial,
+                "entradas": entradas,
+                "salidas": salidas,
+                "saldo_final": saldo_final,
+                "variacion": variacion,
+                "retenido": retenido,
+                "balance": variacion,
+                "movimientos": entradas + salidas,
+                "revisar": 0.0,
+            }
+
+    # Fallback: sumar solo movimientos bancarios
+    saldo_inicial = 0.0
+    entradas = 0.0
+    salidas = 0.0
+
+    for item in ledger:
+        if item.get("tipo") != "extracto_bancario":
+            continue
+
+        valor_firmado = item.get("importe_firmado_num")
+        if valor_firmado is None:
+            continue
+
+        if valor_firmado > 0:
+            entradas += valor_firmado
+        elif valor_firmado < 0:
+            salidas += abs(valor_firmado)
+
+    saldo_final = saldo_inicial + entradas - salidas
+    variacion = saldo_final - saldo_inicial
+
+    return {
+        "saldo_inicial": saldo_inicial,
+        "entradas": entradas,
+        "salidas": salidas,
+        "saldo_final": saldo_final,
+        "variacion": variacion,
+        "retenido": 0.0,
+        "balance": variacion,
+        "movimientos": entradas + salidas,
+        "revisar": 0.0,
+    }
+
+
+def construir_resumen_conciliacion(conciliacion):
+    conciliacion = conciliacion or []
+
+    total_exactas = 0
+    total_probables = 0
+    total_probables_multi = 0
+    total_exactas_multi = 0
+    total_pendientes = 0
+    total_sin_soporte = 0
+    total_sin_soporte_menor = 0
+    total_no_conciliables = 0
+    total_conflictivos = 0
+    total_duplicados = 0
+    total_movimientos_internos = 0
+    total_movimientos_bancarios_no_conciliables = 0
+    total_movimientos_bancarios_no_conciliables_menor = 0
+    total_movimientos_agrupados = 0
+
+    importe_pendiente = 0.0
+    pendiente_cobro = 0.0
+    pendiente_pago = 0.0
+
+    cierre_confiable = True
+    requiere_validacion = False
+
+    for item in conciliacion:
+        estado = normalizar_estado_conciliacion(item.get("estado", ""))
+        importe = normalizar_importe_reporte(item.get("importe", 0))
+        tipo = item.get("tipo", "")
+
+        if estado == "conciliado_exacto":
+            total_exactas += 1
+
+        elif estado == "conciliado_exacto_multi":
+            total_exactas_multi += 1
+            requiere_validacion = True
+
+        elif estado == "conciliado_probable":
+            total_probables += 1
+            requiere_validacion = True
+            cierre_confiable = False
+
+        elif estado == "conciliado_probable_multi":
+            total_probables_multi += 1
+            requiere_validacion = True
+            cierre_confiable = False
+
+        elif estado in ["pendiente", "pendiente_cobro", "pendiente_pago"]:
+            total_pendientes += 1
+            importe_pendiente += importe
+            cierre_confiable = False
+
+            if estado == "pendiente_cobro" or tipo == "factura_venta":
+                pendiente_cobro += importe
+            elif estado == "pendiente_pago" or tipo == "factura_compra":
+                pendiente_pago += importe
+
+        elif estado == "sin_soporte":
+            total_sin_soporte += 1
+            cierre_confiable = False
+
+        elif estado == "sin_soporte_menor":
+            total_sin_soporte_menor += 1
+
+        elif estado == "no_conciliable":
+            total_no_conciliables += 1
+
+        elif estado == "duplicado_potencial":
+            total_conflictivos += 1
+            total_duplicados += 1
+            requiere_validacion = True
+            cierre_confiable = False
+
+        elif estado == "movimiento_interno":
+            total_movimientos_internos += 1
+
+        elif estado == "movimiento_bancario_no_conciliable":
+            total_movimientos_bancarios_no_conciliables += 1
+            total_no_conciliables += 1
+
+        elif estado == "movimiento_bancario_no_conciliable_menor":
+            total_movimientos_bancarios_no_conciliables_menor += 1
+            total_movimientos_bancarios_no_conciliables += 1
+            total_no_conciliables += 1
+
+        elif estado in ["movimiento_agrupado", "agrupado"]:
+            total_movimientos_agrupados += 1
+
+    nivel_cierre = "alto"
+    if not cierre_confiable:
+        nivel_cierre = "bajo"
+    elif requiere_validacion:
+        nivel_cierre = "medio"
+
+    return {
+        "conciliadas": total_exactas,
+        "conciliadas_multi": total_exactas_multi,
+        "parciales": total_probables,
+        "probables_multi": total_probables_multi,
+        "pendientes": total_pendientes,
+        "sin_soporte": total_sin_soporte,
+        "sin_soporte_menor": total_sin_soporte_menor,
+        "no_conciliables": total_no_conciliables,
+        "conflictivos": total_conflictivos,
+        "duplicados": total_duplicados,
+        "movimientos_internos": total_movimientos_internos,
+        "movimientos_bancarios_no_conciliables": total_movimientos_bancarios_no_conciliables,
+        "movimientos_bancarios_no_conciliables_menor": total_movimientos_bancarios_no_conciliables_menor,
+        "movimientos_agrupados": total_movimientos_agrupados,
+        "importe_pendiente": importe_pendiente,
+        "pendiente_cobro": pendiente_cobro,
+        "pendiente_pago": pendiente_pago,
+        "cierre_confiable": cierre_confiable,
+        "requiere_validacion": requiere_validacion,
+        "nivel_cierre": nivel_cierre,
+    }
+
+
+def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVANTE_REPORTE):
+    ledger = ledger or []
+
+    entradas_relevantes = []
+    salidas_relevantes = []
+
+    otros_cobros_total = 0.0
+    otros_pagos_total = 0.0
+    otros_cobros_cantidad = 0
+    otros_pagos_cantidad = 0
+
+    for item in ledger:
+        if item.get("tipo") != "extracto_bancario":
+            continue
+
+        categoria = item.get("categoria", "")
+        valor = item.get("importe_firmado_num")
+        if valor is None:
+            valor = normalizar_importe_reporte(item.get("importe", 0))
+            if item.get("naturaleza") == "salida":
+                valor = -abs(valor)
+
+        fila = {
+            "archivo": item.get("archivo", "-"),
+            "fecha": item.get("fecha", "-"),
+            "importe_abs": abs(valor),
+            "importe_fmt": fmt_importe_reporte(abs(valor)),
+            "naturaleza": item.get("naturaleza", "-"),
+            "descripcion": item.get("descripcion", "-"),
+            "categoria": categoria,
+            "moneda": item.get("moneda", "") or "",
+        }
+
+        # Si ya viene agrupado desde ledger, reflejarlo en KPIs de otros menores
+        if categoria == "otros_cobros":
+            otros_cobros_total += abs(valor)
+            desc = item.get("descripcion", "")
+            try:
+                otros_cobros_cantidad += int(str(desc).split()[0])
+            except Exception:
+                otros_cobros_cantidad += 1
+            entradas_relevantes.append(fila)
+            continue
+
+        if categoria == "otros_pagos":
+            otros_pagos_total += abs(valor)
+            desc = item.get("descripcion", "")
+            try:
+                otros_pagos_cantidad += int(str(desc).split()[0])
+            except Exception:
+                otros_pagos_cantidad += 1
+            salidas_relevantes.append(fila)
+            continue
+
+        if abs(valor) >= umbral_relevante:
+            if valor >= 0:
+                entradas_relevantes.append(fila)
+            else:
+                salidas_relevantes.append(fila)
+        else:
+            if valor >= 0:
+                otros_cobros_cantidad += 1
+                otros_cobros_total += abs(valor)
+            else:
+                otros_pagos_cantidad += 1
+                otros_pagos_total += abs(valor)
+
+    entradas_relevantes.sort(key=lambda x: (x["fecha"], -x["importe_abs"]))
+    salidas_relevantes.sort(key=lambda x: (x["fecha"], -x["importe_abs"]))
+
+    return {
+        "entradas_relevantes": entradas_relevantes,
+        "salidas_relevantes": salidas_relevantes,
+        "otros_cobros_cantidad": otros_cobros_cantidad,
+        "otros_cobros_total": otros_cobros_total,
+        "otros_pagos_cantidad": otros_pagos_cantidad,
+        "otros_pagos_total": otros_pagos_total,
+    }
+
+
+def construir_narrativa_ejecutiva(total, docs, flujo, conc):
+    saldo_inicial = flujo["saldo_inicial"]
+    entradas = flujo["entradas"]
+    salidas = flujo["salidas"]
+    saldo_final = flujo["saldo_final"]
+    variacion = flujo["variacion"]
+    pendientes = conc["pendientes"]
+    probables = conc["parciales"]
+    probables_multi = conc.get("probables_multi", 0)
+    exactas_multi = conc.get("conciliadas_multi", 0)
+    sin_soporte = conc.get("sin_soporte", 0)
+    sin_soporte_menor = conc.get("sin_soporte_menor", 0)
+    duplicados = conc.get("duplicados", 0)
+    nivel_cierre = conc.get("nivel_cierre", "medio")
+
+    if variacion > 0:
+        titular = "La caja del período cerró mejor que como empezó."
+    elif variacion < 0:
+        titular = "La caja del período cerró peor que como empezó."
+    else:
+        titular = "La caja del período cerró prácticamente igual que como empezó."
+
+    if nivel_cierre == "bajo":
+        complemento = (
+            f" El cierre todavía no puede considerarse definitivo: hay {pendientes} pendientes, "
+            f"{probables} conciliaciones probables, {probables_multi} conciliaciones probables múltiples "
+            f"y {sin_soporte} movimientos relevantes sin respaldo documental."
+        )
+    elif nivel_cierre == "medio":
+        complemento = (
+            f" La lectura es útil, pero todavía requiere validación: se observan "
+            f"{exactas_multi} conciliaciones exactas múltiples, {probables_multi} conciliaciones probables múltiples "
+            f"y {duplicados} duplicados potenciales."
+        )
+    elif sin_soporte > 0:
+        complemento = (
+            f" No se observan pendientes fuertes de conciliación, pero existen "
+            f"{sin_soporte} movimientos bancarios relevantes sin respaldo documental."
+        )
+    elif duplicados > 0:
+        complemento = (
+            f" No se observan pendientes relevantes, aunque existen {duplicados} movimientos potencialmente duplicados que conviene revisar."
+        )
+    elif sin_soporte_menor > 0:
+        complemento = (
+            f" No se observan pendientes relevantes, aunque existen {sin_soporte_menor} movimientos menores sin respaldo directo."
+        )
+    else:
+        complemento = " No se observan pendientes relevantes de conciliación en la estructura analizada."
+
+    narrativa = (
+        f"Se analizaron {total} archivos en total: "
+        f"{docs['factura_venta']} factura de venta, "
+        f"{docs['factura_compra']} factura de compra, "
+        f"{docs['extracto_bancario']} extracto bancario y "
+        f"{docs['otros']} documentos clasificados como otros. "
+        f"El saldo inicial fue de € {fmt_importe_reporte(saldo_inicial)}, "
+        f"entraron € {fmt_importe_reporte(entradas)}, "
+        f"salieron € {fmt_importe_reporte(salidas)} "
+        f"y el saldo final se ubicó en € {fmt_importe_reporte(saldo_final)}, "
+        f"con una variación neta de € {fmt_importe_reporte(variacion)}."
+        f"{complemento}"
+    )
+
+    return titular, narrativa
+
+
 def generar_html_resultado(total, clasificados, importes, documentos, ledger=None, conciliacion=None):
     assert BRANDING["modo"] in BRANDING, f"Modo inválido en BRANDING: {BRANDING.get('modo')}"
     branding_data = BRANDING[BRANDING["modo"]]
@@ -10,403 +484,34 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     documentos = documentos or []
     importes = importes or []
 
-    UMBRAL_RELEVANTE = 100.0
+    UMBRAL_RELEVANTE = UMBRAL_RELEVANTE_REPORTE
 
     def fmt(numero):
-        try:
-            return f"{numero:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        except Exception:
-            return "0,00"
+        return fmt_importe_reporte(numero)
 
     def normalizar_importe(valor):
-        try:
-            if isinstance(valor, (int, float)):
-                return float(valor)
-            return float(str(valor).replace(".", "").replace(",", "."))
-        except Exception:
-            return 0.0
+        return normalizar_importe_reporte(valor)
 
     def humanizar_estado(estado):
-        mapa = {
-            "conciliado_exacto": "conciliado exacto",
-            "conciliado exacto": "conciliado exacto",
-
-            "probablemente_conciliado": "conciliado probable",
-            "conciliado probable": "conciliado probable",
-
-            "conciliado exacto multi": "conciliado exacto (múltiples movimientos)",
-            "conciliado probable multi": "conciliado probable (múltiples movimientos)",
-
-            "sin_soporte": "sin soporte",
-            "sin soporte": "sin soporte",
-            "sin soporte menor": "sin soporte menor",
-
-            "no_conciliable": "no conciliable",
-            "no conciliable": "no conciliable",
-
-            "duplicado_o_conflictivo": "duplicado o conflictivo",
-            "duplicado o conflictivo": "duplicado o conflictivo",
-            "duplicado potencial": "duplicado potencial",
-
-            "movimiento interno": "movimiento interno",
-            "movimiento bancario no conciliable": "movimiento bancario no conciliable",
-            "movimiento bancario no conciliable menor": "movimiento bancario no conciliable menor",
-            "movimiento agrupado": "movimiento agrupado",
-
-            "pendiente": "pendiente",
-            "pendiente cobro": "pendiente de cobro",
-            "pendiente pago": "pendiente de pago",
-
-            "agrupado": "agrupado",
-        }
-        return mapa.get(estado, str(estado).replace("_", " "))
+        return humanizar_estado_conciliacion(estado)
 
     def badge_class_estado(estado):
-        estado = (estado or "").lower()
-
-        if estado in ["conciliado_exacto", "conciliado exacto", "conciliado exacto multi"]:
-            return "badge-green"
-
-        if estado in ["probablemente_conciliado", "conciliado probable"]:
-            return "badge-yellow"
-
-        if estado in ["conciliado probable multi"]:
-            return "badge-gray"
-
-        if estado in [
-            "pendiente",
-            "pendiente cobro",
-            "pendiente pago",
-            "sin_soporte",
-            "sin soporte",
-            "sin soporte menor",
-        ]:
-            return "badge-red"
-
-        if estado in [
-            "no_conciliable",
-            "no conciliable",
-            "movimiento interno",
-            "movimiento bancario no conciliable",
-            "movimiento bancario no conciliable menor",
-            "movimiento agrupado",
-            "agrupado",
-        ]:
-            return "badge-gray"
-
-        if estado in ["duplicado_o_conflictivo", "duplicado o conflictivo", "duplicado potencial"]:
-            return "badge-yellow"
-
-        return "badge-gray"
+        return badge_class_estado_conciliacion(estado)
 
     def contar_docs():
-        return {
-            "factura_venta": len(clasificados.get("factura_venta", [])),
-            "factura_compra": len(clasificados.get("factura_compra", [])),
-            "extracto_bancario": len(clasificados.get("extracto_bancario", [])),
-            "otros": len(clasificados.get("otros", [])),
-        }
+        return construir_resumen_documentos(clasificados)
 
     def resumen_flujo():
-        # Prioridad: usar resumen oficial del extracto si existe
-        for item in ledger:
-            if item.get("tipo") == "extracto_resumen":
-                resumen = item.get("resumen_extracto", {}) or {}
-
-                saldo_inicial = resumen.get("saldo_inicial_disponible") or 0.0
-                saldo_final = resumen.get("saldo_final_disponible") or 0.0
-                retenido = abs(resumen.get("retenido") or 0.0)
-
-                entradas = max(resumen.get("pagos_recibidos") or 0.0, 0.0)
-                entradas += max(resumen.get("depositos_y_creditos") or 0.0, 0.0)
-                entradas += max(resumen.get("liberaciones") or 0.0, 0.0)
-
-                salidas = abs(min(resumen.get("pagos_enviados") or 0.0, 0.0))
-                salidas += abs(min(resumen.get("retiradas_y_cargos") or 0.0, 0.0))
-                salidas += abs(min(resumen.get("tarifas") or 0.0, 0.0))
-                salidas += abs(min(resumen.get("retenido") or 0.0, 0.0))
-
-                variacion = saldo_final - saldo_inicial
-
-                return {
-                    "saldo_inicial": saldo_inicial,
-                    "entradas": entradas,
-                    "salidas": salidas,
-                    "saldo_final": saldo_final,
-                    "variacion": variacion,
-                    "retenido": retenido,
-                    "balance": variacion,
-                    "movimientos": entradas + salidas,
-                    "revisar": 0.0,
-                }
-
-        # Fallback: sumar solo movimientos bancarios
-        saldo_inicial = 0.0
-        entradas = 0.0
-        salidas = 0.0
-
-        for item in ledger:
-            if item.get("tipo") != "extracto_bancario":
-                continue
-
-            valor_firmado = item.get("importe_firmado_num")
-            if valor_firmado is None:
-                continue
-
-            if valor_firmado > 0:
-                entradas += valor_firmado
-            elif valor_firmado < 0:
-                salidas += abs(valor_firmado)
-
-        saldo_final = saldo_inicial + entradas - salidas
-        variacion = saldo_final - saldo_inicial
-
-        return {
-            "saldo_inicial": saldo_inicial,
-            "entradas": entradas,
-            "salidas": salidas,
-            "saldo_final": saldo_final,
-            "variacion": variacion,
-            "retenido": 0.0,
-            "balance": variacion,
-            "movimientos": entradas + salidas,
-            "revisar": 0.0,
-        }
+        return construir_resumen_flujo(ledger)
 
     def resumen_conciliacion():
-        total_exactas = 0
-        total_probables = 0
-        total_probables_multi = 0
-        total_exactas_multi = 0
-        total_pendientes = 0
-        total_sin_soporte = 0
-        total_sin_soporte_menor = 0
-        total_no_conciliables = 0
-        total_conflictivos = 0
-        total_duplicados = 0
-        total_movimientos_internos = 0
-        total_movimientos_bancarios_no_conciliables = 0
-        total_movimientos_agrupados = 0
-
-        importe_pendiente = 0.0
-        pendiente_cobro = 0.0
-        pendiente_pago = 0.0
-
-        for item in conciliacion:
-            estado = (item.get("estado", "") or "").lower()
-            importe = normalizar_importe(item.get("importe", 0))
-            tipo = item.get("tipo", "")
-
-            if estado in ["conciliado_exacto", "conciliado exacto"]:
-                total_exactas += 1
-
-            elif estado in ["conciliado exacto multi"]:
-                total_exactas_multi += 1
-
-            elif estado in ["probablemente_conciliado", "conciliado probable"]:
-                total_probables += 1
-
-            elif estado in ["conciliado probable multi"]:
-                total_probables_multi += 1
-
-            elif estado in ["pendiente", "pendiente cobro", "pendiente pago"]:
-                total_pendientes += 1
-                importe_pendiente += importe
-
-                if estado == "pendiente cobro" or tipo == "factura_venta":
-                    pendiente_cobro += importe
-                elif estado == "pendiente pago" or tipo == "factura_compra":
-                    pendiente_pago += importe
-
-            elif estado in ["sin_soporte", "sin soporte"]:
-                total_sin_soporte += 1
-
-            elif estado == "sin soporte menor":
-                total_sin_soporte_menor += 1
-
-            elif estado in ["no_conciliable", "no conciliable"]:
-                total_no_conciliables += 1
-
-            elif estado in ["duplicado_o_conflictivo", "duplicado o conflictivo", "duplicado potencial"]:
-                total_conflictivos += 1
-                total_duplicados += 1
-
-            elif estado in ["movimiento interno"]:
-                total_movimientos_internos += 1
-
-            elif estado in ["movimiento bancario no conciliable", "movimiento bancario no conciliable menor"]:
-                total_movimientos_bancarios_no_conciliables += 1
-                total_no_conciliables += 1
-
-            elif estado in ["movimiento agrupado", "agrupado"]:
-                total_movimientos_agrupados += 1
-
-        return {
-            "conciliadas": total_exactas,
-            "conciliadas_multi": total_exactas_multi,
-            "parciales": total_probables,
-            "probables_multi": total_probables_multi,
-            "pendientes": total_pendientes,
-            "sin_soporte": total_sin_soporte,
-            "sin_soporte_menor": total_sin_soporte_menor,
-            "no_conciliables": total_no_conciliables,
-            "conflictivos": total_conflictivos,
-            "duplicados": total_duplicados,
-            "movimientos_internos": total_movimientos_internos,
-            "movimientos_bancarios_no_conciliables": total_movimientos_bancarios_no_conciliables,
-            "movimientos_agrupados": total_movimientos_agrupados,
-            "importe_pendiente": importe_pendiente,
-            "pendiente_cobro": pendiente_cobro,
-            "pendiente_pago": pendiente_pago,
-        }
+        return construir_resumen_conciliacion(conciliacion)
 
     def analizar_movimientos_bancarios():
-        entradas_relevantes = []
-        salidas_relevantes = []
-
-        otros_cobros_total = 0.0
-        otros_pagos_total = 0.0
-        otros_cobros_cantidad = 0
-        otros_pagos_cantidad = 0
-
-        for item in ledger:
-            if item.get("tipo") != "extracto_bancario":
-                continue
-
-            categoria = item.get("categoria", "")
-            valor = item.get("importe_firmado_num")
-            if valor is None:
-                valor = normalizar_importe(item.get("importe", 0))
-                if item.get("naturaleza") == "salida":
-                    valor = -abs(valor)
-
-            fila = {
-                "archivo": item.get("archivo", "-"),
-                "fecha": item.get("fecha", "-"),
-                "importe_abs": abs(valor),
-                "importe_fmt": fmt(abs(valor)),
-                "naturaleza": item.get("naturaleza", "-"),
-                "descripcion": item.get("descripcion", "-"),
-                "categoria": categoria,
-                "moneda": item.get("moneda", "") or "",
-            }
-
-            # Si ya viene agrupado desde ledger, reflejarlo en KPIs de otros menores
-            if categoria == "otros_cobros":
-                otros_cobros_total += abs(valor)
-                desc = item.get("descripcion", "")
-                try:
-                    otros_cobros_cantidad += int(str(desc).split()[0])
-                except Exception:
-                    otros_cobros_cantidad += 1
-                entradas_relevantes.append(fila)
-                continue
-
-            if categoria == "otros_pagos":
-                otros_pagos_total += abs(valor)
-                desc = item.get("descripcion", "")
-                try:
-                    otros_pagos_cantidad += int(str(desc).split()[0])
-                except Exception:
-                    otros_pagos_cantidad += 1
-                salidas_relevantes.append(fila)
-                continue
-
-            if abs(valor) >= UMBRAL_RELEVANTE:
-                if valor >= 0:
-                    entradas_relevantes.append(fila)
-                else:
-                    salidas_relevantes.append(fila)
-            else:
-                if valor >= 0:
-                    otros_cobros_cantidad += 1
-                    otros_cobros_total += abs(valor)
-                else:
-                    otros_pagos_cantidad += 1
-                    otros_pagos_total += abs(valor)
-
-        entradas_relevantes.sort(key=lambda x: (x["fecha"], -x["importe_abs"]))
-        salidas_relevantes.sort(key=lambda x: (x["fecha"], -x["importe_abs"]))
-
-        return {
-            "entradas_relevantes": entradas_relevantes,
-            "salidas_relevantes": salidas_relevantes,
-            "otros_cobros_cantidad": otros_cobros_cantidad,
-            "otros_cobros_total": otros_cobros_total,
-            "otros_pagos_cantidad": otros_pagos_cantidad,
-            "otros_pagos_total": otros_pagos_total,
-        }
+        return analizar_movimientos_bancarios_ledger(ledger, UMBRAL_RELEVANTE)
 
     def texto_lectura_ejecutiva(flujo, conc, docs):
-        saldo_inicial = flujo["saldo_inicial"]
-        entradas = flujo["entradas"]
-        salidas = flujo["salidas"]
-        saldo_final = flujo["saldo_final"]
-        variacion = flujo["variacion"]
-        pendientes = conc["pendientes"]
-        probables_multi = conc.get("probables_multi", 0)
-        sin_soporte = conc.get("sin_soporte", 0)
-        sin_soporte_menor = conc.get("sin_soporte_menor", 0)
-        duplicados = conc.get("duplicados", 0)
-
-        if variacion > 0:
-            titular = "La caja del período cerró mejor que como empezó."
-        elif variacion < 0:
-            titular = "La caja del período cerró peor que como empezó."
-        else:
-            titular = "La caja del período cerró prácticamente igual que como empezó."
-
-        if pendientes > 0 and sin_soporte > 0:
-            complemento = (
-                f" Existen {pendientes} elementos pendientes de revisión y "
-                f"{sin_soporte} movimientos bancarios relevantes sin respaldo documental."
-            )
-        elif pendientes > 0:
-            complemento = (
-                f" Existen {pendientes} elementos pendientes de revisión "
-                "antes de dar por cerrado el período."
-            )
-        elif probables_multi > 0 and sin_soporte > 0:
-            complemento = (
-                f" Se identificaron {probables_multi} conciliaciones que parecen corresponder "
-                f"a múltiples movimientos bancarios y {sin_soporte} movimientos relevantes sin respaldo documental. "
-                "Conviene validarlos antes de dar por cerrado el período."
-            )
-        elif probables_multi > 0:
-            complemento = (
-                f" Se identificaron {probables_multi} conciliaciones que parecen corresponder "
-                "a múltiples movimientos bancarios. Conviene validarlas antes de dar por cerrado el período."
-            )
-        elif sin_soporte > 0:
-            complemento = (
-                f" Se detectaron {sin_soporte} movimientos bancarios relevantes sin respaldo documental."
-            )
-        elif duplicados > 0:
-            complemento = (
-                f" No se observan pendientes relevantes, aunque existen {duplicados} movimientos potencialmente duplicados que conviene revisar."
-            )
-        elif sin_soporte_menor > 0:
-            complemento = (
-                f" No se observan pendientes relevantes, aunque existen {sin_soporte_menor} movimientos menores sin respaldo directo."
-            )
-        else:
-            complemento = " No se observan pendientes relevantes de conciliación en la estructura analizada."
-
-        narrativa = (
-            f"Se analizaron {total} archivos en total: "
-            f"{docs['factura_venta']} factura de venta, "
-            f"{docs['factura_compra']} factura de compra, "
-            f"{docs['extracto_bancario']} extracto bancario y "
-            f"{docs['otros']} documentos clasificados como otros. "
-            f"El saldo inicial fue de € {fmt(saldo_inicial)}, "
-            f"entraron € {fmt(entradas)}, "
-            f"salieron € {fmt(salidas)} "
-            f"y el saldo final se ubicó en € {fmt(saldo_final)}, "
-            f"con una variación neta de € {fmt(variacion)}."
-            f"{complemento}"
-        )
-
-        return titular, narrativa
+        return construir_narrativa_ejecutiva(total, docs, flujo, conc)
 
     def tabla_ledger_html():
         if not ledger:
