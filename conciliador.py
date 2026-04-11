@@ -76,6 +76,108 @@ def _movimiento_puede_conciliar_con_factura(factura, mov):
     return False
 
 
+def _normalizar_texto_duplicado(texto):
+    texto = (texto or "").lower().strip()
+    if not texto:
+        return ""
+
+    reemplazos = [
+        ("á", "a"),
+        ("é", "e"),
+        ("í", "i"),
+        ("ó", "o"),
+        ("ú", "u"),
+        ("|", " "),
+        (":", " "),
+        (";", " "),
+        (",", " "),
+        (".", " "),
+        ("(", " "),
+        (")", " "),
+        ("[", " "),
+        ("]", " "),
+        ("{", " "),
+        ("}", " "),
+        ("-", " "),
+        ("_", " "),
+        ("/", " "),
+        ("\\", " "),
+    ]
+
+    for origen, destino in reemplazos:
+        texto = texto.replace(origen, destino)
+
+    return " ".join(texto.split())
+
+
+def _extraer_token_id_desde_descripcion(descripcion):
+    descripcion_norm = _normalizar_texto_duplicado(descripcion)
+    if not descripcion_norm:
+        return None
+
+    tokens = descripcion_norm.split()
+    for i, token in enumerate(tokens[:-1]):
+        if token in ["id", "id."]:
+            candidato = tokens[i + 1]
+            if len(candidato) >= 6:
+                return candidato
+
+    for token in tokens:
+        if len(token) >= 10 and any(c.isdigit() for c in token) and any(c.isalpha() for c in token):
+            return token
+
+    return None
+
+
+def _firma_textual_movimiento(mov):
+    descripcion = _normalizar_texto_duplicado(mov.get("descripcion"))
+    if not descripcion:
+        return ""
+
+    token_id = _extraer_token_id_desde_descripcion(descripcion)
+    if token_id:
+        return f"id::{token_id}"
+
+    return descripcion[:180]
+
+
+def _es_duplicado_potencial_fuerte(mov_a, mov_b):
+    fecha_a = mov_a.get("fecha")
+    fecha_b = mov_b.get("fecha")
+
+    importe_a = round(abs(mov_a.get("importe_firmado", 0.0)), 2)
+    importe_b = round(abs(mov_b.get("importe_firmado", 0.0)), 2)
+
+    categoria_a = (mov_a.get("categoria") or "").lower()
+    categoria_b = (mov_b.get("categoria") or "").lower()
+
+    direccion_a = "entrada" if mov_a.get("importe_firmado", 0.0) > 0 else "salida"
+    direccion_b = "entrada" if mov_b.get("importe_firmado", 0.0) > 0 else "salida"
+
+    if fecha_a != fecha_b:
+        return False
+
+    if importe_a != importe_b:
+        return False
+
+    if categoria_a != categoria_b:
+        return False
+
+    if direccion_a != direccion_b:
+        return False
+
+    firma_a = _firma_textual_movimiento(mov_a)
+    firma_b = _firma_textual_movimiento(mov_b)
+
+    if not firma_a or not firma_b:
+        return False
+
+    if firma_a == firma_b:
+        return True
+
+    return False
+
+
 def _clasificar_movimiento_suelto(mov):
     importe = abs(mov.get("importe_abs", 0.0))
     categoria = (mov.get("categoria") or "desconocido").lower()
@@ -83,10 +185,6 @@ def _clasificar_movimiento_suelto(mov):
     if categoria in ["traspaso", "transferencia_interna"]:
         return "movimiento interno", "bajo"
 
-    # AJUSTE IMPORTANTE:
-    # retiro_propio deja de contaminar el KPI de no conciliables.
-    # Sigue siendo retiro_propio como categoría bancaria,
-    # pero en conciliación se presenta como movimiento interno/no comercial.
     if categoria == "retiro_propio":
         return "movimiento interno", "bajo"
 
@@ -279,27 +377,42 @@ def _buscar_match_multi(factura, movimientos_banco, usados_banco, max_componente
 
 def _detectar_duplicados(movimientos_banco, usados_banco):
     """
-    Detecta movimientos no usados que parecen duplicados:
-    mismo día, mismo importe absoluto, misma categoría.
+    Detecta duplicados potenciales con criterio más estricto:
+    mismo día, mismo importe absoluto, misma categoría, misma dirección
+    y además firma textual equivalente.
+    Esto evita marcar como duplicado dos movimientos distintos que solo
+    coinciden en fecha e importe.
     """
-    grupos = {}
+    candidatos = []
     for i, mov in enumerate(movimientos_banco):
         if i in usados_banco:
             continue
-
-        key = (
-            mov.get("fecha"),
-            round(abs(mov.get("importe_firmado", 0.0)), 2),
-            (mov.get("categoria") or "").lower(),
-            "entrada" if mov.get("importe_firmado", 0.0) > 0 else "salida",
-        )
-        grupos.setdefault(key, []).append((i, mov))
+        candidatos.append((i, mov))
 
     duplicados = []
-    for _, items in grupos.items():
-        if len(items) >= 2:
-            for i, mov in items:
+    ya_marcados = set()
+
+    for idx_a in range(len(candidatos)):
+        i_a, mov_a = candidatos[idx_a]
+
+        if i_a in ya_marcados:
+            continue
+
+        grupo_actual = [(i_a, mov_a)]
+
+        for idx_b in range(idx_a + 1, len(candidatos)):
+            i_b, mov_b = candidatos[idx_b]
+
+            if i_b in ya_marcados:
+                continue
+
+            if _es_duplicado_potencial_fuerte(mov_a, mov_b):
+                grupo_actual.append((i_b, mov_b))
+
+        if len(grupo_actual) >= 2:
+            for i, mov in grupo_actual:
                 duplicados.append((i, mov))
+                ya_marcados.add(i)
 
     return duplicados
 
