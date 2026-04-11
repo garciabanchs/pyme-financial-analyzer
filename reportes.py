@@ -30,36 +30,73 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         mapa = {
             "conciliado_exacto": "conciliado exacto",
             "conciliado exacto": "conciliado exacto",
+
             "probablemente_conciliado": "conciliado probable",
             "conciliado probable": "conciliado probable",
+
+            "conciliado exacto multi": "conciliado exacto (múltiples movimientos)",
+            "conciliado probable multi": "conciliado probable (múltiples movimientos)",
+
             "sin_soporte": "sin soporte",
             "sin soporte": "sin soporte",
             "sin soporte menor": "sin soporte menor",
+
             "no_conciliable": "no conciliable",
             "no conciliable": "no conciliable",
+
             "duplicado_o_conflictivo": "duplicado o conflictivo",
             "duplicado o conflictivo": "duplicado o conflictivo",
+            "duplicado potencial": "duplicado potencial",
+
+            "movimiento interno": "movimiento interno",
+            "movimiento bancario no conciliable": "movimiento bancario no conciliable",
+            "movimiento bancario no conciliable menor": "movimiento bancario no conciliable menor",
+            "movimiento agrupado": "movimiento agrupado",
+
             "pendiente": "pendiente",
             "pendiente cobro": "pendiente de cobro",
             "pendiente pago": "pendiente de pago",
+
             "agrupado": "agrupado",
         }
         return mapa.get(estado, str(estado).replace("_", " "))
 
     def badge_class_estado(estado):
         estado = (estado or "").lower()
-        if estado in ["conciliado_exacto", "conciliado exacto"]:
+
+        if estado in ["conciliado_exacto", "conciliado exacto", "conciliado exacto multi"]:
             return "badge-green"
+
         if estado in ["probablemente_conciliado", "conciliado probable"]:
             return "badge-yellow"
-        if estado in ["pendiente", "pendiente cobro", "pendiente pago", "sin_soporte", "sin soporte", "sin soporte menor"]:
+
+        if estado in ["conciliado probable multi"]:
+            return "badge-gray"
+
+        if estado in [
+            "pendiente",
+            "pendiente cobro",
+            "pendiente pago",
+            "sin_soporte",
+            "sin soporte",
+            "sin soporte menor",
+        ]:
             return "badge-red"
-        if estado in ["no_conciliable", "no conciliable"]:
+
+        if estado in [
+            "no_conciliable",
+            "no conciliable",
+            "movimiento interno",
+            "movimiento bancario no conciliable",
+            "movimiento bancario no conciliable menor",
+            "movimiento agrupado",
+            "agrupado",
+        ]:
             return "badge-gray"
-        if estado in ["duplicado_o_conflictivo", "duplicado o conflictivo"]:
+
+        if estado in ["duplicado_o_conflictivo", "duplicado o conflictivo", "duplicado potencial"]:
             return "badge-yellow"
-        if estado in ["agrupado"]:
-            return "badge-gray"
+
         return "badge-gray"
 
     def contar_docs():
@@ -139,11 +176,17 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     def resumen_conciliacion():
         total_exactas = 0
         total_probables = 0
+        total_probables_multi = 0
+        total_exactas_multi = 0
         total_pendientes = 0
         total_sin_soporte = 0
         total_sin_soporte_menor = 0
         total_no_conciliables = 0
         total_conflictivos = 0
+        total_duplicados = 0
+        total_movimientos_internos = 0
+        total_movimientos_bancarios_no_conciliables = 0
+        total_movimientos_agrupados = 0
 
         importe_pendiente = 0.0
         pendiente_cobro = 0.0
@@ -156,8 +199,16 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
             if estado in ["conciliado_exacto", "conciliado exacto"]:
                 total_exactas += 1
+
+            elif estado in ["conciliado exacto multi"]:
+                total_exactas_multi += 1
+
             elif estado in ["probablemente_conciliado", "conciliado probable"]:
                 total_probables += 1
+
+            elif estado in ["conciliado probable multi"]:
+                total_probables_multi += 1
+
             elif estado in ["pendiente", "pendiente cobro", "pendiente pago"]:
                 total_pendientes += 1
                 importe_pendiente += importe
@@ -166,23 +217,44 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     pendiente_cobro += importe
                 elif estado == "pendiente pago" or tipo == "factura_compra":
                     pendiente_pago += importe
+
             elif estado in ["sin_soporte", "sin soporte"]:
                 total_sin_soporte += 1
+
             elif estado == "sin soporte menor":
                 total_sin_soporte_menor += 1
+
             elif estado in ["no_conciliable", "no conciliable"]:
                 total_no_conciliables += 1
-            elif estado in ["duplicado_o_conflictivo", "duplicado o conflictivo"]:
+
+            elif estado in ["duplicado_o_conflictivo", "duplicado o conflictivo", "duplicado potencial"]:
                 total_conflictivos += 1
+                total_duplicados += 1
+
+            elif estado in ["movimiento interno"]:
+                total_movimientos_internos += 1
+
+            elif estado in ["movimiento bancario no conciliable", "movimiento bancario no conciliable menor"]:
+                total_movimientos_bancarios_no_conciliables += 1
+                total_no_conciliables += 1
+
+            elif estado in ["movimiento agrupado", "agrupado"]:
+                total_movimientos_agrupados += 1
 
         return {
             "conciliadas": total_exactas,
+            "conciliadas_multi": total_exactas_multi,
             "parciales": total_probables,
+            "probables_multi": total_probables_multi,
             "pendientes": total_pendientes,
             "sin_soporte": total_sin_soporte,
             "sin_soporte_menor": total_sin_soporte_menor,
             "no_conciliables": total_no_conciliables,
             "conflictivos": total_conflictivos,
+            "duplicados": total_duplicados,
+            "movimientos_internos": total_movimientos_internos,
+            "movimientos_bancarios_no_conciliables": total_movimientos_bancarios_no_conciliables,
+            "movimientos_agrupados": total_movimientos_agrupados,
             "importe_pendiente": importe_pendiente,
             "pendiente_cobro": pendiente_cobro,
             "pendiente_pago": pendiente_pago,
@@ -272,8 +344,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         saldo_final = flujo["saldo_final"]
         variacion = flujo["variacion"]
         pendientes = conc["pendientes"]
+        probables_multi = conc.get("probables_multi", 0)
         sin_soporte = conc.get("sin_soporte", 0)
         sin_soporte_menor = conc.get("sin_soporte_menor", 0)
+        duplicados = conc.get("duplicados", 0)
 
         if variacion > 0:
             titular = "La caja del período cerró mejor que como empezó."
@@ -292,9 +366,24 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 f" Existen {pendientes} elementos pendientes de revisión "
                 "antes de dar por cerrado el período."
             )
+        elif probables_multi > 0 and sin_soporte > 0:
+            complemento = (
+                f" Se identificaron {probables_multi} conciliaciones que parecen corresponder "
+                f"a múltiples movimientos bancarios y {sin_soporte} movimientos relevantes sin respaldo documental. "
+                "Conviene validarlos antes de dar por cerrado el período."
+            )
+        elif probables_multi > 0:
+            complemento = (
+                f" Se identificaron {probables_multi} conciliaciones que parecen corresponder "
+                "a múltiples movimientos bancarios. Conviene validarlas antes de dar por cerrado el período."
+            )
         elif sin_soporte > 0:
             complemento = (
                 f" Se detectaron {sin_soporte} movimientos bancarios relevantes sin respaldo documental."
+            )
+        elif duplicados > 0:
+            complemento = (
+                f" No se observan pendientes relevantes, aunque existen {duplicados} movimientos potencialmente duplicados que conviene revisar."
             )
         elif sin_soporte_menor > 0:
             complemento = (
@@ -1804,9 +1893,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         </article>
 
                         <article class="kpi">
-                            <div class="label">Pendientes</div>
-                            <div class="amount">{conc["pendientes"]}</div>
-                            <div class="meta"><span class="trend down">Atención</span><span>Facturas</span></div>
+                            <div class="label">Probables (multi)</div>
+                            <div class="amount">{conc.get("probables_multi", 0)}</div>
+                            <div class="meta"><span class="trend gray">Validar</span><span>Conciliación</span></div>
                         </article>
                     </div>
 
@@ -1815,7 +1904,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <h3>Qué muestra este procesamiento</h3>
                             <p>El sistema transforma documentación comercial dispersa en una lectura financiera preliminar útil para gestión. A partir de facturas, extractos y otros soportes, identifica entradas, salidas, pendientes y respaldo documental del flujo.</p>
                             <p>En esta ejecución, el saldo inicial fue de € {fmt(flujo["saldo_inicial"])}, las entradas alcanzan € {fmt(flujo["entradas"])}, las salidas € {fmt(flujo["salidas"])} y el saldo final queda en € {fmt(flujo["saldo_final"])}, con una variación neta de € {fmt(flujo["variacion"])}.</p>
-                            <p>Además, se detectan {conc.get("sin_soporte", 0)} movimientos bancarios relevantes sin respaldo directo, {conc.get("sin_soporte_menor", 0)} movimientos menores sin respaldo directo y un importe pendiente total de € {fmt(conc["importe_pendiente"])}.</p>
+                            <p>Además, se detectan {conc.get("sin_soporte", 0)} movimientos bancarios relevantes sin respaldo directo, {conc.get("sin_soporte_menor", 0)} movimientos menores sin respaldo directo, {conc.get("probables_multi", 0)} conciliaciones que agrupan múltiples movimientos y {conc.get("duplicados", 0)} duplicados potenciales.</p>
                         </article>
 
                         <aside class="insight-card">
@@ -1843,14 +1932,14 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
                         <article class="alert-card yellow">
                             <div class="alert-tag">Revisar</div>
-                            <h4>Elementos pendientes</h4>
-                            <p>Hay {conc["pendientes"]} elementos pendientes y un importe asociado de € {fmt(conc["importe_pendiente"])}, por lo que conviene validar antes de cerrar conclusiones definitivas.</p>
+                            <h4>Validaciones pendientes</h4>
+                            <p>Hay {conc["pendientes"]} elementos pendientes, {conc.get("probables_multi", 0)} conciliaciones multi que conviene validar y un importe pendiente de € {fmt(conc["importe_pendiente"])}.</p>
                         </article>
 
                         <article class="alert-card red">
                             <div class="alert-tag">Atención</div>
                             <h4>Movimientos sin respaldo</h4>
-                            <p>Se detectan {conc.get("sin_soporte", 0)} movimientos relevantes sin respaldo documental y {conc.get("sin_soporte_menor", 0)} movimientos menores sin respaldo directo.</p>
+                            <p>Se detectan {conc.get("sin_soporte", 0)} movimientos relevantes sin respaldo documental, {conc.get("sin_soporte_menor", 0)} menores sin respaldo directo y {conc.get("duplicados", 0)} duplicados potenciales.</p>
                         </article>
                     </section>
                 </section>
@@ -1903,9 +1992,21 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         </article>
 
                         <article class="kpi">
+                            <div class="label">Facturas exactas (multi)</div>
+                            <div class="amount">{conc.get("conciliadas_multi", 0)}</div>
+                            <div class="meta"><span class="trend up">Correcto</span><span>Múltiples movimientos</span></div>
+                        </article>
+
+                        <article class="kpi">
                             <div class="label">Facturas probables</div>
                             <div class="amount">{conc["parciales"]}</div>
                             <div class="meta"><span class="trend warn">Revisión</span><span>Estado</span></div>
+                        </article>
+
+                        <article class="kpi">
+                            <div class="label">Facturas probables (multi)</div>
+                            <div class="amount">{conc.get("probables_multi", 0)}</div>
+                            <div class="meta"><span class="trend gray">Validar</span><span>Múltiples movimientos</span></div>
                         </article>
 
                         <article class="kpi">
@@ -1913,7 +2014,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <div class="amount">{conc["pendientes"]}</div>
                             <div class="meta"><span class="trend down">Pendiente</span><span>Facturas</span></div>
                         </article>
+                    </div>
 
+                    <div class="metrics-grid">
                         <article class="kpi">
                             <div class="label">Sin soporte</div>
                             <div class="amount">{conc.get("sin_soporte", 0)}</div>
@@ -1924,6 +2027,24 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <div class="label">Sin soporte menor</div>
                             <div class="amount">{conc.get("sin_soporte_menor", 0)}</div>
                             <div class="meta"><span class="trend warn">Banco</span><span>Menor</span></div>
+                        </article>
+
+                        <article class="kpi">
+                            <div class="label">No conciliables</div>
+                            <div class="amount">{conc.get("no_conciliables", 0)}</div>
+                            <div class="meta"><span class="trend gray">Banco</span><span>Informativo</span></div>
+                        </article>
+
+                        <article class="kpi">
+                            <div class="label">Duplicados potenciales</div>
+                            <div class="amount">{conc.get("duplicados", 0)}</div>
+                            <div class="meta"><span class="trend warn">Revisar</span><span>Banco</span></div>
+                        </article>
+
+                        <article class="kpi">
+                            <div class="label">Movimientos internos</div>
+                            <div class="amount">{conc.get("movimientos_internos", 0)}</div>
+                            <div class="meta"><span class="trend gray">Informativo</span><span>Banco</span></div>
                         </article>
                     </div>
 
