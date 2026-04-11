@@ -80,9 +80,37 @@ def es_linea_ruido(linea_lower):
         "tarifas",
         "liberaciones",
         "retenido",
+        "balance",
+        "subtotal",
+        "totales",
+        "activity summary",
+        "overview",
     ]
 
     return any(fragmento in linea_lower for fragmento in fragmentos_ignorar)
+
+
+def es_linea_componente_evento(linea_lower):
+    patrones_componentes = [
+        "fee",
+        "tarifa",
+        "comisión",
+        "comision",
+        "retenido",
+        "retención",
+        "retencion",
+        "retention",
+        "hold",
+        "liberación",
+        "liberacion",
+        "cancelación de retención",
+        "cancelacion de retencion",
+        "importe neto",
+        "importe bruto",
+        "neto",
+        "bruto",
+    ]
+    return any(p in linea_lower for p in patrones_componentes)
 
 
 def es_linea_evento_principal(linea_lower):
@@ -103,9 +131,6 @@ def es_linea_evento_principal(linea_lower):
         "transacción de la tarjeta",
         "transaccion de la tarjeta",
         "compra con tarjeta",
-        "bank transfer",
-        "transferencia",
-        "transfer",
         "reembolso",
         "refund",
     ]
@@ -113,32 +138,44 @@ def es_linea_evento_principal(linea_lower):
     return any(p in linea_lower for p in patrones_principales)
 
 
-def es_linea_componente_evento(linea_lower):
+def parece_linea_agregada(linea_original, linea_lower, importes):
     """
-    Líneas que pertenecen al detalle bancario de un evento,
-    pero no deben contaminar ventas/compras ni ledger operativo principal.
+    Detecta líneas que parecen agregados del extracto y no transacciones individuales.
     """
-    patrones_componentes = [
-        "fee",
-        "tarifa",
-        "comisión",
-        "comision",
-        "retenido",
-        "retención",
-        "retencion",
-        "retention",
-        "hold",
-        "liberación",
-        "liberacion",
-        "cancelación de retención",
-        "cancelacion de retencion",
-        "importe neto",
-        "importe bruto",
-        "neto",
-        "bruto",
-    ]
+    if not importes:
+        return True
 
-    return any(p in linea_lower for p in patrones_componentes)
+    # Si hay demasiados importes en la misma línea, casi seguro es agregado o resumen.
+    if len(importes) >= 3:
+        return True
+
+    # Si la línea es muy corta y solo muestra números grandes, suele ser subtotal/agregado.
+    texto_sin_fechas = PATRON_FECHA.sub("", linea_original)
+    texto_sin_importes = PATRON_IMPORTE.sub("", texto_sin_fechas)
+    texto_limpio = re.sub(r"[\-\–—:;/|\\]+", " ", texto_sin_importes)
+    texto_limpio = " ".join(texto_limpio.split())
+
+    # Muy poco texto descriptivo -> probablemente agregado.
+    if len(texto_limpio) < 8:
+        return True
+
+    # Términos típicos de agrupación / lote / agregado.
+    patrones_agregado = [
+        "total",
+        "lote",
+        "batch",
+        "grupo",
+        "acumulado",
+        "resumen",
+        "liquidación",
+        "liquidacion",
+        "transferencia a banco",
+        "bank transfer",
+    ]
+    if any(p in linea_lower for p in patrones_agregado):
+        return True
+
+    return False
 
 
 def inferir_naturaleza_desde_texto(linea_lower, valor):
@@ -186,6 +223,7 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
     - resumen del período
     - subtotales
     - netos/brutos/comisiones/retenciones/liberaciones
+    - agregados macro del extracto
     """
     movimientos = []
     if not texto:
@@ -206,21 +244,28 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
         if es_linea_ruido(linea_lower):
             continue
 
-        if not es_linea_evento_principal(linea_lower):
+        if es_linea_componente_evento(linea_lower):
             continue
 
-        if es_linea_componente_evento(linea_lower):
+        # Solo consideramos líneas que parezcan evento principal.
+        if not es_linea_evento_principal(linea_lower):
             continue
 
         importes = PATRON_IMPORTE.findall(linea_original)
         if not importes:
             continue
 
+        if parece_linea_agregada(linea_original, linea_lower, importes):
+            continue
+
+        # Exigimos fecha explícita para bajar falsos positivos macro.
         m_fecha = PATRON_FECHA.search(linea_original)
         if m_fecha:
             fecha_actual = m_fecha.group()
+        elif not fecha_actual:
+            continue
 
-        # Si la línea trae varios importes, tomamos el primero firmado.
+        # En transacción individual, el primer importe firmado suele ser suficiente.
         importe_str = importes[0]
         valor = normalizar_importe(importe_str)
         if valor is None:
@@ -308,7 +353,7 @@ def construir_ledger(documentos):
                 })
 
         elif tipo_doc == "extracto_bancario":
-            # El resumen oficial del extracto se guarda aparte para la caja macro
+            # Resumen oficial del extracto: sirve para caja macro
             if resumen_extracto:
                 ledger.append({
                     "id": f"extract_summary_{idx}",
@@ -327,7 +372,7 @@ def construir_ledger(documentos):
                     "estado_conciliacion": "no_aplica",
                 })
 
-            # El historial detallado solo aporta eventos principales
+            # Historial detallado: solo eventos principales y transaccionales
             movimientos = extraer_movimientos_extracto(
                 texto=texto,
                 archivo=archivo,
