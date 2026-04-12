@@ -557,6 +557,145 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     return titular, narrativa
 
 
+def calcular_score_financiero(flujo, conc):
+    score = 100
+
+    score -= conc.get("pendientes", 0) * 12
+    score -= conc.get("sin_soporte", 0) * 8
+    score -= conc.get("duplicados", 0) * 6
+    score -= conc.get("parciales", 0) * 5
+    score -= conc.get("probables_multi", 0) * 7
+    score -= conc.get("movimientos_bancarios_no_conciliables", 0) * 3
+    score -= conc.get("movimientos_internos", 0) * 1
+
+    if flujo.get("variacion", 0) < 0:
+        score -= 8
+
+    return max(min(score, 100), 0)
+
+
+def texto_score_financiero(score):
+    if score >= 85:
+        return "Muy sólido"
+    if score >= 70:
+        return "Sólido"
+    if score >= 55:
+        return "Aceptable"
+    if score >= 40:
+        return "Frágil"
+    return "Crítico"
+
+
+def generar_diagnostico_financiero(flujo, conc):
+    diagnosticos = []
+
+    if flujo.get("variacion", 0) > 0:
+        diagnosticos.append(
+            f"La caja mejoró en el período, con una variación positiva de € {fmt_importe_reporte(flujo.get('variacion', 0))}."
+        )
+    elif flujo.get("variacion", 0) < 0:
+        diagnosticos.append(
+            f"La caja se deterioró en el período, con una variación negativa de € {fmt_importe_reporte(abs(flujo.get('variacion', 0)))}."
+        )
+    else:
+        diagnosticos.append("La caja cerró prácticamente al mismo nivel con el que empezó el período.")
+
+    if conc.get("pendientes", 0) > 0:
+        diagnosticos.append(
+            f"Persisten {conc.get('pendientes', 0)} {pluralizar(conc.get('pendientes', 0), 'factura pendiente', 'facturas pendientes')}, "
+            f"con € {fmt_importe_reporte(conc.get('importe_pendiente', 0))} todavía por validar o cerrar."
+        )
+
+    if conc.get("sin_soporte", 0) > 0:
+        diagnosticos.append(
+            f"Se identificaron {conc.get('sin_soporte', 0)} {pluralizar(conc.get('sin_soporte', 0), 'movimiento relevante sin soporte', 'movimientos relevantes sin soporte')}, "
+            "lo que reduce la confiabilidad del cierre."
+        )
+
+    if conc.get("movimientos_internos", 0) > 0:
+        diagnosticos.append(
+            f"Hay {conc.get('movimientos_internos', 0)} {pluralizar(conc.get('movimientos_internos', 0), 'movimiento interno', 'movimientos internos')} "
+            "que no deben confundirse con gasto comercial."
+        )
+
+    if not diagnosticos:
+        diagnosticos.append("No se detectan alertas materiales en la lectura preliminar del período.")
+
+    return diagnosticos[:5]
+
+
+def generar_recomendaciones_financieras(flujo, conc):
+    recomendaciones = []
+
+    if conc.get("pendiente_cobro", 0) > 0:
+        recomendaciones.append(
+            f"Priorizar el cobro de facturas pendientes por € {fmt_importe_reporte(conc.get('pendiente_cobro', 0))}."
+        )
+
+    if conc.get("pendiente_pago", 0) > 0:
+        recomendaciones.append(
+            f"Verificar el calendario de pago de compras pendientes por € {fmt_importe_reporte(conc.get('pendiente_pago', 0))}."
+        )
+
+    if conc.get("sin_soporte", 0) > 0:
+        recomendaciones.append(
+            "Solicitar o localizar soporte documental de los movimientos relevantes detectados en banco."
+        )
+
+    if conc.get("movimientos_internos", 0) > 0:
+        recomendaciones.append(
+            "Separar formalmente los retiros propios y movimientos internos del gasto operativo del negocio."
+        )
+
+    if flujo.get("variacion", 0) < 0:
+        recomendaciones.append(
+            "Revisar el ritmo de salidas frente a entradas para evitar presión adicional sobre la liquidez."
+        )
+
+    if conc.get("duplicados", 0) > 0:
+        recomendaciones.append(
+            "Revisar inmediatamente los posibles duplicados antes de cerrar el período."
+        )
+
+    if not recomendaciones:
+        recomendaciones.append("Mantener el control documental y repetir este cierre con periodicidad mensual.")
+
+    return recomendaciones[:5]
+
+
+def generar_insight_ejecutivo(flujo, conc):
+    pendientes = conc.get("pendientes", 0)
+    sin_soporte = conc.get("sin_soporte", 0)
+    movimientos_internos = conc.get("movimientos_internos", 0)
+    variacion = flujo.get("variacion", 0)
+
+    if sin_soporte > 0 and pendientes > 0:
+        return (
+            "Tu principal foco no es solo el flujo de caja: también necesitas reforzar el control documental "
+            "para cerrar con confianza."
+        )
+
+    if movimientos_internos > 0 and sin_soporte == 0 and pendientes == 0:
+        return (
+            "La operación luce relativamente ordenada, pero conviene separar mejor los movimientos internos "
+            "de la actividad comercial."
+        )
+
+    if variacion < 0 and sin_soporte > 0:
+        return (
+            "La combinación de caída de caja y movimientos sin soporte sugiere un riesgo operativo que conviene atacar pronto."
+        )
+
+    if variacion > 0 and pendientes == 0 and sin_soporte == 0:
+        return (
+            "La caja cerró en mejora y el período muestra una estructura razonablemente limpia para lectura ejecutiva preliminar."
+        )
+
+    return (
+        "La lectura financiera ya es útil para decidir, pero todavía requiere disciplina documental para convertirse en un cierre confiable."
+    )
+
+
 def generar_html_resultado(total, clasificados, importes, documentos, ledger=None, conciliacion=None):
     assert BRANDING["modo"] in BRANDING, f"Modo inválido en BRANDING: {BRANDING.get('modo')}"
     branding_data = BRANDING[BRANDING["modo"]]
@@ -607,7 +746,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             return "badge-yellow"
         return "badge-gray"
 
-    def construir_botones_filtro():
+    def construir_botones_filtro(section_target):
         botones = [
             ("all", "Ver todo"),
             ("entradas", "Entradas"),
@@ -624,7 +763,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         html = ""
         for valor, etiqueta in botones:
             clase = "filter-btn active" if valor == "all" else "filter-btn"
-            html += f'<button class="{clase}" type="button" data-filter="{valor}">{etiqueta}</button>'
+            html += (
+                f'<button class="{clase}" type="button" '
+                f'data-filter="{valor}" data-target="{section_target}">{etiqueta}</button>'
+            )
         return html
 
     def tabla_ledger_html():
@@ -682,8 +824,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
-    def tarjetas_moviles_movimientos(items, titulo, clase, extra_tags=None):
-        extra_tags = extra_tags or []
+    def tarjetas_moviles_movimientos(items, titulo, clase, section_target):
         if not items:
             return ""
 
@@ -699,12 +840,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 if item["categoria"] in ["retiro_propio", "transferencia_interna", "traspaso"]:
                     tags.append("internos")
 
-            for t in extra_tags:
-                if t not in tags:
-                    tags.append(t)
-
             cards += f"""
-            <article class="mobile-movement-card {clase}" data-kind="{' '.join(tags)}">
+            <article class="mobile-movement-card {clase}" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="{section_target}">
                 <div class="mobile-movement-head">
                     <span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span>
                     <span class="mobile-amount">€ {item['importe_fmt']}</span>
@@ -748,12 +885,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             filas_entradas = ""
             for item in entradas:
                 tags = ["entradas", "cobros", "all"]
-                if item["categoria"] == "otros_cobros":
-                    tags.append("cobros")
                 filas_entradas += f"""
                 <tr class="row-entrada mov-row"
                     data-kind="{' '.join(sorted(set(tags)))}"
-                    data-category="{item['categoria']}">
+                    data-category="{item['categoria']}"
+                    data-target-section="movimientos-section">
                     <td class="mono">{item['fecha']}</td>
                     <td class="mono">€ {item['importe_fmt']}</td>
                     <td>{item['descripcion']}</td>
@@ -785,7 +921,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     </table>
                 </div>
             </div>
-            {tarjetas_moviles_movimientos(entradas, "Entradas relevantes", "row-entrada")}
+            {tarjetas_moviles_movimientos(entradas, "Entradas relevantes", "row-entrada", "movimientos-section")}
             """)
 
         if salidas:
@@ -799,7 +935,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 filas_salidas += f"""
                 <tr class="row-salida mov-row"
                     data-kind="{' '.join(sorted(set(tags)))}"
-                    data-category="{item['categoria']}">
+                    data-category="{item['categoria']}"
+                    data-target-section="movimientos-section">
                     <td class="mono">{item['fecha']}</td>
                     <td class="mono">€ {item['importe_fmt']}</td>
                     <td>{item['descripcion']}</td>
@@ -831,7 +968,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     </table>
                 </div>
             </div>
-            {tarjetas_moviles_movimientos(salidas, "Salidas relevantes", "row-salida")}
+            {tarjetas_moviles_movimientos(salidas, "Salidas relevantes", "row-salida", "movimientos-section")}
             """)
 
         return "".join(secciones)
@@ -871,7 +1008,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 tags.append("internos")
 
             filas += f"""
-            <tr class="conc-row" data-kind="{' '.join(sorted(set(tags)))}">
+            <tr class="conc-row" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="conciliacion-section">
                 <td>{item.get('archivo', '-')}</td>
                 <td class="mono">{item.get('fecha', '-')}</td>
                 <td class="mono">€ {importe}</td>
@@ -882,7 +1019,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             """
 
             cards += f"""
-            <article class="mobile-conc-card" data-kind="{' '.join(sorted(set(tags)))}">
+            <article class="mobile-conc-card" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="conciliacion-section">
                 <div class="mobile-conc-head">
                     <span class="badge {badge_class}">{estado}</span>
                     <span class="mobile-amount">€ {importe}</span>
@@ -916,7 +1053,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <div class="chip">{len(conciliacion)} registros</div>
             </div>
             <div class="filter-toolbar">
-                {construir_botones_filtro()}
+                {construir_botones_filtro("conciliacion-section")}
             </div>
             <div class="table-wrap">
                 <table>
@@ -1059,14 +1196,14 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
     def _resumen_importes(importes_lista):
         if not importes_lista:
-            return "Sin montos detectados"
+            return "Sin montos detectados", "No se detectaron montos"
 
-        total = len(importes_lista)
+        total_montos = len(importes_lista)
         seleccion = _seleccionar_importes_presentables(importes_lista, max_visibles=12)
         positivos = sum(1 for x in importes_lista if normalizar_importe_reporte(x) > 0)
         negativos = sum(1 for x in importes_lista if normalizar_importe_reporte(x) < 0)
 
-        partes = [f"{total} {pluralizar(total, 'monto')} detectado(s)"]
+        partes = [f"{total_montos} {pluralizar(total_montos, 'monto')} detectado(s)"]
         if positivos > 0:
             partes.append(f"{positivos} positivo(s)")
         if negativos > 0:
@@ -1252,8 +1389,16 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     flujo = resumen_flujo()
     conc = resumen_conciliacion()
     titular_ejecutivo, narrativa_ejecutiva = texto_lectura_ejecutiva(flujo, conc, docs)
+    score_financiero = calcular_score_financiero(flujo, conc)
+    etiqueta_score = texto_score_financiero(score_financiero)
+    diagnosticos = generar_diagnostico_financiero(flujo, conc)
+    recomendaciones = generar_recomendaciones_financieras(flujo, conc)
+    insight_ejecutivo = generar_insight_ejecutivo(flujo, conc)
 
     total_docs_clasificados = docs["factura_venta"] + docs["factura_compra"] + docs["extracto_bancario"] + docs["otros"]
+
+    diagnosticos_html = "".join(f"<li>{item}</li>" for item in diagnosticos)
+    recomendaciones_html = "".join(f"<li>{item}</li>" for item in recomendaciones)
 
     html = f"""
     <!DOCTYPE html>
@@ -1510,6 +1655,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 border:1px solid rgba(255,255,255,.7);
                 box-shadow:var(--shadow-md);
                 overflow:visible;
+                scroll-margin-top:18px;
             }}
 
             .section-head {{
@@ -1630,7 +1776,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             .alerts-grid .alert-card,
             .author-card,
             .books-card,
-            .contact-card {{
+            .contact-card,
+            .diagnostic-card,
+            .recommend-card,
+            .score-card,
+            .insight-hero-card {{
                 background:var(--panel-strong);
                 border:1px solid var(--line);
                 box-shadow:var(--shadow-sm);
@@ -1638,19 +1788,31 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             }}
 
             .story-card,
-            .insight-card {{
+            .insight-card,
+            .diagnostic-card,
+            .recommend-card,
+            .score-card,
+            .insight-hero-card {{
                 padding:24px;
             }}
 
             .story-card h3,
             .table-head h3,
-            .alerts-title {{
+            .alerts-title,
+            .diagnostic-card h3,
+            .recommend-card h3,
+            .score-card h3,
+            .insight-hero-card h3 {{
                 margin:0 0 12px;
                 font-size:1.18rem;
                 font-weight:900;
             }}
 
-            .story-card p {{
+            .story-card p,
+            .diagnostic-card p,
+            .recommend-card p,
+            .score-card p,
+            .insight-hero-card p {{
                 margin:0 0 14px;
                 color:var(--muted);
                 line-height:1.78;
@@ -1695,21 +1857,55 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 font-weight:800;
             }}
 
-            .bullet-list {{
+            .score-ring {{
+                width:170px;
+                height:170px;
+                border-radius:50%;
+                margin:0 auto;
+                background:
+                    radial-gradient(closest-side,#fff 73%,transparent 75% 100%),
+                    conic-gradient(var(--blue-1) 0 {score_financiero}%, #dbeafe {score_financiero}% 100%);
+                display:grid;
+                place-items:center;
+            }}
+
+            .score-ring span {{
+                display:flex;
+                flex-direction:column;
+                align-items:center;
+                gap:4px;
+                font-weight:900;
+                font-size:2rem;
+                letter-spacing:-.05em;
+            }}
+
+            .score-ring small {{
+                font-size:.8rem;
+                color:var(--muted);
+                font-weight:800;
+            }}
+
+            .bullet-list,
+            .diagnostic-list,
+            .recommend-list {{
                 display:grid;
                 gap:12px;
             }}
 
-            .bullet {{
+            .bullet,
+            .diagnostic-list li,
+            .recommend-list li {{
                 display:flex;
                 align-items:flex-start;
                 gap:12px;
                 color:var(--muted);
-                line-height:1.5;
+                line-height:1.6;
                 font-weight:600;
             }}
 
-            .bullet::before {{
+            .bullet::before,
+            .diagnostic-list li::before,
+            .recommend-list li::before {{
                 content:"";
                 width:10px;
                 height:10px;
@@ -1717,6 +1913,38 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 border-radius:999px;
                 background:linear-gradient(135deg,var(--blue-1),var(--blue-2));
                 flex:none;
+            }}
+
+            .diagnostic-grid {{
+                display:grid;
+                grid-template-columns:1fr 1fr;
+                gap:16px;
+                padding:8px 22px 22px;
+            }}
+
+            .insight-hero-card {{
+                background:
+                    radial-gradient(circle at top right, rgba(94,167,255,.18), transparent 35%),
+                    linear-gradient(180deg,#ffffff,#f8fbff);
+            }}
+
+            .insight-highlight {{
+                font-size:1.04rem;
+                line-height:1.8;
+                color:#334155;
+                font-weight:700;
+            }}
+
+            .score-chip {{
+                display:inline-flex;
+                align-items:center;
+                gap:8px;
+                padding:8px 12px;
+                border-radius:999px;
+                background:#eef5ff;
+                color:#0f4cff;
+                font-size:.84rem;
+                font-weight:900;
             }}
 
             .filter-toolbar {{
@@ -2237,7 +2465,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
             @media (max-width:1180px) {{
                 .hero,
-                .story-layout {{
+                .story-layout,
+                .diagnostic-grid {{
                     grid-template-columns:1fr;
                 }}
 
@@ -2320,12 +2549,17 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 .author-card,
                 .books-card,
                 .contact-card,
-                .empty-state {{
+                .empty-state,
+                .diagnostic-card,
+                .recommend-card,
+                .score-card,
+                .insight-hero-card {{
                     margin:16px;
                     padding:16px;
                 }}
 
-                .story-layout {{
+                .story-layout,
+                .diagnostic-grid {{
                     padding:8px 16px 16px;
                 }}
 
@@ -2451,6 +2685,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         <div class="chip">Archivos analizados: {total}</div>
                         <div class="chip">Documentos clasificados: {total_docs_clasificados}</div>
                         <div class="chip chip-strong">{texto_calidad_cierre(conc["nivel_cierre"])}</div>
+                        <div class="chip">Score: {score_financiero}/100</div>
                     </div>
                 </header>
             </div>
@@ -2508,6 +2743,48 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                                 <span>Variación: € {fmt(flujo["variacion"])}</span>
                                 <span>Cierre</span>
                             </div>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="section" id="diagnostico-section">
+                    <div class="section-head">
+                        <div>
+                            <h3 class="section-title">Diagnóstico y recomendación ejecutiva</h3>
+                            <p class="section-sub">Capa de interpretación automática para convertir números y conciliación en decisiones accionables.</p>
+                        </div>
+                    </div>
+
+                    <div class="diagnostic-grid">
+                        <article class="score-card">
+                            <div class="score-chip">Score financiero</div>
+                            <h3>Fortaleza preliminar del período</h3>
+                            <div class="score-ring">
+                                <span>{score_financiero}<small>{etiqueta_score}</small></span>
+                            </div>
+                            <p>Este score resume la calidad preliminar del cierre combinando pendientes, soporte documental, duplicados, movimientos internos y comportamiento de caja.</p>
+                        </article>
+
+                        <article class="insight-hero-card">
+                            <div class="score-chip">Insight principal</div>
+                            <h3>La lectura más importante del período</h3>
+                            <p class="insight-highlight">{insight_ejecutivo}</p>
+                        </article>
+                    </div>
+
+                    <div class="diagnostic-grid">
+                        <article class="diagnostic-card">
+                            <h3>Diagnóstico automático</h3>
+                            <ul class="diagnostic-list">
+                                {diagnosticos_html}
+                            </ul>
+                        </article>
+
+                        <article class="recommend-card">
+                            <h3>Recomendaciones sugeridas</h3>
+                            <ul class="recommend-list">
+                                {recomendaciones_html}
+                            </ul>
                         </article>
                     </div>
                 </section>
@@ -2609,7 +2886,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     {importes_html()}
                 </section>
 
-                <section class="section">
+                <section class="section" id="movimientos-section">
                     <div class="section-head">
                         <div>
                             <h3 class="section-title">Movimientos bancarios relevantes</h3>
@@ -2617,7 +2894,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         </div>
                     </div>
                     <div class="filter-toolbar">
-                        {construir_botones_filtro()}
+                        {construir_botones_filtro("movimientos-section")}
                     </div>
                     {tabla_movimientos_relevantes_html()}
                     {bloque_movimientos_menores_html()}
@@ -2633,7 +2910,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     {tabla_ledger_html()}
                 </section>
 
-                <section class="section">
+                <section class="section" id="conciliacion-section">
                     <div class="section-head">
                         <div>
                             <h3 class="section-title">Conciliación</h3>
@@ -2733,6 +3010,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <span class="footer-pill">Archivos: {total}</span>
                             <span class="footer-pill">Clasificados: {total_docs_clasificados}</span>
                             <span class="footer-pill">{texto_calidad_cierre(conc["nivel_cierre"])}</span>
+                            <span class="footer-pill">Score: {score_financiero}/100</span>
                         </div>
                     </div>
 
@@ -2750,9 +3028,16 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
         <script>
             (function() {{
-                function applyFilter(value) {{
+                function scrollToTarget(targetId) {{
+                    const target = document.getElementById(targetId);
+                    if (target) {{
+                        target.scrollIntoView({{ behavior: "smooth", block: "start" }});
+                    }}
+                }}
+
+                function applyFilter(value, targetId) {{
                     const allRows = document.querySelectorAll("[data-kind]");
-                    const buttons = document.querySelectorAll(".filter-btn");
+                    const buttons = document.querySelectorAll('.filter-btn[data-target="' + targetId + '"]');
 
                     buttons.forEach(btn => {{
                         if (btn.getAttribute("data-filter") === value) {{
@@ -2763,6 +3048,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     }});
 
                     allRows.forEach(el => {{
+                        const elementTarget = el.getAttribute("data-target-section");
+                        if (elementTarget && elementTarget !== targetId) {{
+                            return;
+                        }}
+
                         const kinds = (el.getAttribute("data-kind") || "").split(" ").filter(Boolean);
                         if (value === "all" || kinds.includes(value)) {{
                             el.classList.remove("is-hidden");
@@ -2770,16 +3060,20 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             el.classList.add("is-hidden");
                         }}
                     }});
+
+                    scrollToTarget(targetId);
                 }}
 
                 document.querySelectorAll(".filter-btn").forEach(btn => {{
                     btn.addEventListener("click", function() {{
                         const value = this.getAttribute("data-filter") || "all";
-                        applyFilter(value);
+                        const targetId = this.getAttribute("data-target") || "movimientos-section";
+                        applyFilter(value, targetId);
                     }});
                 }});
 
-                applyFilter("all");
+                applyFilter("all", "movimientos-section");
+                applyFilter("all", "conciliacion-section");
             }})();
         </script>
     </body>
