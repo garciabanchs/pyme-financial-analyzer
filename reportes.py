@@ -364,7 +364,8 @@ def construir_resumen_conciliacion(conciliacion):
         "conflictivos": total_conflictivos,
         "duplicados": total_duplicados,
         "movimientos_internos": total_movimientos_internos,
-        "movimientos_bancarios_no_conciliables": total_movimientos_bancarios_no_conciliables,
+        "movimientos_bancarios_no_conciliables": total_movimientos_bancarios_no_CONCILIABLES
+        if False else total_movimientos_bancarios_no_conciliables,
         "movimientos_bancarios_no_conciliables_menor": total_movimientos_bancarios_no_conciliables_menor,
         "movimientos_agrupados": total_movimientos_agrupados,
         "importe_pendiente": importe_pendiente,
@@ -456,6 +457,79 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
         "otros_pagos_cantidad": otros_pagos_cantidad,
         "otros_pagos_total": otros_pagos_total,
     }
+
+
+def _limpiar_nombre_base(texto):
+    texto = str(texto or "").strip()
+    if not texto:
+        return ""
+
+    reemplazos = [
+        ".zip", ".pdf", ".xlsx", ".xls", ".csv", ".doc", ".docx",
+        "_analisis", "_reporte", "_reporte_final", "_final",
+    ]
+    texto_lower = texto.lower()
+    for sufijo in reemplazos:
+        if texto_lower.endswith(sufijo):
+            texto = texto[: -len(sufijo)]
+            texto_lower = texto.lower()
+
+    texto = texto.replace("_", " ").replace("-", " ").replace("/", " ").replace("\\", " ")
+    texto = " ".join(texto.split()).strip(" .,_-")
+    return texto
+
+
+def inferir_nombre_empresa(documentos, ledger):
+    candidatos = []
+
+    for item in documentos or []:
+        archivo = item.get("archivo", "")
+        if archivo:
+            partes = str(archivo).replace("\\", "/").split("/")
+            if len(partes) >= 2:
+                candidatos.append(_limpiar_nombre_base(partes[0]))
+            candidatos.append(_limpiar_nombre_base(partes[-1]))
+
+    for item in ledger or []:
+        archivo = item.get("archivo", "")
+        if archivo:
+            partes = str(archivo).replace("\\", "/").split("/")
+            if len(partes) >= 2:
+                candidatos.append(_limpiar_nombre_base(partes[0]))
+            candidatos.append(_limpiar_nombre_base(partes[-1]))
+
+    candidatos_filtrados = []
+    bloqueados = {
+        "uploads", "outputs", "extracted", "factura", "facturas", "extracto", "extractos",
+        "reporte", "analisis", "documento", "documentos", "otros", "pdf", "zip",
+        "factura venta", "factura compra", "extracto bancario",
+    }
+
+    for c in candidatos:
+        c_norm = c.strip()
+        if not c_norm:
+            continue
+        if len(c_norm) < 4:
+            continue
+        if c_norm.lower() in bloqueados:
+            continue
+        if any(token in c_norm.lower() for token in ["bank_", "doc_", "extract_summary_"]):
+            continue
+        candidatos_filtrados.append(c_norm)
+
+    if not candidatos_filtrados:
+        return "la empresa analizada"
+
+    frecuencia = {}
+    for c in candidatos_filtrados:
+        frecuencia[c] = frecuencia.get(c, 0) + 1
+
+    mejor = sorted(
+        frecuencia.items(),
+        key=lambda x: (-x[1], -len(x[0]), x[0].lower())
+    )[0][0]
+
+    return mejor
 
 
 def construir_narrativa_ejecutiva(total, docs, flujo, conc):
@@ -671,24 +745,22 @@ def generar_insight_ejecutivo(flujo, conc):
 
     if sin_soporte > 0 and pendientes > 0:
         return (
-            "Tu principal foco no es solo el flujo de caja: también necesitas reforzar el control documental "
-            "para cerrar con confianza."
+            "El principal punto de atención no parece ser solo la caja, sino la necesidad de reforzar el control documental para cerrar con confianza."
         )
 
     if movimientos_internos > 0 and sin_soporte == 0 and pendientes == 0:
         return (
-            "La operación luce relativamente ordenada, pero conviene separar mejor los movimientos internos "
-            "de la actividad comercial."
+            "La operación luce relativamente ordenada, pero conviene separar mejor los movimientos internos de la actividad comercial."
         )
 
     if variacion < 0 and sin_soporte > 0:
         return (
-            "La combinación de caída de caja y movimientos sin soporte sugiere un riesgo operativo que conviene atacar pronto."
+            "La combinación de caída de caja y movimientos sin soporte sugiere un riesgo operativo que conviene corregir pronto."
         )
 
     if variacion > 0 and pendientes == 0 and sin_soporte == 0:
         return (
-            "La caja cerró en mejora y el período muestra una estructura razonablemente limpia para lectura ejecutiva preliminar."
+            "La caja cerró en mejora y el período muestra una estructura razonablemente limpia para una lectura ejecutiva preliminar."
         )
 
     return (
@@ -746,7 +818,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             return "badge-yellow"
         return "badge-gray"
 
-    def construir_botones_filtro(section_target):
+    def construir_botones_movimientos(section_target):
         botones = [
             ("all", "Ver todo"),
             ("entradas", "Entradas"),
@@ -754,10 +826,26 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             ("cobros", "Cobros"),
             ("pagos", "Pagos"),
             ("internos", "Movimientos internos"),
+        ]
+
+        html = ""
+        for valor, etiqueta in botones:
+            clase = "filter-btn active" if valor == "all" else "filter-btn"
+            html += (
+                f'<button class="{clase}" type="button" '
+                f'data-filter="{valor}" data-target="{section_target}">{etiqueta}</button>'
+            )
+        return html
+
+    def construir_botones_conciliacion(section_target):
+        botones = [
+            ("all", "Ver todo"),
             ("pendientes", "Facturas pendientes"),
             ("conciliadas", "Facturas conciliadas"),
             ("sin-soporte", "Sin soporte"),
             ("no-conciliables", "No conciliables"),
+            ("duplicados", "Duplicados potenciales"),
+            ("internos", "Movimientos internos"),
         ]
 
         html = ""
@@ -980,6 +1068,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 tags.append("sin-soporte")
             if estado_norm in ["no_conciliable", "movimiento_bancario_no_conciliable", "movimiento_bancario_no_conciliable_menor"]:
                 tags.append("no-conciliables")
+            if estado_norm in ["duplicado_potencial"]:
+                tags.append("duplicados")
             if estado_norm == "movimiento_interno":
                 tags.append("internos")
 
@@ -1022,7 +1112,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         return f"""
         <div class="table-shell compact-shell">
             <div class="filter-toolbar">
-                {construir_botones_filtro("conciliacion-section")}
+                {construir_botones_conciliacion("conciliacion-section")}
             </div>
             <div class="table-wrap">
                 <table>
@@ -1327,6 +1417,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     docs = contar_docs()
     flujo = resumen_flujo()
     conc = resumen_conciliacion()
+    nombre_empresa = inferir_nombre_empresa(documentos, ledger)
     titular_ejecutivo, narrativa_ejecutiva = texto_lectura_ejecutiva(flujo, conc, docs)
     score_financiero = calcular_score_financiero(flujo, conc)
     etiqueta_score = texto_score_financiero(score_financiero)
@@ -1421,7 +1512,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Informe Financiero PYME</title>
+        <title>Informe financiero de {nombre_empresa}</title>
         <style>
             :root {{
                 --bg:#f4f7fb;
@@ -1955,7 +2046,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
             .insight-highlight {{
                 font-size:1.04rem;
-                line-height:1.8;
+                line-height:1.85;
                 color:#334155;
                 font-weight:700;
             }}
@@ -2072,22 +2163,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 box-shadow:none;
                 border-radius:0;
                 background:transparent;
-            }}
-
-            .table-head {{
-                padding:22px 22px 10px;
-                display:flex;
-                justify-content:space-between;
-                gap:16px;
-                align-items:flex-end;
-                flex-wrap:wrap;
-            }}
-
-            .table-head p {{
-                margin:0;
-                color:var(--muted);
-                max-width:68ch;
-                line-height:1.6;
             }}
 
             .table-wrap {{
@@ -2806,7 +2881,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <header class="topbar">
                     <div class="brand">
                         <div class="eyebrow">PYME Financial Analyzer</div>
-                        <h1>Informe financiero ejecutivo</h1>
+                        <h1>Informe financiero de {nombre_empresa}</h1>
                     </div>
                     <div class="company-meta">
                         <div class="chip">Archivos analizados: {total}</div>
@@ -2835,7 +2910,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             </div>
                             <div class="metric-delta">
                                 <span>Inicio del período</span>
-                                <span>Caja</span>
+                                <span>{nombre_empresa}</span>
                             </div>
                         </article>
 
@@ -2878,7 +2953,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <div class="section-head">
                         <div>
                             <h3 class="section-title">Diagnóstico ejecutivo</h3>
-                            <p class="section-sub">La lectura principal del período y un score de solidez preliminar.</p>
+                            <p class="section-sub">Lo más importante que este informe sugiere sobre la situación financiera de {nombre_empresa}.</p>
                         </div>
                     </div>
 
@@ -2889,7 +2964,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <div class="score-ring">
                                 <span>{score_financiero}<small>{etiqueta_score}</small></span>
                             </div>
-                            <p>Este score resume la calidad preliminar del cierre combinando pendientes, soporte documental, duplicados, movimientos internos y comportamiento de caja.</p>
+                            <p>Este indicador resume, de forma preliminar, qué tan ordenado y confiable luce el cierre del período.</p>
                         </article>
 
                         <article class="insight-hero-card">
@@ -2980,11 +3055,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <div class="section-head">
                         <div>
                             <h3 class="section-title">Movimientos bancarios</h3>
-                            <p class="section-sub">Usa los botones para ver solo lo que te interesa. El filtro hace scroll automático a esta sección.</p>
+                            <p class="section-sub">Usa los botones para ver solo entradas, salidas, cobros, pagos o movimientos internos. El filtro hace scroll automático a esta sección.</p>
                         </div>
                     </div>
                     <div class="filter-toolbar">
-                        {construir_botones_filtro("movimientos-section")}
+                        {construir_botones_movimientos("movimientos-section")}
                     </div>
                     {tabla_movimientos_relevantes_html()}
                     {bloque_movimientos_menores_html()}
@@ -3094,7 +3169,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <footer>
                     <div class="footer-card">
                         <div>
-                            <strong>PYME Financial Analyzer</strong> · Informe visual para revisión ejecutiva, control documental y lectura preliminar de caja.
+                            <strong>PYME Financial Analyzer</strong> · Informe visual para revisión ejecutiva, control documental y lectura preliminar de caja de {nombre_empresa}.
                         </div>
                         <div class="footer-right">
                             <span class="footer-pill">Archivos: {total}</span>
