@@ -176,6 +176,11 @@ def humanizar_naturaleza(naturaleza):
     return mapa.get(naturaleza, str(naturaleza).replace("_", " ").title())
 
 
+def pluralizar(numero, singular, plural=None):
+    plural = plural or f"{singular}s"
+    return singular if numero == 1 else plural
+
+
 def construir_resumen_documentos(clasificados):
     clasificados = clasificados or {}
     return {
@@ -476,55 +481,71 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     else:
         titular = "La caja del período cerró prácticamente igual que como empezó."
 
+    resumen_docs = (
+        f"Se analizaron {total} {pluralizar(total, 'archivo')}: "
+        f"{docs['factura_venta']} {pluralizar(docs['factura_venta'], 'factura de venta')}, "
+        f"{docs['factura_compra']} {pluralizar(docs['factura_compra'], 'factura de compra')}, "
+        f"{docs['extracto_bancario']} {pluralizar(docs['extracto_bancario'], 'extracto bancario')} "
+        f"y {docs['otros']} {pluralizar(docs['otros'], 'documento', 'documentos')} adicional(es)."
+    )
+
     if nivel_cierre == "bajo":
         partes = []
         if pendientes > 0:
-            partes.append(f"{pendientes} pendiente(s)")
+            partes.append(f"{pendientes} {pluralizar(pendientes, 'factura pendiente', 'facturas pendientes')}")
         if probables > 0:
-            partes.append(f"{probables} conciliación(es) probable(s)")
+            partes.append(f"{probables} {pluralizar(probables, 'conciliación probable', 'conciliaciones probables')}")
         if probables_multi > 0:
-            partes.append(f"{probables_multi} conciliación(es) probable(s) múltiples")
+            partes.append(
+                f"{probables_multi} {pluralizar(probables_multi, 'conciliación probable múltiple', 'conciliaciones probables múltiples')}"
+            )
         if sin_soporte > 0:
-            partes.append(f"{sin_soporte} movimiento(s) relevante(s) sin soporte")
+            partes.append(
+                f"{sin_soporte} {pluralizar(sin_soporte, 'movimiento relevante sin soporte', 'movimientos relevantes sin soporte')}"
+            )
         if duplicados > 0:
-            partes.append(f"{duplicados} duplicado(s) potencial(es)")
+            partes.append(f"{duplicados} {pluralizar(duplicados, 'duplicado potencial', 'duplicados potenciales')}")
         if movimientos_internos > 0:
-            partes.append(f"{movimientos_internos} movimiento(s) interno(s)")
+            partes.append(
+                f"{movimientos_internos} {pluralizar(movimientos_internos, 'movimiento interno', 'movimientos internos')}"
+            )
 
         detalle = ", ".join(partes) if partes else "elementos que todavía requieren validación"
         complemento = f" El cierre todavía no puede considerarse definitivo: persisten {detalle}."
     elif nivel_cierre == "medio":
         partes = []
         if exactas_multi > 0:
-            partes.append(f"{exactas_multi} conciliación(es) exacta(s) múltiple(s)")
+            partes.append(
+                f"{exactas_multi} {pluralizar(exactas_multi, 'conciliación exacta múltiple', 'conciliaciones exactas múltiples')}"
+            )
         if probables_multi > 0:
-            partes.append(f"{probables_multi} conciliación(es) probable(s) múltiple(s)")
+            partes.append(
+                f"{probables_multi} {pluralizar(probables_multi, 'conciliación probable múltiple', 'conciliaciones probables múltiples')}"
+            )
         if duplicados > 0:
-            partes.append(f"{duplicados} duplicado(s) potencial(es)")
+            partes.append(f"{duplicados} {pluralizar(duplicados, 'duplicado potencial', 'duplicados potenciales')}")
         if movimientos_internos > 0:
-            partes.append(f"{movimientos_internos} movimiento(s) interno(s)")
+            partes.append(
+                f"{movimientos_internos} {pluralizar(movimientos_internos, 'movimiento interno', 'movimientos internos')}"
+            )
 
         detalle = ", ".join(partes) if partes else "validaciones adicionales"
         complemento = f" La lectura es útil, pero todavía requiere validación adicional: se observan {detalle}."
     elif sin_soporte > 0:
         complemento = (
             f" No se observan pendientes fuertes de conciliación, pero existen "
-            f"{sin_soporte} movimientos relevantes sin soporte documental."
+            f"{sin_soporte} {pluralizar(sin_soporte, 'movimiento relevante sin soporte documental', 'movimientos relevantes sin soporte documental')}."
         )
     elif sin_soporte_menor > 0:
         complemento = (
             f" No se observan pendientes relevantes, aunque existen "
-            f"{sin_soporte_menor} movimientos menores sin soporte directo."
+            f"{sin_soporte_menor} {pluralizar(sin_soporte_menor, 'movimiento menor sin soporte directo', 'movimientos menores sin soporte directo')}."
         )
     else:
         complemento = " No se observan pendientes relevantes de conciliación en la estructura analizada."
 
     narrativa = (
-        f"Se analizaron {total} archivo(s): "
-        f"{docs['factura_venta']} factura(s) de venta, "
-        f"{docs['factura_compra']} factura(s) de compra, "
-        f"{docs['extracto_bancario']} extracto(s) bancario(s) y "
-        f"{docs['otros']} documento(s) clasificado(s) como otros. "
+        f"{resumen_docs} "
         f"El saldo inicial fue de € {fmt_importe_reporte(saldo_inicial)}, "
         f"entraron € {fmt_importe_reporte(entradas)}, "
         f"salieron € {fmt_importe_reporte(salidas)} "
@@ -661,14 +682,29 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
-    def tarjetas_moviles_movimientos(items, titulo, clase):
+    def tarjetas_moviles_movimientos(items, titulo, clase, extra_tags=None):
+        extra_tags = extra_tags or []
         if not items:
             return ""
 
         cards = ""
         for item in items:
+            tags = ["all"]
+            if clase == "row-entrada":
+                tags.extend(["entradas", "cobros"])
+            if clase == "row-salida":
+                tags.append("salidas")
+                if item["categoria"] in ["pago_proveedor", "gasto_operativo", "otros_pagos"]:
+                    tags.append("pagos")
+                if item["categoria"] in ["retiro_propio", "transferencia_interna", "traspaso"]:
+                    tags.append("internos")
+
+            for t in extra_tags:
+                if t not in tags:
+                    tags.append(t)
+
             cards += f"""
-            <article class="mobile-movement-card {clase}">
+            <article class="mobile-movement-card {clase}" data-kind="{' '.join(tags)}">
                 <div class="mobile-movement-head">
                     <span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span>
                     <span class="mobile-amount">€ {item['importe_fmt']}</span>
@@ -711,9 +747,12 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         if entradas:
             filas_entradas = ""
             for item in entradas:
+                tags = ["entradas", "cobros", "all"]
+                if item["categoria"] == "otros_cobros":
+                    tags.append("cobros")
                 filas_entradas += f"""
                 <tr class="row-entrada mov-row"
-                    data-kind="entradas cobros all"
+                    data-kind="{' '.join(sorted(set(tags)))}"
                     data-category="{item['categoria']}">
                     <td class="mono">{item['fecha']}</td>
                     <td class="mono">€ {item['importe_fmt']}</td>
@@ -753,15 +792,13 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             filas_salidas = ""
             for item in salidas:
                 tags = ["salidas", "all"]
-                if item["categoria"] == "pago_proveedor":
-                    tags.append("pagos")
-                if item["categoria"] == "gasto_operativo":
+                if item["categoria"] in ["pago_proveedor", "gasto_operativo", "otros_pagos"]:
                     tags.append("pagos")
                 if item["categoria"] in ["retiro_propio", "transferencia_interna", "traspaso"]:
                     tags.append("internos")
                 filas_salidas += f"""
                 <tr class="row-salida mov-row"
-                    data-kind="{' '.join(tags)}"
+                    data-kind="{' '.join(sorted(set(tags)))}"
                     data-category="{item['categoria']}">
                     <td class="mono">{item['fecha']}</td>
                     <td class="mono">€ {item['importe_fmt']}</td>
@@ -834,7 +871,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 tags.append("internos")
 
             filas += f"""
-            <tr class="conc-row" data-kind="{' '.join(tags)}">
+            <tr class="conc-row" data-kind="{' '.join(sorted(set(tags)))}">
                 <td>{item.get('archivo', '-')}</td>
                 <td class="mono">{item.get('fecha', '-')}</td>
                 <td class="mono">€ {importe}</td>
@@ -845,7 +882,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             """
 
             cards += f"""
-            <article class="mobile-conc-card" data-kind="{' '.join(tags)}">
+            <article class="mobile-conc-card" data-kind="{' '.join(sorted(set(tags)))}">
                 <div class="mobile-conc-head">
                     <span class="badge {badge_class}">{estado}</span>
                     <span class="mobile-amount">€ {importe}</span>
@@ -967,17 +1004,75 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
+    def _seleccionar_importes_presentables(importes_lista, max_visibles=12):
+        if not importes_lista:
+            return []
+
+        unicos = []
+        vistos = set()
+        for imp in importes_lista:
+            clave = str(imp).strip()
+            if not clave or clave in vistos:
+                continue
+            vistos.add(clave)
+            unicos.append(clave)
+
+        positivos = []
+        negativos = []
+        neutros = []
+
+        for imp in unicos:
+            valor = normalizar_importe_reporte(imp)
+            if valor > 0:
+                positivos.append(imp)
+            elif valor < 0:
+                negativos.append(imp)
+            else:
+                neutros.append(imp)
+
+        seleccion = []
+        seleccion.extend(positivos[:6])
+        seleccion.extend(negativos[:4])
+        seleccion.extend(neutros[:2])
+
+        if len(seleccion) < max_visibles:
+            for imp in unicos:
+                if imp not in seleccion:
+                    seleccion.append(imp)
+                if len(seleccion) >= max_visibles:
+                    break
+
+        return seleccion[:max_visibles]
+
     def _formatear_lista_importes(importes_lista):
         if not importes_lista:
             return "No se detectaron montos"
 
-        visibles = importes_lista[:18]
-        texto = "  ;  ".join(visibles)
+        seleccion = _seleccionar_importes_presentables(importes_lista, max_visibles=12)
+        total = len(importes_lista)
+        texto = "  ;  ".join(seleccion)
 
-        if len(importes_lista) > 18:
-            texto += f"  ;  ... (+{len(importes_lista) - 18} más)"
+        if total > len(seleccion):
+            texto += f"  ;  ... (+{total - len(seleccion)} más)"
 
         return texto
+
+    def _resumen_importes(importes_lista):
+        if not importes_lista:
+            return "Sin montos detectados"
+
+        total = len(importes_lista)
+        seleccion = _seleccionar_importes_presentables(importes_lista, max_visibles=12)
+        positivos = sum(1 for x in importes_lista if normalizar_importe_reporte(x) > 0)
+        negativos = sum(1 for x in importes_lista if normalizar_importe_reporte(x) < 0)
+
+        partes = [f"{total} {pluralizar(total, 'monto')} detectado(s)"]
+        if positivos > 0:
+            partes.append(f"{positivos} positivo(s)")
+        if negativos > 0:
+            partes.append(f"{negativos} negativo(s)")
+
+        return " · ".join(partes), "  ;  ".join(seleccion)
 
     def importes_html():
         if not importes:
@@ -992,12 +1087,12 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         for item in importes:
             importes_lista = item.get("importes", []) or []
             montos = _formatear_lista_importes(importes_lista)
-            cantidad = len(importes_lista)
+            resumen_texto, resumen_lista = _resumen_importes(importes_lista)
 
             filas += f"""
             <tr>
                 <td>{item.get('archivo', '-')}</td>
-                <td class="mono">{cantidad}</td>
+                <td>{resumen_texto}</td>
                 <td class="amounts-cell">{montos}</td>
             </tr>
             """
@@ -1006,10 +1101,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             <article class="mobile-amount-card">
                 <div class="mobile-doc-title">{item.get('archivo', '-')}</div>
                 <div class="mobile-meta-row">
-                    <span class="mobile-label">Cantidad de montos</span>
-                    <span class="mono">{cantidad}</span>
+                    <span class="mobile-label">Resumen</span>
+                    <span>{resumen_texto}</span>
                 </div>
-                <div class="mobile-amount-list">{montos}</div>
+                <div class="mobile-amount-list">{resumen_lista}</div>
             </article>
             """
 
@@ -1018,7 +1113,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             <div class="table-head">
                 <div>
                     <h3>Montos identificados</h3>
-                    <p>Montos encontrados automáticamente en cada documento. Se muestran separados para facilitar la lectura.</p>
+                    <p>Montos encontrados automáticamente en cada documento. Se priorizan los más representativos para mejorar la lectura.</p>
                 </div>
                 <div class="chip">{len(importes)} documentos con montos</div>
             </div>
@@ -1027,8 +1122,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <thead>
                         <tr>
                             <th>Archivo</th>
-                            <th>Cantidad</th>
-                            <th>Montos identificados</th>
+                            <th>Resumen</th>
+                            <th>Montos visibles</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -2462,7 +2557,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <h3>Qué muestra este informe</h3>
                             <p>Este informe resume qué ocurrió con la caja durante el período, qué documentos fueron reconocidos, qué facturas quedaron conciliadas y qué movimientos todavía requieren revisión adicional.</p>
                             <p>En esta ejecución, el saldo inicial fue de € {fmt(flujo["saldo_inicial"])}, las entradas alcanzan € {fmt(flujo["entradas"])}, las salidas € {fmt(flujo["salidas"])} y el saldo final queda en € {fmt(flujo["saldo_final"])}, con una variación neta de € {fmt(flujo["variacion"])}.</p>
-                            <p>Además, se observan {conc.get("sin_soporte", 0)} movimientos relevantes sin soporte directo, {conc.get("movimientos_internos", 0)} movimientos internos, {conc.get("pendientes", 0)} facturas pendientes y {conc.get("duplicados", 0)} duplicados potenciales.</p>
+                            <p>Además, se observan {conc.get("sin_soporte", 0)} {pluralizar(conc.get("sin_soporte", 0), "movimiento relevante sin soporte", "movimientos relevantes sin soporte")}, {conc.get("movimientos_internos", 0)} {pluralizar(conc.get("movimientos_internos", 0), "movimiento interno", "movimientos internos")}, {conc.get("pendientes", 0)} {pluralizar(conc.get("pendientes", 0), "factura pendiente", "facturas pendientes")} y {conc.get("duplicados", 0)} {pluralizar(conc.get("duplicados", 0), "duplicado potencial", "duplicados potenciales")}.</p>
                         </article>
 
                         <aside class="insight-card">
@@ -2492,13 +2587,13 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         <article class="alert-card yellow">
                             <div class="alert-tag">Revisar</div>
                             <h4>Validaciones pendientes</h4>
-                            <p>Se observan {conc["pendientes"]} factura(s) pendiente(s), € {fmt(conc["importe_pendiente"])} por validar y {conc.get("movimientos_internos", 0)} movimiento(s) interno(s).</p>
+                            <p>Se observan {conc["pendientes"]} {pluralizar(conc["pendientes"], "factura pendiente", "facturas pendientes")}, € {fmt(conc["importe_pendiente"])} por validar y {conc.get("movimientos_internos", 0)} {pluralizar(conc.get("movimientos_internos", 0), "movimiento interno", "movimientos internos")}.</p>
                         </article>
 
                         <article class="alert-card red">
                             <div class="alert-tag">Atención</div>
                             <h4>Movimientos sin soporte</h4>
-                            <p>Se detectan {conc.get("sin_soporte", 0)} movimientos relevantes sin soporte documental y {conc.get("sin_soporte_menor", 0)} movimientos menores sin soporte directo.</p>
+                            <p>Se detectan {conc.get("sin_soporte", 0)} {pluralizar(conc.get("sin_soporte", 0), "movimiento relevante sin soporte documental", "movimientos relevantes sin soporte documental")} y {conc.get("sin_soporte_menor", 0)} {pluralizar(conc.get("sin_soporte_menor", 0), "movimiento menor sin soporte directo", "movimientos menores sin soporte directo")}.</p>
                         </article>
                     </section>
                 </section>
@@ -2668,7 +2763,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     }});
 
                     allRows.forEach(el => {{
-                        const kinds = (el.getAttribute("data-kind") || "").split(" ");
+                        const kinds = (el.getAttribute("data-kind") || "").split(" ").filter(Boolean);
                         if (value === "all" || kinds.includes(value)) {{
                             el.classList.remove("is-hidden");
                         }} else {{
