@@ -481,12 +481,12 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     else:
         titular = "La caja del período cerró prácticamente igual que como empezó."
 
-    resumen_docs = (
-        f"Se analizaron {total} {pluralizar(total, 'archivo')}: "
-        f"{docs['factura_venta']} {pluralizar(docs['factura_venta'], 'factura de venta')}, "
-        f"{docs['factura_compra']} {pluralizar(docs['factura_compra'], 'factura de compra')}, "
-        f"{docs['extracto_bancario']} {pluralizar(docs['extracto_bancario'], 'extracto bancario')} "
-        f"y {docs['otros']} {pluralizar(docs['otros'], 'documento', 'documentos')} adicional(es)."
+    bloque_flujo = (
+        f"El saldo inicial fue de € {fmt_importe_reporte(saldo_inicial)}, "
+        f"entraron € {fmt_importe_reporte(entradas)}, "
+        f"salieron € {fmt_importe_reporte(salidas)} "
+        f"y el saldo final se ubicó en € {fmt_importe_reporte(saldo_final)}, "
+        f"con una variación neta de € {fmt_importe_reporte(variacion)}."
     )
 
     if nivel_cierre == "bajo":
@@ -511,7 +511,7 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
             )
 
         detalle = ", ".join(partes) if partes else "elementos que todavía requieren validación"
-        complemento = f" El cierre todavía no puede considerarse definitivo: persisten {detalle}."
+        bloque_cierre = f" El cierre todavía no puede considerarse definitivo: persisten {detalle}."
     elif nivel_cierre == "medio":
         partes = []
         if exactas_multi > 0:
@@ -530,29 +530,29 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
             )
 
         detalle = ", ".join(partes) if partes else "validaciones adicionales"
-        complemento = f" La lectura es útil, pero todavía requiere validación adicional: se observan {detalle}."
+        bloque_cierre = f" La lectura es útil, pero todavía requiere validación adicional: se observan {detalle}."
     elif sin_soporte > 0:
-        complemento = (
+        bloque_cierre = (
             f" No se observan pendientes fuertes de conciliación, pero existen "
             f"{sin_soporte} {pluralizar(sin_soporte, 'movimiento relevante sin soporte documental', 'movimientos relevantes sin soporte documental')}."
         )
     elif sin_soporte_menor > 0:
-        complemento = (
+        bloque_cierre = (
             f" No se observan pendientes relevantes, aunque existen "
             f"{sin_soporte_menor} {pluralizar(sin_soporte_menor, 'movimiento menor sin soporte directo', 'movimientos menores sin soporte directo')}."
         )
     else:
-        complemento = " No se observan pendientes relevantes de conciliación en la estructura analizada."
+        bloque_cierre = " No se observan pendientes relevantes de conciliación en la estructura analizada."
 
-    narrativa = (
-        f"{resumen_docs} "
-        f"El saldo inicial fue de € {fmt_importe_reporte(saldo_inicial)}, "
-        f"entraron € {fmt_importe_reporte(entradas)}, "
-        f"salieron € {fmt_importe_reporte(salidas)} "
-        f"y el saldo final se ubicó en € {fmt_importe_reporte(saldo_final)}, "
-        f"con una variación neta de € {fmt_importe_reporte(variacion)}."
-        f"{complemento}"
+    resumen_docs = (
+        f"Durante el análisis se procesaron {total} {pluralizar(total, 'archivo')}: "
+        f"{docs['factura_venta']} {pluralizar(docs['factura_venta'], 'factura de venta')}, "
+        f"{docs['factura_compra']} {pluralizar(docs['factura_compra'], 'factura de compra')}, "
+        f"{docs['extracto_bancario']} {pluralizar(docs['extracto_bancario'], 'extracto bancario')} "
+        f"y {docs['otros']} {pluralizar(docs['otros'], 'documento', 'documentos')} adicional(es)."
     )
+
+    narrativa = f"{bloque_flujo}{bloque_cierre} {resumen_docs}"
 
     return titular, narrativa
 
@@ -769,6 +769,30 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             )
         return html
 
+    def construir_bloque_colapsable(titulo, cuerpo_html, subtitulo="", abierto=False, extra_class=""):
+        clase_activa = "active" if abierto else ""
+        estado_inicial = "block" if abierto else "none"
+        icono = "−" if abierto else "+"
+
+        subtitulo_html = ""
+        if subtitulo:
+            subtitulo_html = f'<div class="accordion-subtitle">{subtitulo}</div>'
+
+        return f"""
+        <div class="accordion-shell {extra_class}">
+            <button type="button" class="accordion-toggle {clase_activa}">
+                <span class="accordion-copy">
+                    <span class="accordion-title">{titulo}</span>
+                    {subtitulo_html}
+                </span>
+                <span class="accordion-icon">{icono}</span>
+            </button>
+            <div class="accordion-panel" style="display:{estado_inicial};">
+                {cuerpo_html}
+            </div>
+        </div>
+        """
+
     def tabla_ledger_html():
         if not ledger:
             return """
@@ -796,14 +820,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             """
 
         return f"""
-        <div class="table-shell">
-            <div class="table-head">
-                <div>
-                    <h3>Movimiento financiero base</h3>
-                    <p>Registro preliminar de movimientos identificados a partir de la documentación cargada.</p>
-                </div>
-                <div class="chip">{len(ledger)} movimientos</div>
-            </div>
+        <div class="table-shell compact-shell">
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -824,7 +841,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
-    def tarjetas_moviles_movimientos(items, titulo, clase, section_target):
+    def tarjetas_moviles_movimientos(items, clase, section_target):
         if not items:
             return ""
 
@@ -858,14 +875,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </article>
             """
 
-        return f"""
-        <div class="mobile-movements-block">
-            <div class="mobile-block-title">{titulo}</div>
-            <div class="mobile-movements-grid">
-                {cards}
-            </div>
-        </div>
-        """
+        return cards
 
     def tabla_movimientos_relevantes_html():
         analisis = analizar_movimientos_bancarios()
@@ -879,99 +889,65 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </div>
             """
 
-        secciones = []
+        filas = ""
+        cards = ""
 
-        if entradas:
-            filas_entradas = ""
-            for item in entradas:
-                tags = ["entradas", "cobros", "all"]
-                filas_entradas += f"""
-                <tr class="row-entrada mov-row"
-                    data-kind="{' '.join(sorted(set(tags)))}"
-                    data-category="{item['categoria']}"
-                    data-target-section="movimientos-section">
-                    <td class="mono">{item['fecha']}</td>
-                    <td class="mono">€ {item['importe_fmt']}</td>
-                    <td>{item['descripcion']}</td>
-                    <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
-                </tr>
-                """
-            secciones.append(f"""
-            <div class="table-shell">
-                <div class="table-head">
-                    <div>
-                        <h3>Entradas relevantes</h3>
-                        <p>Movimientos de entrada iguales o mayores a € {fmt(UMBRAL_RELEVANTE)} y agrupados ejecutivos.</p>
-                    </div>
-                    <div class="chip">{len(entradas)} entradas</div>
-                </div>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Importe</th>
-                                <th>Descripción</th>
-                                <th>Categoría</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filas_entradas}
-                        </tbody>
-                    </table>
-                </div>
+        for item in entradas:
+            tags = ["entradas", "cobros", "all"]
+            filas += f"""
+            <tr class="row-entrada mov-row"
+                data-kind="{' '.join(sorted(set(tags)))}"
+                data-category="{item['categoria']}"
+                data-target-section="movimientos-section">
+                <td class="mono">{item['fecha']}</td>
+                <td>{item['descripcion']}</td>
+                <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
+                <td class="mono">€ {item['importe_fmt']}</td>
+            </tr>
+            """
+        cards += tarjetas_moviles_movimientos(entradas, "row-entrada", "movimientos-section")
+
+        for item in salidas:
+            tags = ["salidas", "all"]
+            if item["categoria"] in ["pago_proveedor", "gasto_operativo", "otros_pagos"]:
+                tags.append("pagos")
+            if item["categoria"] in ["retiro_propio", "transferencia_interna", "traspaso"]:
+                tags.append("internos")
+            filas += f"""
+            <tr class="row-salida mov-row"
+                data-kind="{' '.join(sorted(set(tags)))}"
+                data-category="{item['categoria']}"
+                data-target-section="movimientos-section">
+                <td class="mono">{item['fecha']}</td>
+                <td>{item['descripcion']}</td>
+                <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
+                <td class="mono">€ {item['importe_fmt']}</td>
+            </tr>
+            """
+        cards += tarjetas_moviles_movimientos(salidas, "row-salida", "movimientos-section")
+
+        return f"""
+        <div class="table-shell compact-shell">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Descripción</th>
+                            <th>Categoría</th>
+                            <th>Importe</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filas}
+                    </tbody>
+                </table>
             </div>
-            {tarjetas_moviles_movimientos(entradas, "Entradas relevantes", "row-entrada", "movimientos-section")}
-            """)
-
-        if salidas:
-            filas_salidas = ""
-            for item in salidas:
-                tags = ["salidas", "all"]
-                if item["categoria"] in ["pago_proveedor", "gasto_operativo", "otros_pagos"]:
-                    tags.append("pagos")
-                if item["categoria"] in ["retiro_propio", "transferencia_interna", "traspaso"]:
-                    tags.append("internos")
-                filas_salidas += f"""
-                <tr class="row-salida mov-row"
-                    data-kind="{' '.join(sorted(set(tags)))}"
-                    data-category="{item['categoria']}"
-                    data-target-section="movimientos-section">
-                    <td class="mono">{item['fecha']}</td>
-                    <td class="mono">€ {item['importe_fmt']}</td>
-                    <td>{item['descripcion']}</td>
-                    <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
-                </tr>
-                """
-            secciones.append(f"""
-            <div class="table-shell">
-                <div class="table-head">
-                    <div>
-                        <h3>Salidas relevantes</h3>
-                        <p>Movimientos de salida iguales o mayores a € {fmt(UMBRAL_RELEVANTE)} y agrupados ejecutivos.</p>
-                    </div>
-                    <div class="chip">{len(salidas)} salidas</div>
-                </div>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Importe</th>
-                                <th>Descripción</th>
-                                <th>Categoría</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filas_salidas}
-                        </tbody>
-                    </table>
-                </div>
+            <div class="mobile-movements-grid">
+                {cards}
             </div>
-            {tarjetas_moviles_movimientos(salidas, "Salidas relevantes", "row-salida", "movimientos-section")}
-            """)
-
-        return "".join(secciones)
+        </div>
+        """
 
     def tabla_conciliacion_html():
         if not conciliacion:
@@ -1044,14 +1020,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             """
 
         return f"""
-        <div class="table-shell">
-            <div class="table-head">
-                <div>
-                    <h3>Conciliación</h3>
-                    <p>Estado de coincidencia entre facturas y movimientos detectados en banco.</p>
-                </div>
-                <div class="chip">{len(conciliacion)} registros</div>
-            </div>
+        <div class="table-shell compact-shell">
             <div class="filter-toolbar">
                 {construir_botones_filtro("conciliacion-section")}
             </div>
@@ -1072,7 +1041,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     </tbody>
                 </table>
             </div>
-            <div class="mobile-conc-grid" id="conc-mobile-grid">
+            <div class="mobile-conc-grid">
                 {cards}
             </div>
         </div>
@@ -1113,14 +1082,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             """
 
         return f"""
-        <div class="table-shell">
-            <div class="table-head">
-                <div>
-                    <h3>Documentos detectados</h3>
-                    <p>Inventario base de documentos reconocidos por el sistema durante el procesamiento.</p>
-                </div>
-                <div class="chip">{len(documentos)} documentos</div>
-            </div>
+        <div class="table-shell compact-shell">
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -1141,7 +1103,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
-    def _seleccionar_importes_presentables(importes_lista, max_visibles=12):
+    def _seleccionar_importes_presentables(importes_lista, max_visibles=200):
         if not importes_lista:
             return []
 
@@ -1154,62 +1116,35 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             vistos.add(clave)
             unicos.append(clave)
 
-        positivos = []
-        negativos = []
-        neutros = []
+        return unicos[:max_visibles]
 
-        for imp in unicos:
-            valor = normalizar_importe_reporte(imp)
-            if valor > 0:
-                positivos.append(imp)
-            elif valor < 0:
-                negativos.append(imp)
-            else:
-                neutros.append(imp)
+    def _render_importe_chip(imp):
+        valor = normalizar_importe_reporte(imp)
+        clase = "amount-chip-neutral"
+        if valor > 0:
+            clase = "amount-chip-positive"
+        elif valor < 0:
+            clase = "amount-chip-negative"
 
-        seleccion = []
-        seleccion.extend(positivos[:6])
-        seleccion.extend(negativos[:4])
-        seleccion.extend(neutros[:2])
-
-        if len(seleccion) < max_visibles:
-            for imp in unicos:
-                if imp not in seleccion:
-                    seleccion.append(imp)
-                if len(seleccion) >= max_visibles:
-                    break
-
-        return seleccion[:max_visibles]
-
-    def _formatear_lista_importes(importes_lista):
-        if not importes_lista:
-            return "No se detectaron montos"
-
-        seleccion = _seleccionar_importes_presentables(importes_lista, max_visibles=12)
-        total = len(importes_lista)
-        texto = "  ;  ".join(seleccion)
-
-        if total > len(seleccion):
-            texto += f"  ;  ... (+{total - len(seleccion)} más)"
-
-        return texto
+        simbolo = "€ "
+        return f'<span class="amount-chip {clase}">{simbolo}{imp}</span>'
 
     def _resumen_importes(importes_lista):
         if not importes_lista:
-            return "Sin montos detectados", "No se detectaron montos"
+            return "Sin montos detectados", ""
 
         total_montos = len(importes_lista)
-        seleccion = _seleccionar_importes_presentables(importes_lista, max_visibles=12)
         positivos = sum(1 for x in importes_lista if normalizar_importe_reporte(x) > 0)
         negativos = sum(1 for x in importes_lista if normalizar_importe_reporte(x) < 0)
 
-        partes = [f"{total_montos} {pluralizar(total_montos, 'monto')} detectado(s)"]
+        partes = [f"{total_montos} {pluralizar(total_montos, 'monto')}"]
         if positivos > 0:
             partes.append(f"{positivos} positivo(s)")
         if negativos > 0:
             partes.append(f"{negativos} negativo(s)")
 
-        return " · ".join(partes), "  ;  ".join(seleccion)
+        chips = "".join(_render_importe_chip(imp) for imp in _seleccionar_importes_presentables(importes_lista))
+        return " · ".join(partes), chips
 
     def importes_html():
         if not importes:
@@ -1223,14 +1158,17 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         cards = ""
         for item in importes:
             importes_lista = item.get("importes", []) or []
-            montos = _formatear_lista_importes(importes_lista)
-            resumen_texto, resumen_lista = _resumen_importes(importes_lista)
+            resumen_texto, chips_html = _resumen_importes(importes_lista)
 
             filas += f"""
             <tr>
                 <td>{item.get('archivo', '-')}</td>
                 <td>{resumen_texto}</td>
-                <td class="amounts-cell">{montos}</td>
+                <td class="amounts-cell">
+                    <div class="amount-chip-wrap">
+                        {chips_html or '<span class="amount-chip amount-chip-neutral">Sin montos</span>'}
+                    </div>
+                </td>
             </tr>
             """
 
@@ -1241,26 +1179,21 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <span class="mobile-label">Resumen</span>
                     <span>{resumen_texto}</span>
                 </div>
-                <div class="mobile-amount-list">{resumen_lista}</div>
+                <div class="mobile-amount-list amount-chip-wrap">
+                    {chips_html or '<span class="amount-chip amount-chip-neutral">Sin montos</span>'}
+                </div>
             </article>
             """
 
         return f"""
-        <div class="table-shell">
-            <div class="table-head">
-                <div>
-                    <h3>Montos identificados</h3>
-                    <p>Montos encontrados automáticamente en cada documento. Se priorizan los más representativos para mejorar la lectura.</p>
-                </div>
-                <div class="chip">{len(importes)} documentos con montos</div>
-            </div>
+        <div class="table-shell compact-shell">
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
                             <th>Archivo</th>
                             <th>Resumen</th>
-                            <th>Montos visibles</th>
+                            <th>Montos detectados</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1278,17 +1211,23 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         analisis = analizar_movimientos_bancarios()
 
         return f"""
-        <div class="metrics-grid compact-grid">
+        <div class="metrics-grid compact-grid compact-grid-soft">
             <article class="kpi">
                 <div class="label">Otros cobros menores</div>
                 <div class="amount">{analisis['otros_cobros_cantidad']}</div>
-                <div class="meta"><span class="trend up">€ {fmt(analisis['otros_cobros_total'])}</span><span>Menores a € {fmt(UMBRAL_RELEVANTE)}</span></div>
+                <div class="meta">
+                    <span class="trend up">€ {fmt(analisis['otros_cobros_total'])}</span>
+                    <span>Menores a € {fmt(UMBRAL_RELEVANTE)}</span>
+                </div>
             </article>
 
             <article class="kpi">
                 <div class="label">Otros pagos menores</div>
                 <div class="amount">{analisis['otros_pagos_cantidad']}</div>
-                <div class="meta"><span class="trend warn">€ {fmt(analisis['otros_pagos_total'])}</span><span>Menores a € {fmt(UMBRAL_RELEVANTE)}</span></div>
+                <div class="meta">
+                    <span class="trend warn">€ {fmt(analisis['otros_pagos_total'])}</span>
+                    <span>Menores a € {fmt(UMBRAL_RELEVANTE)}</span>
+                </div>
             </article>
         </div>
         """
@@ -1399,6 +1338,82 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
     diagnosticos_html = "".join(f"<li>{item}</li>" for item in diagnosticos)
     recomendaciones_html = "".join(f"<li>{item}</li>" for item in recomendaciones)
+
+    bloque_diagnostico = construir_bloque_colapsable(
+        titulo="Ver diagnóstico detallado",
+        subtitulo="Lectura técnica ampliada del período y recomendaciones sugeridas.",
+        abierto=False,
+        cuerpo_html=f"""
+        <div class="diagnostic-grid no-top-padding">
+            <article class="diagnostic-card">
+                <h3>Diagnóstico automático</h3>
+                <ul class="diagnostic-list">
+                    {diagnosticos_html}
+                </ul>
+            </article>
+
+            <article class="recommend-card">
+                <h3>Recomendaciones sugeridas</h3>
+                <ul class="recommend-list">
+                    {recomendaciones_html}
+                </ul>
+            </article>
+        </div>
+        """,
+    )
+
+    bloque_como_leer = construir_bloque_colapsable(
+        titulo="Cómo leer este informe",
+        subtitulo="Contexto adicional sobre el alcance del análisis.",
+        abierto=False,
+        cuerpo_html=f"""
+        <div class="story-layout no-top-padding">
+            <article class="story-card">
+                <h3>Qué muestra este informe</h3>
+                <p>Este informe resume qué ocurrió con la caja durante el período, qué documentos fueron reconocidos, qué facturas quedaron conciliadas y qué movimientos todavía requieren revisión adicional.</p>
+                <p>Para el período del informe, el saldo inicial fue de € {fmt(flujo["saldo_inicial"])}, las entradas alcanzan € {fmt(flujo["entradas"])}, las salidas € {fmt(flujo["salidas"])} y el saldo final queda en € {fmt(flujo["saldo_final"])}, con una variación neta de € {fmt(flujo["variacion"])}.</p>
+                <p>Además, se observan {conc.get("sin_soporte", 0)} {pluralizar(conc.get("sin_soporte", 0), "movimiento relevante sin soporte", "movimientos relevantes sin soporte")}, {conc.get("movimientos_internos", 0)} {pluralizar(conc.get("movimientos_internos", 0), "movimiento interno", "movimientos internos")}, {conc.get("pendientes", 0)} {pluralizar(conc.get("pendientes", 0), "factura pendiente", "facturas pendientes")} y {conc.get("duplicados", 0)} {pluralizar(conc.get("duplicados", 0), "duplicado potencial", "duplicados potenciales")}.</p>
+            </article>
+
+            <aside class="insight-card">
+                <div>
+                    <h3 style="margin:0 0 18px;font-size:1.18rem;font-weight:900;">Calidad preliminar del cierre</h3>
+                    <div class="ring">
+                        <span>{0 if total == 0 else min(100, round((total_docs_clasificados / total) * 100))}%<small>documentos clasificados</small></span>
+                    </div>
+                </div>
+                <div class="bullet-list">
+                    <div class="bullet">Facturas de venta: {docs["factura_venta"]}</div>
+                    <div class="bullet">Facturas de compra: {docs["factura_compra"]}</div>
+                    <div class="bullet">Extractos bancarios: {docs["extracto_bancario"]}</div>
+                    <div class="bullet">Otros documentos: {docs["otros"]}</div>
+                    <div class="bullet">{texto_calidad_cierre(conc["nivel_cierre"])}</div>
+                </div>
+            </aside>
+        </div>
+        """,
+    )
+
+    bloque_documentos = construir_bloque_colapsable(
+        titulo="Ver documentos analizados",
+        subtitulo="Inventario documental del proceso.",
+        abierto=False,
+        cuerpo_html=documentos_html(),
+    )
+
+    bloque_importes = construir_bloque_colapsable(
+        titulo="Ver montos detectados",
+        subtitulo="Todos los montos encontrados, con color según signo.",
+        abierto=False,
+        cuerpo_html=importes_html(),
+    )
+
+    bloque_ledger = construir_bloque_colapsable(
+        titulo="Ver detalle contable",
+        subtitulo="Ledger base para revisión técnica.",
+        abierto=False,
+        cuerpo_html=tabla_ledger_html(),
+    )
 
     html = f"""
     <!DOCTYPE html>
@@ -1537,7 +1552,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
             .hero {{
                 display:grid;
-                grid-template-columns:1.2fr .95fr;
+                grid-template-columns:1.12fr .88fr;
                 gap:22px;
                 padding:28px;
                 border-radius:36px;
@@ -1697,6 +1712,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 padding-top:0;
             }}
 
+            .compact-grid-soft {{
+                padding-top:6px;
+            }}
+
             .kpi {{
                 padding:20px;
                 border-radius:24px;
@@ -1780,7 +1799,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             .diagnostic-card,
             .recommend-card,
             .score-card,
-            .insight-hero-card {{
+            .insight-hero-card,
+            .accordion-shell {{
                 background:var(--panel-strong);
                 border:1px solid var(--line);
                 box-shadow:var(--shadow-sm);
@@ -1922,6 +1942,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 padding:8px 22px 22px;
             }}
 
+            .diagnostic-grid.no-top-padding,
+            .story-layout.no-top-padding {{
+                padding-top:0;
+            }}
+
             .insight-hero-card {{
                 background:
                     radial-gradient(circle at top right, rgba(94,167,255,.18), transparent 35%),
@@ -1979,9 +2004,74 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 border-color:#111827;
             }}
 
-            .table-shell {{
-                overflow:hidden;
+            .accordion-shell {{
                 margin:18px 22px 22px;
+                overflow:hidden;
+            }}
+
+            .accordion-toggle {{
+                width:100%;
+                display:flex;
+                align-items:center;
+                justify-content:space-between;
+                gap:16px;
+                padding:18px 22px;
+                background:#ffffff;
+                border:none;
+                cursor:pointer;
+                text-align:left;
+            }}
+
+            .accordion-copy {{
+                display:flex;
+                flex-direction:column;
+                gap:6px;
+                min-width:0;
+            }}
+
+            .accordion-title {{
+                font-size:1rem;
+                font-weight:900;
+                color:var(--text);
+            }}
+
+            .accordion-subtitle {{
+                color:var(--muted);
+                font-size:.92rem;
+                line-height:1.55;
+            }}
+
+            .accordion-icon {{
+                width:34px;
+                height:34px;
+                border-radius:999px;
+                display:inline-flex;
+                align-items:center;
+                justify-content:center;
+                background:#eef5ff;
+                color:#0f4cff;
+                font-size:1.15rem;
+                font-weight:900;
+                flex-shrink:0;
+            }}
+
+            .accordion-toggle.active .accordion-icon {{
+                background:#111827;
+                color:#ffffff;
+            }}
+
+            .accordion-panel {{
+                display:none;
+                border-top:1px solid var(--line);
+                background:rgba(255,255,255,.92);
+            }}
+
+            .table-shell.compact-shell {{
+                margin:0;
+                border:none;
+                box-shadow:none;
+                border-radius:0;
+                background:transparent;
             }}
 
             .table-head {{
@@ -2055,6 +2145,42 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 word-break:break-word;
                 white-space:normal;
                 color:#334155;
+            }}
+
+            .amount-chip-wrap {{
+                display:flex;
+                flex-wrap:wrap;
+                gap:8px;
+            }}
+
+            .amount-chip {{
+                display:inline-flex;
+                align-items:center;
+                justify-content:center;
+                padding:8px 10px;
+                border-radius:999px;
+                font-size:.82rem;
+                font-weight:800;
+                border:1px solid transparent;
+                white-space:nowrap;
+            }}
+
+            .amount-chip-positive {{
+                background:var(--green-soft);
+                color:var(--green);
+                border-color:#cdeed8;
+            }}
+
+            .amount-chip-negative {{
+                background:var(--red-soft);
+                color:var(--red);
+                border-color:#ffd4d4;
+            }}
+
+            .amount-chip-neutral {{
+                background:var(--gray-soft);
+                color:var(--gray);
+                border-color:#e2e8f0;
             }}
 
             .alerts-grid {{
@@ -2161,7 +2287,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
             .mobile-doc-grid,
             .mobile-amount-grid,
-            .mobile-movements-block,
+            .mobile-movements-grid,
             .mobile-conc-grid {{
                 display:none;
             }}
@@ -2177,8 +2303,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 box-shadow:var(--shadow-sm);
             }}
 
-            .mobile-doc-title,
-            .mobile-block-title {{
+            .mobile-doc-title {{
                 font-size:1rem;
                 font-weight:900;
                 color:var(--text);
@@ -2216,9 +2341,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 word-break:break-word;
             }}
 
-            .mobile-movements-grid,
             .mobile-doc-grid,
             .mobile-amount-grid,
+            .mobile-movements-grid,
             .mobile-conc-grid {{
                 gap:14px;
                 padding:0 16px 16px;
@@ -2502,12 +2627,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
                 .mobile-doc-grid,
                 .mobile-amount-grid,
+                .mobile-movements-grid,
                 .mobile-conc-grid {{
                     display:grid;
-                }}
-
-                .mobile-movements-block {{
-                    display:block;
                 }}
 
                 .filter-toolbar {{
@@ -2545,6 +2667,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     padding:18px 16px 6px;
                 }}
 
+                .accordion-shell,
                 .table-shell,
                 .author-card,
                 .books-card,
@@ -2555,6 +2678,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 .score-card,
                 .insight-hero-card {{
                     margin:16px;
+                    padding:16px;
+                }}
+
+                .accordion-toggle {{
                     padding:16px;
                 }}
 
@@ -2750,8 +2877,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <section class="section" id="diagnostico-section">
                     <div class="section-head">
                         <div>
-                            <h3 class="section-title">Diagnóstico y recomendación ejecutiva</h3>
-                            <p class="section-sub">Capa de interpretación automática para convertir números y conciliación en decisiones accionables.</p>
+                            <h3 class="section-title">Diagnóstico ejecutivo</h3>
+                            <p class="section-sub">La lectura principal del período y un score de solidez preliminar.</p>
                         </div>
                     </div>
 
@@ -2772,21 +2899,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         </article>
                     </div>
 
-                    <div class="diagnostic-grid">
-                        <article class="diagnostic-card">
-                            <h3>Diagnóstico automático</h3>
-                            <ul class="diagnostic-list">
-                                {diagnosticos_html}
-                            </ul>
-                        </article>
-
-                        <article class="recommend-card">
-                            <h3>Recomendaciones sugeridas</h3>
-                            <ul class="recommend-list">
-                                {recomendaciones_html}
-                            </ul>
-                        </article>
-                    </div>
+                    {bloque_diagnostico}
                 </section>
 
                 <section class="section">
@@ -2829,68 +2942,45 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         </article>
                     </div>
 
-                    <div class="story-layout">
-                        <article class="story-card">
-                            <h3>Qué muestra este informe</h3>
-                            <p>Este informe resume qué ocurrió con la caja durante el período, qué documentos fueron reconocidos, qué facturas quedaron conciliadas y qué movimientos todavía requieren revisión adicional.</p>
-                            <p>En esta ejecución, el saldo inicial fue de € {fmt(flujo["saldo_inicial"])}, las entradas alcanzan € {fmt(flujo["entradas"])}, las salidas € {fmt(flujo["salidas"])} y el saldo final queda en € {fmt(flujo["saldo_final"])}, con una variación neta de € {fmt(flujo["variacion"])}.</p>
-                            <p>Además, se observan {conc.get("sin_soporte", 0)} {pluralizar(conc.get("sin_soporte", 0), "movimiento relevante sin soporte", "movimientos relevantes sin soporte")}, {conc.get("movimientos_internos", 0)} {pluralizar(conc.get("movimientos_internos", 0), "movimiento interno", "movimientos internos")}, {conc.get("pendientes", 0)} {pluralizar(conc.get("pendientes", 0), "factura pendiente", "facturas pendientes")} y {conc.get("duplicados", 0)} {pluralizar(conc.get("duplicados", 0), "duplicado potencial", "duplicados potenciales")}.</p>
-                        </article>
-
-                        <aside class="insight-card">
-                            <div>
-                                <h3 style="margin:0 0 18px;font-size:1.18rem;font-weight:900;">Calidad preliminar del cierre</h3>
-                                <div class="ring">
-                                    <span>{0 if total == 0 else min(100, round((total_docs_clasificados / total) * 100))}%<small>documentos clasificados</small></span>
-                                </div>
-                            </div>
-                            <div class="bullet-list">
-                                <div class="bullet">Facturas de venta: {docs["factura_venta"]}</div>
-                                <div class="bullet">Facturas de compra: {docs["factura_compra"]}</div>
-                                <div class="bullet">Extractos bancarios: {docs["extracto_bancario"]}</div>
-                                <div class="bullet">Otros documentos: {docs["otros"]}</div>
-                                <div class="bullet">{texto_calidad_cierre(conc["nivel_cierre"])}</div>
-                            </div>
-                        </aside>
-                    </div>
-
                     <section class="alerts-grid">
                         <article class="alert-card green">
                             <div class="alert-tag">Bien</div>
-                            <h4>Información estructurada</h4>
-                            <p>La documentación ya está organizada en un formato útil para lectura gerencial y revisión financiera.</p>
+                            <h4>Base contable ya organizada</h4>
+                            <p>La documentación cargada ya se transformó en una estructura útil para lectura gerencial y revisión financiera.</p>
                         </article>
 
                         <article class="alert-card yellow">
                             <div class="alert-tag">Revisar</div>
-                            <h4>Validaciones pendientes</h4>
-                            <p>Se observan {conc["pendientes"]} {pluralizar(conc["pendientes"], "factura pendiente", "facturas pendientes")}, € {fmt(conc["importe_pendiente"])} por validar y {conc.get("movimientos_internos", 0)} {pluralizar(conc.get("movimientos_internos", 0), "movimiento interno", "movimientos internos")}.</p>
+                            <h4>Facturas pendientes de cobro o pago</h4>
+                            <p>Se observan {conc["pendientes"]} {pluralizar(conc["pendientes"], "factura pendiente", "facturas pendientes")} y € {fmt(conc["importe_pendiente"])} todavía por cerrar o validar.</p>
                         </article>
 
                         <article class="alert-card red">
                             <div class="alert-tag">Atención</div>
-                            <h4>Movimientos sin soporte</h4>
+                            <h4>Movimientos sin soporte detectados</h4>
                             <p>Se detectan {conc.get("sin_soporte", 0)} {pluralizar(conc.get("sin_soporte", 0), "movimiento relevante sin soporte documental", "movimientos relevantes sin soporte documental")} y {conc.get("sin_soporte_menor", 0)} {pluralizar(conc.get("sin_soporte_menor", 0), "movimiento menor sin soporte directo", "movimientos menores sin soporte directo")}.</p>
                         </article>
                     </section>
+
+                    {bloque_como_leer}
                 </section>
 
                 <section class="section">
                     <div class="section-head">
                         <div>
-                            <h3 class="section-title">Documentos y montos identificados</h3>
-                            <p class="section-sub">Visibilidad estructurada sobre los documentos reconocidos por el sistema y los montos extraídos automáticamente durante el procesamiento.</p>
+                            <h3 class="section-title">Detalle documental</h3>
+                            <p class="section-sub">Información complementaria para revisión más profunda.</p>
                         </div>
                     </div>
-                    {documentos_html()}
-                    {importes_html()}
+                    {bloque_documentos}
+                    {bloque_importes}
                 </section>
 
                 <section class="section" id="movimientos-section">
                     <div class="section-head">
                         <div>
-                            <h3 class="section-title">Movimientos bancarios relevantes</h3>
-                            <p class="section-sub">Primero se muestran las entradas y salidas relevantes. Los movimientos menores al umbral se agrupan aparte para no ensuciar la lectura ejecutiva.</p>
+                            <h3 class="section-title">Movimientos bancarios</h3>
+                            <p class="section-sub">Usa los botones para ver solo lo que te interesa. El filtro hace scroll automático a esta sección.</p>
                         </div>
                     </div>
                     <div class="filter-toolbar">
@@ -2903,11 +2993,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <section class="section">
                     <div class="section-head">
                         <div>
-                            <h3 class="section-title">Ledger base</h3>
-                            <p class="section-sub">Trazabilidad preliminar del flujo de caja construida a partir del ledger generado automáticamente.</p>
+                            <h3 class="section-title">Detalle contable</h3>
+                            <p class="section-sub">Información técnica de apoyo para revisión interna.</p>
                         </div>
                     </div>
-                    {tabla_ledger_html()}
+                    {bloque_ledger}
                 </section>
 
                 <section class="section" id="conciliacion-section">
@@ -3064,6 +3154,26 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     scrollToTarget(targetId);
                 }}
 
+                function bindAccordions() {{
+                    document.querySelectorAll(".accordion-toggle").forEach(btn => {{
+                        btn.addEventListener("click", function() {{
+                            const panel = this.nextElementSibling;
+                            const icon = this.querySelector(".accordion-icon");
+                            const isOpen = this.classList.contains("active");
+
+                            if (isOpen) {{
+                                this.classList.remove("active");
+                                panel.style.display = "none";
+                                if (icon) icon.textContent = "+";
+                            }} else {{
+                                this.classList.add("active");
+                                panel.style.display = "block";
+                                if (icon) icon.textContent = "−";
+                            }}
+                        }});
+                    }});
+                }}
+
                 document.querySelectorAll(".filter-btn").forEach(btn => {{
                     btn.addEventListener("click", function() {{
                         const value = this.getAttribute("data-filter") || "all";
@@ -3072,6 +3182,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     }});
                 }});
 
+                bindAccordions();
                 applyFilter("all", "movimientos-section");
                 applyFilter("all", "conciliacion-section");
             }})();
