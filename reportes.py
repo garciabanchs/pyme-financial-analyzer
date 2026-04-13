@@ -729,11 +729,8 @@ def _puntuar_candidato_empresa(candidato):
 
     return score
 
-
 def inferir_nombre_empresa(documentos, ledger):
-    candidatos_score = {}
-
-    def sumar_candidato(texto, peso=1.0, bonus=0):
+    def sumar_candidato(candidatos_score, texto, peso=1.0, bonus=0):
         limpio = _normalizar_candidato_empresa(texto)
         if not limpio:
             return
@@ -752,36 +749,58 @@ def inferir_nombre_empresa(documentos, ledger):
         candidatos_score[clave]["score"] += (score * peso) + bonus
         candidatos_score[clave]["apariciones"] += 1
 
-    for item in documentos or []:
-        texto = item.get("texto", "") or ""
-        for candidato in _extraer_candidatos_empresa_desde_texto(texto):
-            sumar_candidato(candidato, peso=1.8)
+    def procesar_texto_fuerte(candidatos_score, texto, peso_base):
+        if not texto:
+            return
 
-    for item in documentos or []:
+        for candidato in _extraer_candidatos_empresa_desde_texto(texto):
+            sumar_candidato(candidatos_score, candidato, peso=peso_base)
+
+    candidatos_score = {}
+
+    documentos = documentos or []
+    ledger = ledger or []
+
+    # 1) Prioridad máxima: factura de venta
+    for item in documentos:
+        if item.get("tipo") == "factura_venta":
+            procesar_texto_fuerte(candidatos_score, item.get("texto", "") or "", 3.5)
+
+    # 2) Prioridad alta: extracto bancario y resumen
+    for item in documentos:
+        if item.get("tipo") in ["extracto_bancario", "extracto_resumen"]:
+            procesar_texto_fuerte(candidatos_score, item.get("texto", "") or "", 2.8)
+
+    # 3) Prioridad media: factura de compra
+    for item in documentos:
+        if item.get("tipo") == "factura_compra":
+            procesar_texto_fuerte(candidatos_score, item.get("texto", "") or "", 2.0)
+
+    # 4) Prioridad baja: otros documentos
+    for item in documentos:
+        if item.get("tipo") not in ["factura_venta", "factura_compra", "extracto_bancario", "extracto_resumen"]:
+            procesar_texto_fuerte(candidatos_score, item.get("texto", "") or "", 1.0)
+
+    # 5) Nombre de archivo solo como apoyo débil
+    for item in documentos:
         archivo = item.get("archivo", "") or ""
         nombre_archivo = str(archivo).replace("\\", "/").split("/")[-1]
         base = _normalizar_candidato_empresa(re.sub(r"\.[A-Za-z0-9]+$", "", nombre_archivo))
 
         if _parece_nombre_empresa_valido(base):
-            sumar_candidato(base, peso=0.7)
+            sumar_candidato(candidatos_score, base, peso=0.5)
 
-        partes = [p for p in str(archivo).replace("\\", "/").split("/") if p]
-        if len(partes) >= 2:
-            carpeta = _normalizar_candidato_empresa(partes[0])
-            if _parece_nombre_empresa_valido(carpeta):
-                sumar_candidato(carpeta, peso=0.9)
-
-    for item in ledger or []:
+    # 6) Ledger solo como último recurso
+    for item in ledger:
         descripcion = item.get("descripcion", "") or ""
         if not descripcion:
             continue
 
         for patron in [
             r"(?:transferencia a|transferencia de|pago a|cobro de|bizum de|bizum a|compra en)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9&.,' -]{3,60})",
-            r"^([A-ZÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9&.,' -]{2,50})$",
         ]:
             for m in re.finditer(patron, descripcion, flags=re.IGNORECASE):
-                sumar_candidato(m.group(1), peso=0.5)
+                sumar_candidato(candidatos_score, m.group(1), peso=0.3)
 
     if not candidatos_score:
         return "la empresa"
@@ -793,10 +812,11 @@ def inferir_nombre_empresa(documentos, ledger):
 
     mejor = candidatos_ordenados[0]
 
-    if mejor["score"] < 35:
+    # Si no hay señal suficiente, fallback limpio
+    if mejor["score"] < 60:
         return "la empresa"
 
-    if mejor["apariciones"] == 1 and mejor["score"] < 55:
+    if mejor["apariciones"] == 1 and mejor["score"] < 85:
         return "la empresa"
 
     return _titulo_caso(mejor["texto"])
