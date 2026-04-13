@@ -364,8 +364,7 @@ def construir_resumen_conciliacion(conciliacion):
         "conflictivos": total_conflictivos,
         "duplicados": total_duplicados,
         "movimientos_internos": total_movimientos_internos,
-        "movimientos_bancarios_no_conciliables": total_movimientos_bancarios_no_CONCILIABLES
-        if False else total_movimientos_bancarios_no_conciliables,
+        "movimientos_bancarios_no_conciliables": total_movimientos_bancarios_no_conciliables,
         "movimientos_bancarios_no_conciliables_menor": total_movimientos_bancarios_no_conciliables_menor,
         "movimientos_agrupados": total_movimientos_agrupados,
         "importe_pendiente": importe_pendiente,
@@ -504,6 +503,13 @@ def inferir_nombre_empresa(documentos, ledger):
         "reporte", "analisis", "documento", "documentos", "otros", "pdf", "zip",
         "factura venta", "factura compra", "extracto bancario",
     }
+    meses_bloqueados = {
+        "enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "setiembre", "octubre",
+        "noviembre", "diciembre",
+        "january", "february", "march", "april", "may", "june",
+        "july", "august", "september", "october", "november", "december",
+    }
 
     for c in candidatos:
         c_norm = c.strip()
@@ -513,12 +519,14 @@ def inferir_nombre_empresa(documentos, ledger):
             continue
         if c_norm.lower() in bloqueados:
             continue
+        if c_norm.lower() in meses_bloqueados:
+            continue
         if any(token in c_norm.lower() for token in ["bank_", "doc_", "extract_summary_"]):
             continue
         candidatos_filtrados.append(c_norm)
 
     if not candidatos_filtrados:
-        return "la empresa analizada"
+        return "la empresa"
 
     frecuencia = {}
     for c in candidatos_filtrados:
@@ -745,26 +753,26 @@ def generar_insight_ejecutivo(flujo, conc):
 
     if sin_soporte > 0 and pendientes > 0:
         return (
-            "El principal punto de atención no parece ser solo la caja, sino la necesidad de reforzar el control documental para cerrar con confianza."
+            "La principal debilidad del período no parece ser la liquidez, sino la falta de respaldo suficiente para dar el cierre por confiable."
         )
 
     if movimientos_internos > 0 and sin_soporte == 0 and pendientes == 0:
         return (
-            "La operación luce relativamente ordenada, pero conviene separar mejor los movimientos internos de la actividad comercial."
+            "La operación luce relativamente ordenada, pero conviene separar mejor los movimientos internos para no confundirlos con gasto real del negocio."
         )
 
     if variacion < 0 and sin_soporte > 0:
         return (
-            "La combinación de caída de caja y movimientos sin soporte sugiere un riesgo operativo que conviene corregir pronto."
+            "La combinación de caída de caja y movimientos sin respaldo sugiere una señal de riesgo que conviene corregir antes del próximo cierre."
         )
 
     if variacion > 0 and pendientes == 0 and sin_soporte == 0:
         return (
-            "La caja cerró en mejora y el período muestra una estructura razonablemente limpia para una lectura ejecutiva preliminar."
+            "La caja cerró en mejora y el período muestra una estructura bastante limpia para una lectura ejecutiva preliminar."
         )
 
     return (
-        "La lectura financiera ya es útil para decidir, pero todavía requiere disciplina documental para convertirse en un cierre confiable."
+        "El período ya permite una lectura útil para decidir, pero todavía no alcanza el nivel de orden documental ideal para cerrar con plena confianza."
     )
 
 
@@ -1418,6 +1426,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     flujo = resumen_flujo()
     conc = resumen_conciliacion()
     nombre_empresa = inferir_nombre_empresa(documentos, ledger)
+    nombre_empresa_titulo = nombre_empresa if nombre_empresa and nombre_empresa != "la empresa" else "la empresa analizada"
     titular_ejecutivo, narrativa_ejecutiva = texto_lectura_ejecutiva(flujo, conc, docs)
     score_financiero = calcular_score_financiero(flujo, conc)
     etiqueta_score = texto_score_financiero(score_financiero)
@@ -1432,7 +1441,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
     bloque_diagnostico = construir_bloque_colapsable(
         titulo="Ver diagnóstico detallado",
-        subtitulo="Lectura técnica ampliada del período y recomendaciones sugeridas.",
+        subtitulo="Lectura ampliada del período y acciones sugeridas.",
         abierto=False,
         cuerpo_html=f"""
         <div class="diagnostic-grid no-top-padding">
@@ -1512,7 +1521,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Informe financiero de {nombre_empresa}</title>
+        <title>Informe financiero de {nombre_empresa_titulo}</title>
         <style>
             :root {{
                 --bg:#f4f7fb;
@@ -2881,7 +2890,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <header class="topbar">
                     <div class="brand">
                         <div class="eyebrow">PYME Financial Analyzer</div>
-                        <h1>Informe financiero de {nombre_empresa}</h1>
+                        <h1>Informe financiero de {nombre_empresa_titulo}</h1>
                     </div>
                     <div class="company-meta">
                         <div class="chip">Archivos analizados: {total}</div>
@@ -2910,7 +2919,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             </div>
                             <div class="metric-delta">
                                 <span>Inicio del período</span>
-                                <span>{nombre_empresa}</span>
+                                <span>{nombre_empresa_titulo}</span>
                             </div>
                         </article>
 
@@ -2953,7 +2962,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <div class="section-head">
                         <div>
                             <h3 class="section-title">Diagnóstico ejecutivo</h3>
-                            <p class="section-sub">Lo más importante que este informe sugiere sobre la situación financiera de {nombre_empresa}.</p>
+                            <p class="section-sub">Resumen rápido de qué tan ordenado luce el período, qué impide cerrarlo con confianza y dónde conviene actuar primero.</p>
                         </div>
                     </div>
 
@@ -2964,7 +2973,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <div class="score-ring">
                                 <span>{score_financiero}<small>{etiqueta_score}</small></span>
                             </div>
-                            <p>Este indicador resume, de forma preliminar, qué tan ordenado y confiable luce el cierre del período.</p>
+                            <p>Este indicador resume, de forma preliminar, qué tan cerca está el período de poder considerarse bien cerrado desde el punto de vista financiero y documental.</p>
                         </article>
 
                         <article class="insight-hero-card">
@@ -3026,8 +3035,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
                         <article class="alert-card yellow">
                             <div class="alert-tag">Revisar</div>
-                            <h4>Facturas pendientes de cobro o pago</h4>
-                            <p>Se observan {conc["pendientes"]} {pluralizar(conc["pendientes"], "factura pendiente", "facturas pendientes")} y € {fmt(conc["importe_pendiente"])} todavía por cerrar o validar.</p>
+                            <h4>El cierre todavía requiere seguimiento</h4>
+                            <p>Persisten {conc["pendientes"]} {pluralizar(conc["pendientes"], "factura pendiente", "facturas pendientes")} y € {fmt(conc["importe_pendiente"])} todavía por cerrar o validar antes de considerar el período razonablemente completo.</p>
                         </article>
 
                         <article class="alert-card red">
@@ -3044,7 +3053,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <div class="section-head">
                         <div>
                             <h3 class="section-title">Detalle documental</h3>
-                            <p class="section-sub">Información complementaria para revisión más profunda.</p>
+                            <p class="section-sub">Sección opcional para revisar documentos y montos detectados con mayor detalle.</p>
                         </div>
                     </div>
                     {bloque_documentos}
@@ -3069,7 +3078,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <div class="section-head">
                         <div>
                             <h3 class="section-title">Detalle contable</h3>
-                            <p class="section-sub">Información técnica de apoyo para revisión interna.</p>
+                            <p class="section-sub">Sección opcional para revisión técnica del ledger generado por el sistema.</p>
                         </div>
                     </div>
                     {bloque_ledger}
@@ -3169,7 +3178,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <footer>
                     <div class="footer-card">
                         <div>
-                            <strong>PYME Financial Analyzer</strong> · Informe visual para revisión ejecutiva, control documental y lectura preliminar de caja de {nombre_empresa}.
+                            <strong>PYME Financial Analyzer</strong> · Informe visual para revisión ejecutiva, control documental y lectura preliminar de caja de {nombre_empresa_titulo}.
                         </div>
                         <div class="footer-right">
                             <span class="footer-pill">Archivos: {total}</span>
