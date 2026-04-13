@@ -1,4 +1,5 @@
 from branding import BRANDING
+import re
 
 
 UMBRAL_RELEVANTE_REPORTE = 100.0
@@ -478,30 +479,60 @@ def _limpiar_nombre_base(texto):
     return texto
 
 
-def inferir_nombre_empresa(documentos, ledger):
+def _titulo_caso(texto):
+    texto = " ".join(str(texto or "").strip().split())
+    if not texto:
+        return ""
+    return texto[:1].upper() + texto[1:]
+
+
+def _extraer_candidatos_empresa_desde_texto(texto):
+    texto = texto or ""
+    if not texto:
+        return []
+
     candidatos = []
+    lineas = [linea.strip(" :-\t") for linea in texto.splitlines() if linea and linea.strip()]
+    texto_lower = texto.lower()
 
-    for item in documentos or []:
-        archivo = item.get("archivo", "")
-        if archivo:
-            partes = str(archivo).replace("\\", "/").split("/")
-            if len(partes) >= 2:
-                candidatos.append(_limpiar_nombre_base(partes[0]))
-            candidatos.append(_limpiar_nombre_base(partes[-1]))
+    patrones_directos = [
+        r"(?:raz[oó]n social|empresa|proveedor|emitido por|emisor|supplier|seller)\s*[:\-]\s*([^\n\r]{3,90})",
+        r"(?:bill to|sold by|merchant|comercio)\s*[:\-]\s*([^\n\r]{3,90})",
+    ]
 
-    for item in ledger or []:
-        archivo = item.get("archivo", "")
-        if archivo:
-            partes = str(archivo).replace("\\", "/").split("/")
-            if len(partes) >= 2:
-                candidatos.append(_limpiar_nombre_base(partes[0]))
-            candidatos.append(_limpiar_nombre_base(partes[-1]))
+    for patron in patrones_directos:
+        for m in re.finditer(patron, texto_lower, flags=re.IGNORECASE):
+            inicio, fin = m.span(1)
+            candidato_original = texto[inicio:fin].strip(" :-\t")
+            if candidato_original:
+                candidatos.append(candidato_original)
 
-    candidatos_filtrados = []
-    bloqueados = {
+    for linea in lineas[:18]:
+        if len(linea) < 4 or len(linea) > 90:
+            continue
+        candidatos.append(linea)
+
+    return candidatos[:60]
+
+
+def _puntuar_candidato_empresa(candidato):
+    original = str(candidato or "").strip()
+    if not original:
+        return -9999
+
+    candidato_norm = _limpiar_nombre_base(original)
+    texto_lower = candidato_norm.lower()
+
+    if len(candidato_norm) < 4:
+        return -9999
+
+    bloqueados_exactos = {
         "uploads", "outputs", "extracted", "factura", "facturas", "extracto", "extractos",
         "reporte", "analisis", "documento", "documentos", "otros", "pdf", "zip",
-        "factura venta", "factura compra", "extracto bancario",
+        "factura venta", "factura compra", "extracto bancario", "resumen del extracto",
+        "movimientos", "ledger", "paypal", "visa", "mastercard", "amex",
+        "saldo inicial", "saldo final", "historial de transacciones", "resumen de actividad",
+        "activity summary", "statement", "invoice", "receipt",
     }
     meses_bloqueados = {
         "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -510,34 +541,83 @@ def inferir_nombre_empresa(documentos, ledger):
         "january", "february", "march", "april", "may", "june",
         "july", "august", "september", "october", "november", "december",
     }
+    tokens_bloqueados = [
+        "factura", "invoice", "extracto", "statement", "bank_", "doc_", "extract_summary_",
+        "pedido", "order", "número", "numero", "nro", "receipt", "ticket",
+        "página", "pagina", "page", "subtotal", "total", "iva", "vat", "fecha",
+        "date", "iban", "swift", "bic", "cuenta", "account", "saldo", "payment",
+        "transfer", "transferencia", "movimiento", "movimientos", "análisis", "analisis",
+        "reporte", "report", "libro", "books", "amazon", "contacto", "contact",
+    ]
 
-    for c in candidatos:
-        c_norm = c.strip()
-        if not c_norm:
-            continue
-        if len(c_norm) < 4:
-            continue
-        if c_norm.lower() in bloqueados:
-            continue
-        if c_norm.lower() in meses_bloqueados:
-            continue
-        if any(token in c_norm.lower() for token in ["bank_", "doc_", "extract_summary_"]):
-            continue
-        candidatos_filtrados.append(c_norm)
+    if texto_lower in bloqueados_exactos:
+        return -9999
 
-    if not candidatos_filtrados:
+    if texto_lower in meses_bloqueados:
+        return -9999
+
+    if any(token in texto_lower for token in tokens_bloqueados):
+        return -500
+
+    if re.search(r"\b\d{4,}\b", texto_lower):
+        return -250
+
+    score = 0
+
+    palabras = candidato_norm.split()
+    score += min(len(palabras) * 4, 20)
+    score += min(len(candidato_norm), 30)
+
+    if any(s in texto_lower for s in ["s.l", "s.l.", "sl", "s.a", "s.a.", "sa", "llc", "inc", "ltd", "limited", "corp", "corporation"]):
+        score += 40
+
+    if re.search(r"[A-ZÁÉÍÓÚÑ]{2,}", original):
+        score += 12
+
+    if re.search(r"[A-Za-zÁÉÍÓÚáéíóúÑñ]", original):
+        score += 10
+
+    if len(palabras) >= 2:
+        score += 10
+
+    if len(palabras) > 6:
+        score -= 10
+
+    return score
+
+
+def inferir_nombre_empresa(documentos, ledger):
+    candidatos = []
+
+    for item in documentos or []:
+        texto = item.get("texto", "") or ""
+        candidatos.extend(_extraer_candidatos_empresa_desde_texto(texto))
+
+    for item in documentos or []:
+        archivo = item.get("archivo", "")
+        if archivo:
+            partes = str(archivo).replace("\\", "/").split("/")
+            if len(partes) >= 2:
+                candidatos.append(_limpiar_nombre_base(partes[0]))
+
+    frecuencia_ponderada = {}
+
+    for candidato in candidatos:
+        limpio = _limpiar_nombre_base(candidato)
+        score = _puntuar_candidato_empresa(candidato)
+        if score <= 0:
+            continue
+        frecuencia_ponderada[limpio] = frecuencia_ponderada.get(limpio, 0) + score
+
+    if not frecuencia_ponderada:
         return "la empresa"
 
-    frecuencia = {}
-    for c in candidatos_filtrados:
-        frecuencia[c] = frecuencia.get(c, 0) + 1
-
     mejor = sorted(
-        frecuencia.items(),
+        frecuencia_ponderada.items(),
         key=lambda x: (-x[1], -len(x[0]), x[0].lower())
     )[0][0]
 
-    return mejor
+    return _titulo_caso(mejor)
 
 
 def construir_narrativa_ejecutiva(total, docs, flujo, conc):
@@ -3201,75 +3281,75 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
 
         <script>
-            (function() {{
-                function scrollToTarget(targetId) {{
+            (function() {
+                function scrollToTarget(targetId) {
                     const target = document.getElementById(targetId);
-                    if (target) {{
-                        target.scrollIntoView({{ behavior: "smooth", block: "start" }});
-                    }}
-                }}
+                    if (target) {
+                        target.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }
+                }
 
-                function applyFilter(value, targetId) {{
+                function applyFilter(value, targetId) {
                     const allRows = document.querySelectorAll("[data-kind]");
                     const buttons = document.querySelectorAll('.filter-btn[data-target="' + targetId + '"]');
 
-                    buttons.forEach(btn => {{
-                        if (btn.getAttribute("data-filter") === value) {{
+                    buttons.forEach(btn => {
+                        if (btn.getAttribute("data-filter") === value) {
                             btn.classList.add("active");
-                        }} else {{
+                        } else {
                             btn.classList.remove("active");
-                        }}
-                    }});
+                        }
+                    });
 
-                    allRows.forEach(el => {{
+                    allRows.forEach(el => {
                         const elementTarget = el.getAttribute("data-target-section");
-                        if (elementTarget && elementTarget !== targetId) {{
+                        if (elementTarget && elementTarget !== targetId) {
                             return;
-                        }}
+                        }
 
                         const kinds = (el.getAttribute("data-kind") || "").split(" ").filter(Boolean);
-                        if (value === "all" || kinds.includes(value)) {{
+                        if (value === "all" || kinds.includes(value)) {
                             el.classList.remove("is-hidden");
-                        }} else {{
+                        } else {
                             el.classList.add("is-hidden");
-                        }}
-                    }});
+                        }
+                    });
 
                     scrollToTarget(targetId);
-                }}
+                }
 
-                function bindAccordions() {{
-                    document.querySelectorAll(".accordion-toggle").forEach(btn => {{
-                        btn.addEventListener("click", function() {{
+                function bindAccordions() {
+                    document.querySelectorAll(".accordion-toggle").forEach(btn => {
+                        btn.addEventListener("click", function() {
                             const panel = this.nextElementSibling;
                             const icon = this.querySelector(".accordion-icon");
                             const isOpen = this.classList.contains("active");
 
-                            if (isOpen) {{
+                            if (isOpen) {
                                 this.classList.remove("active");
                                 panel.style.display = "none";
                                 if (icon) icon.textContent = "+";
-                            }} else {{
+                            } else {
                                 this.classList.add("active");
                                 panel.style.display = "block";
                                 if (icon) icon.textContent = "−";
-                            }}
-                        }});
-                    }});
-                }}
+                            }
+                        });
+                    });
+                }
 
-                document.querySelectorAll(".filter-btn").forEach(btn => {{
-                    btn.addEventListener("click", function() {{
+                document.querySelectorAll(".filter-btn").forEach(btn => {
+                    btn.addEventListener("click", function() {
                         const value = this.getAttribute("data-filter") || "all";
                         const targetId = this.getAttribute("data-target") || "movimientos-section";
                         applyFilter(value, targetId);
-                    }});
-                }});
+                    });
+                });
 
                 bindAccordions();
                 applyFilter("all", "movimientos-section");
                 applyFilter("all", "conciliacion-section");
-            }})();
+            })();
         </script>
     </body>
     </html>
