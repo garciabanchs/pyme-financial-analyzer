@@ -493,7 +493,6 @@ def _extraer_candidatos_empresa_desde_texto(texto):
 
     candidatos = []
     lineas = [linea.strip(" :-\t") for linea in texto.splitlines() if linea and linea.strip()]
-    texto_lower = texto.lower()
 
     patrones_directos = [
         r"(?:raz[oó]n social|empresa|proveedor|emitido por|emisor|supplier|seller)\s*[:\-]\s*([^\n\r]{3,90})",
@@ -501,9 +500,8 @@ def _extraer_candidatos_empresa_desde_texto(texto):
     ]
 
     for patron in patrones_directos:
-        for m in re.finditer(patron, texto_lower, flags=re.IGNORECASE):
-            inicio, fin = m.span(1)
-            candidato_original = texto[inicio:fin].strip(" :-\t")
+        for m in re.finditer(patron, texto, flags=re.IGNORECASE):
+            candidato_original = (m.group(1) or "").strip(" :-\t")
             if candidato_original:
                 candidatos.append(candidato_original)
 
@@ -513,6 +511,55 @@ def _extraer_candidatos_empresa_desde_texto(texto):
         candidatos.append(linea)
 
     return candidatos[:60]
+
+
+def _parece_direccion_o_ubicacion(texto):
+    t = (texto or "").strip().lower()
+    if not t:
+        return False
+
+    patrones_direccion = [
+        r"\bcalle\b",
+        r"\bavda\b",
+        r"\bavenida\b",
+        r"\bplaza\b",
+        r"\bpaseo\b",
+        r"\bcarretera\b",
+        r"\bcamino\b",
+        r"\bpol[ií]gono\b",
+        r"\burbanizaci[oó]n\b",
+        r"\blocal\b",
+        r"\bportal\b",
+        r"\bpiso\b",
+        r"\bpuerta\b",
+        r"\bentrada\b",
+        r"\bescalera\b",
+        r"\boficina\b",
+        r"\bnave\b",
+        r"\bc\./",
+        r"\bc/",
+        r"\bcp\b",
+        r"\bcod(?:igo)? postal\b",
+        r"\bpostal\b",
+        r"\bdoctor\b",
+        r"\bdr\.?\b",
+        r"\bn[úu]m(?:ero)?\.?\b",
+        r"\bkm\b",
+    ]
+
+    for patron in patrones_direccion:
+        if re.search(patron, t, flags=re.IGNORECASE):
+            return True
+
+    if re.search(r"\b\d{1,4}\b", t) and any(
+        palabra in t for palabra in [
+            "calle", "avenida", "avda", "local", "piso", "puerta",
+            "entrada", "oficina", "doctor", "plaza", "c/"
+        ]
+    ):
+        return True
+
+    return False
 
 
 def _puntuar_candidato_empresa(candidato):
@@ -534,6 +581,7 @@ def _puntuar_candidato_empresa(candidato):
         "saldo inicial", "saldo final", "historial de transacciones", "resumen de actividad",
         "activity summary", "statement", "invoice", "receipt",
     }
+
     meses_bloqueados = {
         "enero", "febrero", "marzo", "abril", "mayo", "junio",
         "julio", "agosto", "septiembre", "setiembre", "octubre",
@@ -541,6 +589,7 @@ def _puntuar_candidato_empresa(candidato):
         "january", "february", "march", "april", "may", "june",
         "july", "august", "september", "october", "november", "december",
     }
+
     tokens_bloqueados = [
         "factura", "invoice", "extracto", "statement", "bank_", "doc_", "extract_summary_",
         "pedido", "order", "número", "numero", "nro", "receipt", "ticket",
@@ -558,6 +607,9 @@ def _puntuar_candidato_empresa(candidato):
 
     if any(token in texto_lower for token in tokens_bloqueados):
         return -500
+
+    if _parece_direccion_o_ubicacion(original):
+        return -1200
 
     if re.search(r"\b\d{4,}\b", texto_lower):
         return -250
@@ -582,6 +634,15 @@ def _puntuar_candidato_empresa(candidato):
 
     if len(palabras) > 6:
         score -= 10
+
+    if len(candidato_norm) > 55:
+        score -= 40
+
+    if len(candidato_norm) > 75:
+        score -= 120
+
+    if re.search(r"\b(?:florister[ií]a|bar|caf[eé]|restaurante|hostal|hotel|tienda|shop)\b", texto_lower):
+        score += 10
 
     return score
 
@@ -618,7 +679,6 @@ def inferir_nombre_empresa(documentos, ledger):
     )[0][0]
 
     return _titulo_caso(mejor)
-
 
 def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     saldo_inicial = flujo["saldo_inicial"]
