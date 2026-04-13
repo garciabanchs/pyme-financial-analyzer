@@ -1,3 +1,5 @@
+Necesito el código completo. Edita este, y devuélvemelo con los cambios. La instrucción es simple.
+
 from branding import BRANDING
 import re
 
@@ -3416,3 +3418,4 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     """
 
     return html
+
