@@ -1,5 +1,3 @@
-Necesito el código completo. Edita este, y devuélvemelo con los cambios. La instrucción es simple.
-
 from branding import BRANDING
 import re
 
