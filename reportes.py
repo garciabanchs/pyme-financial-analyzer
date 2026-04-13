@@ -3281,75 +3281,75 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
 
         <script>
-            (function() {
-                function scrollToTarget(targetId) {
+            (function() {{
+                function scrollToTarget(targetId) {{
                     const target = document.getElementById(targetId);
-                    if (target) {
-                        target.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }
-                }
+                    if (target) {{
+                        target.scrollIntoView({{ behavior: "smooth", block: "start" }});
+                    }}
+                }}
 
-                function applyFilter(value, targetId) {
+                function applyFilter(value, targetId) {{
                     const allRows = document.querySelectorAll("[data-kind]");
                     const buttons = document.querySelectorAll('.filter-btn[data-target="' + targetId + '"]');
 
-                    buttons.forEach(btn => {
-                        if (btn.getAttribute("data-filter") === value) {
+                    buttons.forEach(btn => {{
+                        if (btn.getAttribute("data-filter") === value) {{
                             btn.classList.add("active");
-                        } else {
+                        }} else {{
                             btn.classList.remove("active");
-                        }
-                    });
+                        }}
+                    }});
 
-                    allRows.forEach(el => {
+                    allRows.forEach(el => {{
                         const elementTarget = el.getAttribute("data-target-section");
-                        if (elementTarget && elementTarget !== targetId) {
+                        if (elementTarget && elementTarget !== targetId) {{
                             return;
-                        }
+                        }}
 
                         const kinds = (el.getAttribute("data-kind") || "").split(" ").filter(Boolean);
-                        if (value === "all" || kinds.includes(value)) {
+                        if (value === "all" || kinds.includes(value)) {{
                             el.classList.remove("is-hidden");
-                        } else {
+                        }} else {{
                             el.classList.add("is-hidden");
-                        }
-                    });
+                        }}
+                    }});
 
                     scrollToTarget(targetId);
-                }
+                }}
 
-                function bindAccordions() {
-                    document.querySelectorAll(".accordion-toggle").forEach(btn => {
-                        btn.addEventListener("click", function() {
+                function bindAccordions() {{
+                    document.querySelectorAll(".accordion-toggle").forEach(btn => {{
+                        btn.addEventListener("click", function() {{
                             const panel = this.nextElementSibling;
                             const icon = this.querySelector(".accordion-icon");
                             const isOpen = this.classList.contains("active");
 
-                            if (isOpen) {
+                            if (isOpen) {{
                                 this.classList.remove("active");
                                 panel.style.display = "none";
                                 if (icon) icon.textContent = "+";
-                            } else {
+                            }} else {{
                                 this.classList.add("active");
                                 panel.style.display = "block";
                                 if (icon) icon.textContent = "−";
-                            }
-                        });
-                    });
-                }
+                            }}
+                        }});
+                    }});
+                }}
 
-                document.querySelectorAll(".filter-btn").forEach(btn => {
-                    btn.addEventListener("click", function() {
+                document.querySelectorAll(".filter-btn").forEach(btn => {{
+                    btn.addEventListener("click", function() {{
                         const value = this.getAttribute("data-filter") || "all";
                         const targetId = this.getAttribute("data-target") || "movimientos-section";
                         applyFilter(value, targetId);
-                    });
-                });
+                    }});
+                }});
 
                 bindAccordions();
                 applyFilter("all", "movimientos-section");
                 applyFilter("all", "conciliacion-section");
-            })();
+            }})();
         </script>
     </body>
     </html>
