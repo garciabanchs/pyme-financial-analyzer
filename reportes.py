@@ -458,7 +458,6 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
         "otros_pagos_total": otros_pagos_total,
     }
 
-
 def _limpiar_nombre_base(texto):
     texto = str(texto or "").strip()
     if not texto:
@@ -486,31 +485,69 @@ def _titulo_caso(texto):
     return texto[:1].upper() + texto[1:]
 
 
-def _extraer_candidatos_empresa_desde_texto(texto):
-    texto = texto or ""
+def _normalizar_candidato_empresa(texto):
+    texto = _limpiar_nombre_base(texto)
+
     if not texto:
-        return []
+        return ""
 
-    candidatos = []
-    lineas = [linea.strip(" :-\t") for linea in texto.splitlines() if linea and linea.strip()]
+    texto = re.sub(r"\([^)]*\)", " ", texto)
+    texto = re.sub(r"\[[^\]]*\]", " ", texto)
+    texto = re.sub(r"\{[^}]*\}", " ", texto)
 
-    patrones_directos = [
-        r"(?:raz[oó]n social|empresa|proveedor|emitido por|emisor|supplier|seller)\s*[:\-]\s*([^\n\r]{3,90})",
-        r"(?:bill to|sold by|merchant|comercio)\s*[:\-]\s*([^\n\r]{3,90})",
-    ]
+    texto = re.sub(r"[|<>~#*=+]+", " ", texto)
+    texto = re.sub(r"\s{2,}", " ", texto).strip(" .,:;_-")
 
-    for patron in patrones_directos:
-        for m in re.finditer(patron, texto, flags=re.IGNORECASE):
-            candidato_original = (m.group(1) or "").strip(" :-\t")
-            if candidato_original:
-                candidatos.append(candidato_original)
+    return texto
 
-    for linea in lineas[:18]:
-        if len(linea) < 4 or len(linea) > 90:
-            continue
-        candidatos.append(linea)
 
-    return candidatos[:60]
+def _es_texto_basura_empresa(texto):
+    t = (texto or "").strip()
+    if not t:
+        return True
+
+    tl = t.lower().strip()
+
+    if len(t) < 3:
+        return True
+
+    bloqueados_exactos = {
+        "uploads", "outputs", "extracted", "factura", "facturas", "extracto", "extractos",
+        "reporte", "report", "analisis", "análisis", "documento", "documentos", "otros",
+        "pdf", "zip", "csv", "xlsx", "xls", "doc", "docx",
+        "factura venta", "factura compra", "extracto bancario", "resumen del extracto",
+        "movimientos", "ledger", "saldo inicial", "saldo final", "resumen", "statement",
+        "invoice", "receipt", "activity summary", "historial de transacciones",
+        "cobertura completa", "cobertura completa 4 m", "lectura ejecutiva del período",
+        "lectura preliminar para toma de decisiones en pyme",
+        "informe financiero ejecutivo", "pyme financial analyzer",
+        "dinero que entró", "dinero que salió", "cierre", "periodo", "período",
+    }
+    if tl in bloqueados_exactos:
+        return True
+
+    if tl.startswith("(") and tl.endswith(")"):
+        return True
+
+    if re.search(r"\b(cobertura|lectura|per[ií]odo|periodo|cierre|pendientes?|variaci[oó]n|documentos clasificados)\b", tl):
+        return True
+
+    if re.search(r"\b(factura|invoice|extracto|statement|subtotal|total|iva|vat|fecha|date|iban|swift|bic|cuenta|account|saldo|payment|transfer|transferencia|movimiento|movimientos|reporte|report|contacto|contact)\b", tl):
+        return True
+
+    if re.search(r"\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre|january|february|march|april|may|june|july|august|september|october|november|december)\b", tl):
+        return True
+
+    if re.search(r"\b\d{5,}\b", tl):
+        return True
+
+    if re.fullmatch(r"[\W_]+", tl):
+        return True
+
+    if len(t.split()) > 8:
+        return True
+
+    return False
 
 
 def _parece_direccion_o_ubicacion(texto):
@@ -541,8 +578,6 @@ def _parece_direccion_o_ubicacion(texto):
         r"\bcp\b",
         r"\bcod(?:igo)? postal\b",
         r"\bpostal\b",
-        r"\bdoctor\b",
-        r"\bdr\.?\b",
         r"\bn[úu]m(?:ero)?\.?\b",
         r"\bkm\b",
     ]
@@ -554,7 +589,7 @@ def _parece_direccion_o_ubicacion(texto):
     if re.search(r"\b\d{1,4}\b", t) and any(
         palabra in t for palabra in [
             "calle", "avenida", "avda", "local", "piso", "puerta",
-            "entrada", "oficina", "doctor", "plaza", "c/"
+            "entrada", "oficina", "plaza", "c/"
         ]
     ):
         return True
@@ -562,123 +597,209 @@ def _parece_direccion_o_ubicacion(texto):
     return False
 
 
+def _parece_nombre_empresa_valido(texto):
+    t = (texto or "").strip()
+    if not t:
+        return False
+
+    if _es_texto_basura_empresa(t):
+        return False
+
+    if _parece_direccion_o_ubicacion(t):
+        return False
+
+    if len(t) < 3 or len(t) > 70:
+        return False
+
+    if not re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", t):
+        return False
+
+    return True
+
+
+def _extraer_candidatos_empresa_desde_texto(texto):
+    texto = texto or ""
+    if not texto:
+        return []
+
+    candidatos = []
+    vistos = set()
+
+    def agregar(valor):
+        valor = _normalizar_candidato_empresa(valor)
+        if not valor:
+            return
+        clave = valor.lower()
+        if clave in vistos:
+            return
+        vistos.add(clave)
+        candidatos.append(valor)
+
+    lineas = [
+        linea.strip(" :-\t")
+        for linea in texto.splitlines()
+        if linea and linea.strip()
+    ]
+
+    patrones_directos = [
+        r"(?:raz[oó]n social|empresa|nombre comercial|sociedad|titular)\s*[:\-]\s*([^\n\r]{3,80})",
+        r"(?:emitido por|emisor|proveedor|supplier|seller|sold by|merchant|comercio)\s*[:\-]\s*([^\n\r]{3,80})",
+    ]
+
+    for patron in patrones_directos:
+        for m in re.finditer(patron, texto, flags=re.IGNORECASE):
+            agregar(m.group(1) or "")
+
+    for linea in lineas[:20]:
+        linea_norm = _normalizar_candidato_empresa(linea)
+
+        if not linea_norm:
+            continue
+
+        if len(linea_norm) < 3 or len(linea_norm) > 70:
+            continue
+
+        if _es_texto_basura_empresa(linea_norm):
+            continue
+
+        if _parece_direccion_o_ubicacion(linea_norm):
+            continue
+
+        if re.search(r"\b\d{4,}\b", linea_norm):
+            continue
+
+        if re.search(r"\b(cobertura|lectura|saldo|pendiente|variaci[oó]n|documentos)\b", linea_norm.lower()):
+            continue
+
+        agregar(linea_norm)
+
+    return candidatos[:40]
+
+
 def _puntuar_candidato_empresa(candidato):
     original = str(candidato or "").strip()
     if not original:
         return -9999
 
-    candidato_norm = _limpiar_nombre_base(original)
+    candidato_norm = _normalizar_candidato_empresa(original)
     texto_lower = candidato_norm.lower()
 
-    if len(candidato_norm) < 4:
+    if not _parece_nombre_empresa_valido(candidato_norm):
         return -9999
-
-    bloqueados_exactos = {
-        "uploads", "outputs", "extracted", "factura", "facturas", "extracto", "extractos",
-        "reporte", "analisis", "documento", "documentos", "otros", "pdf", "zip",
-        "factura venta", "factura compra", "extracto bancario", "resumen del extracto",
-        "movimientos", "ledger", "paypal", "visa", "mastercard", "amex",
-        "saldo inicial", "saldo final", "historial de transacciones", "resumen de actividad",
-        "activity summary", "statement", "invoice", "receipt",
-    }
-
-    meses_bloqueados = {
-        "enero", "febrero", "marzo", "abril", "mayo", "junio",
-        "julio", "agosto", "septiembre", "setiembre", "octubre",
-        "noviembre", "diciembre",
-        "january", "february", "march", "april", "may", "june",
-        "july", "august", "september", "october", "november", "december",
-    }
-
-    tokens_bloqueados = [
-        "factura", "invoice", "extracto", "statement", "bank_", "doc_", "extract_summary_",
-        "pedido", "order", "número", "numero", "nro", "receipt", "ticket",
-        "página", "pagina", "page", "subtotal", "total", "iva", "vat", "fecha",
-        "date", "iban", "swift", "bic", "cuenta", "account", "saldo", "payment",
-        "transfer", "transferencia", "movimiento", "movimientos", "análisis", "analisis",
-        "reporte", "report", "libro", "books", "amazon", "contacto", "contact",
-    ]
-
-    if texto_lower in bloqueados_exactos:
-        return -9999
-
-    if texto_lower in meses_bloqueados:
-        return -9999
-
-    if any(token in texto_lower for token in tokens_bloqueados):
-        return -500
-
-    if _parece_direccion_o_ubicacion(original):
-        return -1200
-
-    if re.search(r"\b\d{4,}\b", texto_lower):
-        return -250
 
     score = 0
-
     palabras = candidato_norm.split()
-    score += min(len(palabras) * 4, 20)
-    score += min(len(candidato_norm), 30)
 
-    if any(s in texto_lower for s in ["s.l", "s.l.", "sl", "s.a", "s.a.", "sa", "llc", "inc", "ltd", "limited", "corp", "corporation"]):
-        score += 40
+    score += 20
 
-    if re.search(r"[A-ZÁÉÍÓÚÑ]{2,}", original):
-        score += 12
+    if 1 <= len(palabras) <= 4:
+        score += 25
+    elif len(palabras) <= 6:
+        score += 10
+    else:
+        score -= 20
 
-    if re.search(r"[A-Za-zÁÉÍÓÚáéíóúÑñ]", original):
+    if 4 <= len(candidato_norm) <= 32:
+        score += 20
+    elif len(candidato_norm) <= 50:
+        score += 5
+    else:
+        score -= 20
+
+    if re.search(r"\b(s\.l\.?|s\.a\.?|sl|sa|llc|inc|ltd|limited|corp|corporation|gmbh|bv)\b", texto_lower):
+        score += 35
+
+    if re.search(r"^[A-ZÁÉÍÓÚÜÑ0-9&.,' -]+$", original) and re.search(r"[A-ZÁÉÍÓÚÜÑ]", original):
         score += 10
 
-    if len(palabras) >= 2:
+    if re.search(r"^[A-ZÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ&.,' -]+$", candidato_norm):
         score += 10
 
-    if len(palabras) > 6:
-        score -= 10
+    if re.search(r"\b(sociedad|grupo|industries|solutions|services|holding|holdings|consulting|studio|market|systems)\b", texto_lower):
+        score += 8
 
-    if len(candidato_norm) > 55:
+    if re.search(r"\b(factura|extracto|reporte|documento|pedido|order|ticket|resumen|fecha|saldo|movimiento|cobertura|lectura|periodo|período)\b", texto_lower):
+        score -= 50
+
+    if re.search(r"\([^)]*\)", original):
         score -= 40
 
-    if len(candidato_norm) > 75:
-        score -= 120
-
-    if re.search(r"\b(?:florister[ií]a|bar|caf[eé]|restaurante|hostal|hotel|tienda|shop)\b", texto_lower):
-        score += 10
+    if re.search(r"\b\d{3,}\b", texto_lower):
+        score -= 25
 
     return score
 
 
 def inferir_nombre_empresa(documentos, ledger):
-    candidatos = []
+    candidatos_score = {}
+
+    def sumar_candidato(texto, peso=1.0, bonus=0):
+        limpio = _normalizar_candidato_empresa(texto)
+        if not limpio:
+            return
+
+        score = _puntuar_candidato_empresa(limpio)
+        if score <= 0:
+            return
+
+        clave = limpio.lower()
+        candidatos_score[clave] = candidatos_score.get(clave, {
+            "texto": limpio,
+            "score": 0.0,
+            "apariciones": 0,
+        })
+
+        candidatos_score[clave]["score"] += (score * peso) + bonus
+        candidatos_score[clave]["apariciones"] += 1
 
     for item in documentos or []:
         texto = item.get("texto", "") or ""
-        candidatos.extend(_extraer_candidatos_empresa_desde_texto(texto))
+        for candidato in _extraer_candidatos_empresa_desde_texto(texto):
+            sumar_candidato(candidato, peso=1.8)
 
     for item in documentos or []:
-        archivo = item.get("archivo", "")
-        if archivo:
-            partes = str(archivo).replace("\\", "/").split("/")
-            if len(partes) >= 2:
-                candidatos.append(_limpiar_nombre_base(partes[0]))
+        archivo = item.get("archivo", "") or ""
+        nombre_archivo = str(archivo).replace("\\", "/").split("/")[-1]
+        base = _normalizar_candidato_empresa(re.sub(r"\.[A-Za-z0-9]+$", "", nombre_archivo))
 
-    frecuencia_ponderada = {}
+        if _parece_nombre_empresa_valido(base):
+            sumar_candidato(base, peso=0.7)
 
-    for candidato in candidatos:
-        limpio = _limpiar_nombre_base(candidato)
-        score = _puntuar_candidato_empresa(candidato)
-        if score <= 0:
+        partes = [p for p in str(archivo).replace("\\", "/").split("/") if p]
+        if len(partes) >= 2:
+            carpeta = _normalizar_candidato_empresa(partes[0])
+            if _parece_nombre_empresa_valido(carpeta):
+                sumar_candidato(carpeta, peso=0.9)
+
+    for item in ledger or []:
+        descripcion = item.get("descripcion", "") or ""
+        if not descripcion:
             continue
-        frecuencia_ponderada[limpio] = frecuencia_ponderada.get(limpio, 0) + score
 
-    if not frecuencia_ponderada:
+        for patron in [
+            r"(?:transferencia a|transferencia de|pago a|cobro de|bizum de|bizum a|compra en)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9&.,' -]{3,60})",
+            r"^([A-ZÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9&.,' -]{2,50})$",
+        ]:
+            for m in re.finditer(patron, descripcion, flags=re.IGNORECASE):
+                sumar_candidato(m.group(1), peso=0.5)
+
+    if not candidatos_score:
         return "la empresa"
 
-    mejor = sorted(
-        frecuencia_ponderada.items(),
-        key=lambda x: (-x[1], -len(x[0]), x[0].lower())
-    )[0][0]
+    candidatos_ordenados = sorted(
+        candidatos_score.values(),
+        key=lambda x: (-x["score"], -x["apariciones"], len(x["texto"]))
+    )
 
-    return _titulo_caso(mejor)
+    mejor = candidatos_ordenados[0]
+
+    if mejor["score"] < 35:
+        return "la empresa"
+
+    if mejor["apariciones"] == 1 and mejor["score"] < 55:
+        return "la empresa"
+
+    return _titulo_caso(mejor["texto"])
 
 def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     saldo_inicial = flujo["saldo_inicial"]
