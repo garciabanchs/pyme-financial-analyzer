@@ -2877,11 +2877,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     .accordion-icon,
     .actions-bar,
     .btn-ghost,
-    .footer-actions,
     .topbar-shell .chip,
-    .hero-kicker,
-    .book-link,
-    .cta-button {{
+    .hero-kicker {{
         display: none !important;
     }}
 
@@ -2987,6 +2984,64 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         margin: 12mm;
     }}
 }}        
+
+
+.contact-card {{
+    display:block !important;
+    text-align:left !important;
+}}
+
+.cta-button {{
+    display:inline-flex !important;
+    width:auto !important;
+    min-width:0 !important;
+    margin-top:14px !important;
+    box-shadow:none !important;
+}}
+
+.book-link {{
+    display:inline-block !important;
+    width:auto !important;
+}}
+
+.footer-actions,
+.footer-right,
+.footer-pill {{
+    display:none !important;
+}}
+
+.footer-card {{
+    display:block !important;
+    text-align:left !important;
+    padding:14px 16px !important;
+    margin-top:14px !important;
+}}
+
+.footer-card strong {{
+    display:inline !important;
+}}
+
+#movimientos-section,
+.section:has(.books-card),
+.section:has(.author-card) {{
+    page-break-before:auto;
+}}
+
+.books-section,
+.author-card,
+.books-card,
+.contact-card {{
+    page-break-inside: avoid;
+}}
+
+.amount-chip-wrap {{
+    gap:6px !important;
+}}
+
+.amount-chip {{
+    padding:6px 8px !important;
+    font-size:10px !important;
+}}
         </style>
     </head>
     <body>
