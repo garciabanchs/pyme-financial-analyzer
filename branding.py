@@ -14,7 +14,6 @@ BRANDING = {
             "la toma de decisiones para las PYME."
         ),
 
-        # 👇 ASEGÚRATE de que este archivo exista en /static
         "imagen_url": "https://angelgarciabanchs.com/wp-content/uploads/2025/06/imagen-circular.png",
 
         "contacto_texto": "Contáctame",
@@ -28,15 +27,17 @@ BRANDING = {
                 # opcional (backend)
                 "portada_local": "static/camino-a-la-riqueza.jpg",
 
-                # 👇 ESTE ES EL QUE USA EL HTML
-                "portada_html": "/static/camino-a-la-riqueza.jpg"
+                # 👇 CORREGIDO: URL absoluta para PDF
+                "portada_html": "https://pyme-financial-analyzer.onrender.com/static/camino-a-la-riqueza.jpg"
             },
             {
                 "titulo": "The Artificial Intelligence Millionaire",
                 "url": "https://amzn.eu/d/00BhXvMF",
 
                 "portada_local": "static/the-artificial-intelligence-millionaire.jpg",
-                "portada_html": "/static/the-artificial-intelligence-millionaire.jpg"
+
+                # 👇 CORREGIDO: URL absoluta para PDF
+                "portada_html": "https://pyme-financial-analyzer.onrender.com/static/the-artificial-intelligence-millionaire.jpg"
             }
         ]
     }
