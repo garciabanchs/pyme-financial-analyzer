@@ -2982,35 +2982,28 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     /* === RECORTE EJECUTIVO DEL PDF === */
 
     #detalle-documental-section,
-    #detalle-contable-section {
+    #detalle-contable-section {{
         display: none !important;
-    }
+    }}
 
     #movimientos-section .filter-toolbar,
     #movimientos-section .table-shell,
     #movimientos-section .mobile-movements-grid,
     #movimientos-section .metrics-grid,
     #movimientos-section .compact-grid,
-    #movimientos-section .compact-grid-soft {
+    #movimientos-section .compact-grid-soft {{
         display: none !important;
-    }
+    }}
 
-    #movimientos-section {
+    #movimientos-section {{
         display: none !important;
-    }
+    }}
 
     #conciliacion-section .filter-toolbar,
     #conciliacion-section .table-shell,
-    #conciliacion-section .mobile-conc-grid {
+    #conciliacion-section .mobile-conc-grid {{
         display: none !important;
-    }
-
-    @page {{
-        size: A4;
-        margin: 12mm;
     }}
-}}        
-
 
 .contact-card {{
     display:block !important;
@@ -3047,9 +3040,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     display:inline !important;
 }}
 
-#movimientos-section,
-.section:has(.books-card),
-.section:has(.author-card) {{
+#movimientos-section {{
     page-break-before:auto;
 }}
 
@@ -3068,6 +3059,13 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     padding:6px 8px !important;
     font-size:10px !important;
 }}
+
+    @page {{
+        size: A4;
+        margin: 12mm;
+    }}
+}}        
+
         </style>
     </head>
     <body>
