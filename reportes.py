@@ -461,126 +461,71 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
 def inferir_nombre_empresa(documentos, ledger):
     documentos = documentos or []
 
-    bloqueados = {
-        "factura", "invoice", "resumen", "extracto", "statement", "recibo",
-        "fecha", "fecha de emisión", "fecha de emision", "fecha de vencimiento",
-        "cliente", "proveedor", "concepto", "descripción", "descripcion",
-        "forma de pago", "método de pago", "metodo de pago",
-        "condiciones de pago", "subtotal", "total", "iva",
-        "pyme financial analyzer", "informe financiero ejecutivo"
-    }
-
-    patrones_fuertes = [
-        r"(?im)^\s*raz[oó]n social\s*[:\-]\s*(.+?)\s*$",
-        r"(?im)^\s*nombre comercial\s*[:\-]\s*(.+?)\s*$",
-        r"(?im)^\s*empresa\s*[:\-]\s*(.+?)\s*$",
-        r"(?im)^\s*emitido por\s*[:\-]\s*(.+?)\s*$",
-        r"(?im)^\s*emisor\s*[:\-]\s*(.+?)\s*$",
-        r"(?im)^\s*proveedor\s*[:\-]\s*(.+?)\s*$",
-    ]
-
-    def limpiar_candidato(texto):
+    def limpiar(texto):
         texto = (texto or "").strip()
         texto = re.sub(r"\([^)]*\)", "", texto)
-        texto = re.sub(r"\[[^\]]*\]", "", texto)
-        texto = re.sub(r"\{[^}]*\}", "", texto)
-        texto = re.sub(r"[|<>~#*=+]+", " ", texto)
         texto = re.sub(r"\s+", " ", texto).strip(" .,:;_-")
         return texto
 
-    def es_candidato_valido(texto):
-        t = limpiar_candidato(texto)
-        if not t:
+    def es_nombre_valido(texto):
+        if not texto:
             return False
 
-        tl = t.lower()
+        t = texto.lower().strip()
 
-        if tl in bloqueados:
+        bloqueados = [
+            "extracto", "statement", "factura", "invoice", "resumen", "saldo",
+            "fecha", "periodo", "período", "movimiento", "movimientos",
+            "documento", "documentos", "cliente", "proveedor", "concepto",
+            "descripcion", "descripción", "iban", "swift", "bic", "cuenta",
+            "payment", "transfer", "transferencia"
+        ]
+        if any(b in t for b in bloqueados):
             return False
 
-        if len(t) < 4 or len(t) > 80:
+        if len(texto) < 3 or len(texto) > 80:
             return False
 
-        if not re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", t):
+        if re.search(r"\d{4,}", texto):
             return False
 
-        if re.search(r"\b\d{4,}\b", t):
-            return False
-
-        if re.search(
-            r"\b(factura|invoice|extracto|statement|subtotal|total|iva|fecha|cliente|proveedor|concepto|descripci[oó]n|forma de pago|m[eé]todo de pago|condiciones de pago)\b",
-            tl
-        ):
-            return False
-
-        if re.search(
-            r"\b(calle|avenida|avda|plaza|paseo|carretera|camino|local|piso|puerta|oficina|postal|cp|código postal|codigo postal)\b",
-            tl
-        ):
+        if not re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", texto):
             return False
 
         return True
 
-    def puntuar(texto):
-        t = limpiar_candidato(texto)
-        tl = t.lower()
-        score = 0
-
-        if not es_candidato_valido(t):
-            return -9999
-
-        palabras = t.split()
-
-        if 1 <= len(palabras) <= 4:
-            score += 30
-        elif len(palabras) <= 6:
-            score += 15
-        else:
-            score -= 20
-
-        if 4 <= len(t) <= 35:
-            score += 25
-        elif len(t) <= 55:
-            score += 10
-
-        if re.search(r"\b(s\.l\.?|s\.a\.?|sl|sa|llc|inc|ltd|limited|corp|corporation|gmbh|bv)\b", tl):
-            score += 35
-
-        if re.search(r"^[A-ZÁÉÍÓÚÜÑ0-9&.,' -]+$", t) and re.search(r"[A-ZÁÉÍÓÚÜÑ]", t):
-            score += 15
-
-        return score
-
-    # 1) SOLO factura de venta
+    # 1) PRIORIDAD ABSOLUTA: extracto bancario
     for item in documentos:
-        if item.get("tipo") != "factura_venta":
+        if item.get("tipo") != "extracto_bancario":
             continue
 
         texto = (item.get("texto") or "").strip()
         if not texto:
             continue
 
-        # 1A. Campos explícitos
-        for patron in patrones_fuertes:
+        patrones = [
+            r"(?im)^\s*raz[oó]n social\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*nombre\s+del\s+titular\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*titular\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*account holder\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*business name\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*empresa\s*[:\-]\s*(.+?)\s*$",
+        ]
+
+        for patron in patrones:
             m = re.search(patron, texto)
             if m:
-                candidato = limpiar_candidato(m.group(1))
-                if puntuar(candidato) >= 45:
+                candidato = limpiar(m.group(1))
+                if es_nombre_valido(candidato):
                     return candidato[:1].upper() + candidato[1:]
 
-        # 1B. Primeras líneas, pero con filtro fuerte
-        candidatos = []
-        for linea in texto.splitlines()[:15]:
-            linea = limpiar_candidato(linea)
-            if es_candidato_valido(linea):
-                candidatos.append(linea)
+        # fallback: primeras líneas útiles del extracto
+        for linea in texto.splitlines()[:25]:
+            linea = limpiar(linea)
+            if es_nombre_valido(linea):
+                return linea[:1].upper() + linea[1:]
 
-        if candidatos:
-            mejor = sorted(candidatos, key=lambda x: (-puntuar(x), len(x)))[0]
-            if puntuar(mejor) >= 60:
-                return mejor[:1].upper() + mejor[1:]
-
-    # 2) Si no hay evidencia fuerte, no inventa
+    # 2) Si no está claro en el extracto, no inventar
     return "la empresa"
     
 def construir_narrativa_ejecutiva(total, docs, flujo, conc):
