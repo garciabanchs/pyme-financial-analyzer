@@ -718,7 +718,7 @@ def _puntuar_candidato_empresa(candidato):
     if re.search(r"\b(sociedad|grupo|industries|solutions|services|holding|holdings|consulting|studio|market|systems)\b", texto_lower):
         score += 8
 
-    if re.search(r"\b(factura|extracto|reporte|documento|pedido|order|ticket|resumen|fecha|saldo|movimiento|cobertura|lectura|periodo|período|forma|pago|m[eé]todo|condiciones|cliente|proveedor|concepto|descripci[oó]n)\b", texto_lower):
+    if re.search(r"\b(factura|extracto|reporte|documento|pedido|order|ticket|resumen|fecha|saldo|movimiento|cobertura|lectura|periodo|período|forma|pago|m[eé]todo|condiciones|cliente|proveedor|concepto|descripci[oó]n|tarifa|tarifas)\b", texto_lower):
         score -= 120
 
     if re.search(r"\([^)]*\)", original):
