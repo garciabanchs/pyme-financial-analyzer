@@ -1,3 +1,4 @@
 flask
 pypdf
 reportlab
+weasyprint==62.3
