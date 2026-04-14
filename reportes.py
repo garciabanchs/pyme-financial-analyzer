@@ -2447,7 +2447,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
             .author-card-inner {{
                 display:flex;
-                gap:20px;
+                gap:28px;
                 align-items:flex-start;
                 flex-wrap:wrap;
             }}
@@ -2458,6 +2458,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 border-radius:999px;
                 object-fit:cover;
                 flex-shrink:0;
+                margin-right:6px;
                 box-shadow:0 10px 24px rgba(0,0,0,.12);
             }}
 
@@ -2865,7 +2866,12 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     .topbar-shell .chip,
     .hero-kicker,
     .book-link,
-    .cta-button {{
+    .cta-button,
+    #movimientos-section,
+    .section:has(.accordion-title),
+    .accordion-shell:has(.accordion-title:contains("Ver montos detectados")),
+    .accordion-shell:has(.accordion-title:contains("Ver detalle contable")),
+    .accordion-shell:has(.accordion-title:contains("Ver documentos analizados")) {{
         display: none !important;
     }}
 
@@ -2873,15 +2879,15 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         display: block !important;
     }}
 
+    .accordion-toggle {{
+        display: none !important;
+    }}
+
     .accordion-shell {{
         border: none !important;
         box-shadow: none !important;
-        margin: 12px 0 !important;
+        margin: 10px 0 !important;
         page-break-inside: avoid;
-    }}
-
-    .accordion-toggle {{
-        display: none !important;
     }}
 
     .section,
@@ -2919,7 +2925,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     .insight-hero-card,
     .diagnostic-card,
     .recommend-card {{
-        margin-bottom: 12px !important;
+        margin-bottom: 10px !important;
+        min-height: auto !important;
     }}
 
     .topbar,
@@ -2952,23 +2959,75 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     table {{
         min-width: 0 !important;
         width: 100% !important;
-        font-size: 11px !important;
+        font-size: 10px !important;
     }}
 
     thead th,
     tbody td {{
-        padding: 8px 10px !important;
+        padding: 6px 8px !important;
+    }}
+
+    .author-card-inner {{
+        display: grid !important;
+        grid-template-columns: 90px 1fr !important;
+        gap: 18px !important;
+        align-items: start !important;
+    }}
+
+    .author-photo {{
+        width: 90px !important;
+        height: 90px !important;
+        margin-right: 0 !important;
+    }}
+
+    .author-copy {{
+        min-width: 0 !important;
+    }}
+
+    .author-name {{
+        margin-top: 0 !important;
+        margin-bottom: 8px !important;
+        font-size: 1.05rem !important;
+    }}
+
+    .author-subtitle,
+    .author-description {{
+        font-size: .92rem !important;
+        line-height: 1.5 !important;
+    }}
+
+    .books-card {{
+        padding: 14px !important;
+    }}
+
+    .book-item {{
+        grid-template-columns: 72px 1fr !important;
+        gap: 12px !important;
+        padding: 10px 0 !important;
+        page-break-inside: avoid;
+    }}
+
+    .book-cover {{
+        width: 72px !important;
+        height: 108px !important;
+        object-fit: cover !important;
+        display: block !important;
+    }}
+
+    .book-title {{
+        font-size: .95rem !important;
+        line-height: 1.35 !important;
     }}
 
     .footer-card {{
-        margin-top: 18px !important;
+        margin-top: 16px !important;
         box-shadow: none !important;
         background: #ffffff !important;
     }}
 
     @page {{
         size: A4;
-        margin: 12mm;
+        margin: 10mm;
     }}
 }}
         
