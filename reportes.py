@@ -532,9 +532,9 @@ def _es_texto_basura_empresa(texto):
     if re.search(r"\b(cobertura|lectura|per[ií]odo|periodo|cierre|pendientes?|variaci[oó]n|documentos clasificados|forma de pago|m[eé]todo de pago|condiciones de pago|fecha de emisi[oó]n|fecha de vencimiento|cliente|proveedor|descripci[oó]n|concepto|tarifa|tarifas)\b", tl):
         return True
         
-    if re.search(r"\b(factura|invoice|extracto|statement|subtotal|total|iva|vat|fecha|date|iban|swift|bic|cuenta|account|saldo|payment|transfer|transferencia|movimiento|movimientos|reporte|report|contacto|contact|forma|pago|m[eé]todo|condiciones|cliente|proveedor|concepto|descripci[oó]n)\b", tl):
+    if re.search(r"\b(factura|invoice|extracto|statement|subtotal|total|iva|vat|fecha|date|iban|swift|bic|cuenta|account|saldo|payment|transfer|transferencia|movimiento|movimientos|reporte|report|contacto|contact|forma|pago|m[eé]todo|condiciones|cliente|proveedor|concepto|descripci[oó]n|tarifa|tarifas)\b", tl):
         return True
-
+        
     if re.search(r"\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre|january|february|march|april|may|june|july|august|september|october|november|december)\b", tl):
         return True
 
