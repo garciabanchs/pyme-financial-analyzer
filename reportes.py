@@ -458,383 +458,44 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
         "otros_pagos_total": otros_pagos_total,
     }
 
-def _limpiar_nombre_base(texto):
-    texto = str(texto or "").strip()
-    if not texto:
-        return ""
 
-    reemplazos = [
-        ".zip", ".pdf", ".xlsx", ".xls", ".csv", ".doc", ".docx",
-        "_analisis", "_reporte", "_reporte_final", "_final",
-    ]
-    texto_lower = texto.lower()
-    for sufijo in reemplazos:
-        if texto_lower.endswith(sufijo):
-            texto = texto[: -len(sufijo)]
-            texto_lower = texto.lower()
-
-    texto = texto.replace("_", " ").replace("-", " ").replace("/", " ").replace("\\", " ")
-    texto = " ".join(texto.split()).strip(" .,_-")
-    return texto
-
-
-def _titulo_caso(texto):
-    texto = " ".join(str(texto or "").strip().split())
-    if not texto:
-        return ""
-    return texto[:1].upper() + texto[1:]
-
-
-def _normalizar_candidato_empresa(texto):
-    texto = _limpiar_nombre_base(texto)
-
-    if not texto:
-        return ""
-
-    texto = re.sub(r"\([^)]*\)", " ", texto)
-    texto = re.sub(r"\[[^\]]*\]", " ", texto)
-    texto = re.sub(r"\{[^}]*\}", " ", texto)
-    texto = re.sub(r"[|<>~#*=+]+", " ", texto)
-    texto = re.sub(r"\s{2,}", " ", texto).strip(" .,:;_-")
-
-    return texto
-
-
-def _es_texto_basura_empresa(texto):
-    t = (texto or "").strip()
-    if not t:
-        return True
-
-    tl = t.lower().strip()
-
-    if len(t) < 3:
-        return True
-
-    bloqueados_exactos = {
-        "uploads", "outputs", "extracted", "factura", "facturas", "extracto", "extractos",
-        "reporte", "report", "analisis", "análisis", "documento", "documentos", "otros",
-        "pdf", "zip", "csv", "xlsx", "xls", "doc", "docx",
-        "factura venta", "factura compra", "extracto bancario", "resumen del extracto",
-        "movimientos", "ledger", "saldo inicial", "saldo final", "resumen", "statement",
-        "invoice", "receipt", "activity summary", "historial de transacciones",
-        "cobertura completa", "cobertura completa 4 m", "lectura ejecutiva del período",
-        "lectura preliminar para toma de decisiones en pyme",
-        "informe financiero ejecutivo", "pyme financial analyzer",
-        "dinero que entró", "dinero que salió", "cierre", "periodo", "período",
-        "forma de pago", "método de pago", "metodo de pago", "condiciones de pago",
-        "fecha de emisión", "fecha de emision", "fecha de vencimiento",
-        "cliente", "proveedor", "descripción", "descripcion", "concepto",
-    }
-    if tl in bloqueados_exactos:
-        return True
-
-    if tl.startswith("(") and tl.endswith(")"):
-        return True
-
-    if re.search(r"\b(cobertura|lectura|per[ií]odo|periodo|cierre|pendientes?|variaci[oó]n|documentos clasificados|forma de pago|m[eé]todo de pago|condiciones de pago|fecha de emisi[oó]n|fecha de vencimiento|cliente|proveedor|descripci[oó]n|concepto)\b", tl):
-        return True
-
-    if re.search(r"\b(factura|invoice|extracto|statement|subtotal|total|iva|vat|fecha|date|iban|swift|bic|cuenta|account|saldo|payment|transfer|transferencia|movimiento|movimientos|reporte|report|contacto|contact|forma|pago|m[eé]todo|condiciones|cliente|proveedor|concepto|descripci[oó]n)\b", tl):
-        return True
-
-    if re.search(r"\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre|january|february|march|april|may|june|july|august|september|october|november|december)\b", tl):
-        return True
-
-    if re.search(r"\b\d{5,}\b", tl):
-        return True
-
-    if re.fullmatch(r"[\W_]+", tl):
-        return True
-
-    if len(t.split()) > 8:
-        return True
-
-    return False
-
-
-def _parece_direccion_o_ubicacion(texto):
-    t = (texto or "").strip().lower()
-    if not t:
-        return False
-
-    patrones_direccion = [
-        r"\bcalle\b",
-        r"\bavda\b",
-        r"\bavenida\b",
-        r"\bplaza\b",
-        r"\bpaseo\b",
-        r"\bcarretera\b",
-        r"\bcamino\b",
-        r"\bpol[ií]gono\b",
-        r"\burbanizaci[oó]n\b",
-        r"\blocal\b",
-        r"\bportal\b",
-        r"\bpiso\b",
-        r"\bpuerta\b",
-        r"\bentrada\b",
-        r"\bescalera\b",
-        r"\boficina\b",
-        r"\bnave\b",
-        r"\bc\./",
-        r"\bc/",
-        r"\bcp\b",
-        r"\bcod(?:igo)? postal\b",
-        r"\bpostal\b",
-        r"\bn[úu]m(?:ero)?\.?\b",
-        r"\bkm\b",
-    ]
-
-    for patron in patrones_direccion:
-        if re.search(patron, t, flags=re.IGNORECASE):
-            return True
-
-    if re.search(r"\b\d{1,4}\b", t) and any(
-        palabra in t for palabra in [
-            "calle", "avenida", "avda", "local", "piso", "puerta",
-            "entrada", "oficina", "plaza", "c/"
-        ]
-    ):
-        return True
-
-    return False
-
-
-def _parece_nombre_empresa_valido(texto):
-    t = (texto or "").strip()
-    if not t:
-        return False
-
-    if _es_texto_basura_empresa(t):
-        return False
-
-    if _parece_direccion_o_ubicacion(t):
-        return False
-
-    if len(t) < 3 or len(t) > 70:
-        return False
-
-    if not re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", t):
-        return False
-
-    return True
-
-
-def _extraer_linea_razon_social(texto):
-    texto = texto or ""
-    if not texto:
-        return ""
-
-    patrones = [
-        r"(?im)^\s*raz[oó]n social\s*[:\-]\s*(.+?)\s*$",
-        r"(?im)^\s*nombre comercial\s*[:\-]\s*(.+?)\s*$",
-        r"(?im)^\s*empresa\s*[:\-]\s*(.+?)\s*$",
-        r"(?im)^\s*sociedad\s*[:\-]\s*(.+?)\s*$",
-        r"(?im)^\s*emisor\s*[:\-]\s*(.+?)\s*$",
-        r"(?im)^\s*emitido por\s*[:\-]\s*(.+?)\s*$",
-    ]
-
-    for patron in patrones:
-        m = re.search(patron, texto)
-        if m:
-            candidato = _normalizar_candidato_empresa(m.group(1))
-            if _parece_nombre_empresa_valido(candidato):
-                return candidato
-
-    return ""
-
-
-def _extraer_candidatos_empresa_desde_texto(texto):
-    texto = texto or ""
-    if not texto:
-        return []
-
-    candidatos = []
-    vistos = set()
-
-    def agregar(valor):
-        valor = _normalizar_candidato_empresa(valor)
-        if not valor:
-            return
-        if not _parece_nombre_empresa_valido(valor):
-            return
-        clave = valor.lower()
-        if clave in vistos:
-            return
-        vistos.add(clave)
-        candidatos.append(valor)
-
-    razon_social = _extraer_linea_razon_social(texto)
-    if razon_social:
-        agregar(razon_social)
-
-    lineas = [
-        linea.strip(" :-\t")
-        for linea in texto.splitlines()
-        if linea and linea.strip()
-    ]
-
-    patrones_directos = [
-        r"(?:raz[oó]n social|nombre comercial|empresa|sociedad|titular)\s*[:\-]\s*([^\n\r]{3,80})",
-        r"(?:emitido por|emisor|proveedor|supplier|seller|sold by|merchant|comercio)\s*[:\-]\s*([^\n\r]{3,80})",
-    ]
-
-    for patron in patrones_directos:
-        for m in re.finditer(patron, texto, flags=re.IGNORECASE):
-            agregar(m.group(1) or "")
-
-    for linea in lineas[:20]:
-        linea_norm = _normalizar_candidato_empresa(linea)
-
-        if not linea_norm:
-            continue
-        if not _parece_nombre_empresa_valido(linea_norm):
-            continue
-        if re.search(r"\b\d{4,}\b", linea_norm):
-            continue
-
-        agregar(linea_norm)
-
-    return candidatos[:40]
-
-
-def _puntuar_candidato_empresa(candidato):
-    original = str(candidato or "").strip()
-    if not original:
-        return -9999
-
-    candidato_norm = _normalizar_candidato_empresa(original)
-    texto_lower = candidato_norm.lower()
-
-    if not _parece_nombre_empresa_valido(candidato_norm):
-        return -9999
-
-    score = 0
-    palabras = candidato_norm.split()
-
-    score += 20
-
-    if 1 <= len(palabras) <= 4:
-        score += 25
-    elif len(palabras) <= 6:
-        score += 10
-    else:
-        score -= 20
-
-    if 4 <= len(candidato_norm) <= 32:
-        score += 20
-    elif len(candidato_norm) <= 50:
-        score += 5
-    else:
-        score -= 20
-
-    if re.search(r"\b(s\.l\.?|s\.a\.?|sl|sa|llc|inc|ltd|limited|corp|corporation|gmbh|bv)\b", texto_lower):
-        score += 35
-
-    if re.search(r"^[A-ZÁÉÍÓÚÜÑ0-9&.,' -]+$", original) and re.search(r"[A-ZÁÉÍÓÚÜÑ]", original):
-        score += 10
-
-    if re.search(r"^[A-ZÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ&.,' -]+$", candidato_norm):
-        score += 10
-
-    if re.search(r"\b(sociedad|grupo|industries|solutions|services|holding|holdings|consulting|studio|market|systems)\b", texto_lower):
-        score += 8
-
-    if re.search(r"\b(factura|extracto|reporte|documento|pedido|order|ticket|resumen|fecha|saldo|movimiento|cobertura|lectura|periodo|período|forma|pago|m[eé]todo|condiciones|cliente|proveedor|concepto|descripci[oó]n)\b", texto_lower):
-        score -= 120
-
-    if re.search(r"\([^)]*\)", original):
-        score -= 40
-
-    if re.search(r"\b\d{3,}\b", texto_lower):
-        score -= 25
-
-    return score
-
-
-def _extraer_nombre_empresa_desde_factura_venta(documentos):
+def inferir_nombre_empresa(documentos, ledger):
     documentos = documentos or []
 
+    # SOLO usa factura de venta. Si no hay, no inventa.
     for item in documentos:
         if item.get("tipo") != "factura_venta":
             continue
 
-        texto = item.get("texto", "") or ""
+        texto = (item.get("texto") or "").strip()
 
-        # 1) razón social explícita
-        candidato = _extraer_linea_razon_social(texto)
-        if candidato and _puntuar_candidato_empresa(candidato) >= 40:
-            return _titulo_caso(candidato)
+        # Busca razón social explícita
+        patrones = [
+            r"(?im)^\s*raz[oó]n social\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*nombre comercial\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*empresa\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*emitido por\s*[:\-]\s*(.+?)\s*$",
+        ]
 
-        # 2) primer candidato válido dentro de la factura de venta
-        candidatos = _extraer_candidatos_empresa_desde_texto(texto)
-        if candidatos:
-            mejor = sorted(
-                candidatos,
-                key=lambda x: (-_puntuar_candidato_empresa(x), len(x))
-            )[0]
-            if _puntuar_candidato_empresa(mejor) >= 55:
-                return _titulo_caso(mejor)
+        for patron in patrones:
+            m = re.search(patron, texto)
+            if m:
+                candidato = m.group(1).strip()
 
-    return ""
+                # limpieza básica
+                candidato = re.sub(r"\([^)]*\)", "", candidato)
+                candidato = re.sub(r"\s+", " ", candidato).strip()
 
+                if len(candidato) >= 3:
+                    return candidato[:1].upper() + candidato[1:]
 
-def inferir_nombre_empresa(documentos, ledger):
-    documentos = documentos or []
-    ledger = ledger or []
+        # fallback simple: primera línea útil
+        for linea in texto.splitlines():
+            linea = linea.strip()
+            if len(linea) > 3 and not re.search(r"\d{4,}", linea):
+                return linea[:1].upper() + linea[1:]
 
-    # BLOQUEO QUIRÚRGICO:
-    # Primero intenta SOLO factura de venta.
-    # Si no encuentra algo muy confiable, NO inventa nada.
-    nombre_desde_factura = _extraer_nombre_empresa_desde_factura_venta(documentos)
-    if nombre_desde_factura:
-        return nombre_desde_factura
-
-    # Segundo intento: extracto bancario / resumen, pero con umbral alto.
-    candidatos_score = {}
-
-    def sumar_candidato(texto, peso=1.0, bonus=0):
-        limpio = _normalizar_candidato_empresa(texto)
-        if not limpio:
-            return
-
-        score = _puntuar_candidato_empresa(limpio)
-        if score <= 0:
-            return
-
-        clave = limpio.lower()
-        candidatos_score[clave] = candidatos_score.get(clave, {
-            "texto": limpio,
-            "score": 0.0,
-            "apariciones": 0,
-        })
-
-        candidatos_score[clave]["score"] += (score * peso) + bonus
-        candidatos_score[clave]["apariciones"] += 1
-
-    for item in documentos:
-        if item.get("tipo") in ["extracto_bancario", "extracto_resumen"]:
-            texto = item.get("texto", "") or ""
-            for candidato in _extraer_candidatos_empresa_desde_texto(texto):
-                sumar_candidato(candidato, peso=1.25)
-
-    if not candidatos_score:
-        return "la empresa"
-
-    candidatos_ordenados = sorted(
-        candidatos_score.values(),
-        key=lambda x: (-x["score"], -x["apariciones"], len(x["texto"]))
-    )
-
-    mejor = candidatos_ordenados[0]
-
-    # Umbral exigente: si no hay evidencia fuerte, fallback limpio.
-    if mejor["score"] < 90:
-        return "la empresa"
-
-    if mejor["apariciones"] < 2 and mejor["score"] < 110:
-        return "la empresa"
-
-    return _titulo_caso(mejor["texto"])
+    return "la empresa"
 
 def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     saldo_inicial = flujo["saldo_inicial"]
