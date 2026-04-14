@@ -3455,9 +3455,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 applyFilter("all", "conciliacion-section");
             }})();
 
-if ('scrollRestoration' in history) {
+if ('scrollRestoration' in history) {{
     history.scrollRestoration = 'manual';
-}
+}}
 
 window.addEventListener("load", function () {{
     setTimeout(() => window.scrollTo(0, 0), 0);
