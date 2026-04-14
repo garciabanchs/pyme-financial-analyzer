@@ -2857,38 +2857,34 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 }}
             }}
 
-@media print {{
+@media print {
     .filter-toolbar,
     .accordion-icon,
     .actions-bar,
     .btn-ghost,
     .footer-actions,
-    .topbar-shell .chip,
     .hero-kicker,
     .book-link,
     .cta-button,
     #movimientos-section,
-    .section:has(.accordion-title),
-    .accordion-shell:has(.accordion-title:contains("Ver montos detectados")),
-    .accordion-shell:has(.accordion-title:contains("Ver detalle contable")),
-    .accordion-shell:has(.accordion-title:contains("Ver documentos analizados")) {{
+    .topbar-shell .company-meta {
         display: none !important;
-    }}
+    }
 
-    .accordion-panel {{
+    .accordion-panel {
         display: block !important;
-    }}
+    }
 
-    .accordion-toggle {{
+    .accordion-toggle {
         display: none !important;
-    }}
+    }
 
-    .accordion-shell {{
+    .accordion-shell {
         border: none !important;
         box-shadow: none !important;
         margin: 10px 0 !important;
         page-break-inside: avoid;
-    }}
+    }
 
     .section,
     .story-card,
@@ -2902,21 +2898,24 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     .alert-card,
     .author-card,
     .books-card,
-    .contact-card {{
+    .contact-card,
+    .footer-card,
+    .topbar,
+    .hero {
         box-shadow: none !important;
         backdrop-filter: none !important;
         background: #ffffff !important;
         page-break-inside: avoid;
-    }}
+    }
 
     .hero,
     .hero-side,
     .metrics-grid,
     .diagnostic-grid,
     .story-layout,
-    .alerts-grid {{
+    .alerts-grid {
         display: block !important;
-    }}
+    }
 
     .metric-card,
     .kpi,
@@ -2924,112 +2923,111 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     .score-card,
     .insight-hero-card,
     .diagnostic-card,
-    .recommend-card {{
+    .recommend-card {
         margin-bottom: 10px !important;
         min-height: auto !important;
-    }}
+    }
 
     .topbar,
     .section,
-    .hero {{
+    .hero {
         border: 1px solid #dbe2ea !important;
-    }}
+    }
 
     .brand h1,
     .hero h2,
     .section-title,
     .author-name,
-    .book-title {{
-        word-break: break-word;
-        overflow-wrap: anywhere;
-    }}
+    .book-title,
+    .footer-card,
+    .metric-delta span,
+    .hero p,
+    .story-card p,
+    .insight-highlight {
+        word-break: break-word !important;
+        overflow-wrap: anywhere !important;
+    }
 
-    .table-wrap {{
+    .table-wrap {
         display: block !important;
         overflow: visible !important;
-    }}
+    }
 
     .mobile-doc-grid,
     .mobile-amount-grid,
     .mobile-movements-grid,
-    .mobile-conc-grid {{
+    .mobile-conc-grid {
         display: none !important;
-    }}
+    }
 
-    table {{
+    table {
         min-width: 0 !important;
         width: 100% !important;
         font-size: 10px !important;
-    }}
+    }
 
     thead th,
-    tbody td {{
+    tbody td {
         padding: 6px 8px !important;
-    }}
+    }
 
-    .author-card-inner {{
+    .author-card-inner {
         display: grid !important;
         grid-template-columns: 90px 1fr !important;
         gap: 18px !important;
         align-items: start !important;
-    }}
+    }
 
-    .author-photo {{
+    .author-photo {
         width: 90px !important;
         height: 90px !important;
         margin-right: 0 !important;
-    }}
+    }
 
-    .author-copy {{
+    .author-copy {
         min-width: 0 !important;
-    }}
+    }
 
-    .author-name {{
+    .author-name {
         margin-top: 0 !important;
         margin-bottom: 8px !important;
         font-size: 1.05rem !important;
-    }}
+    }
 
     .author-subtitle,
-    .author-description {{
+    .author-description {
         font-size: .92rem !important;
         line-height: 1.5 !important;
-    }}
+    }
 
-    .books-card {{
+    .books-card {
         padding: 14px !important;
-    }}
+    }
 
-    .book-item {{
+    .book-item {
         grid-template-columns: 72px 1fr !important;
         gap: 12px !important;
         padding: 10px 0 !important;
         page-break-inside: avoid;
-    }}
+    }
 
-    .book-cover {{
+    .book-cover {
         width: 72px !important;
         height: 108px !important;
         object-fit: cover !important;
         display: block !important;
-    }}
+    }
 
-    .book-title {{
+    .book-title {
         font-size: .95rem !important;
         line-height: 1.35 !important;
-    }}
+    }
 
-    .footer-card {{
-        margin-top: 16px !important;
-        box-shadow: none !important;
-        background: #ffffff !important;
-    }}
-
-    @page {{
+    @page {
         size: A4;
         margin: 10mm;
-    }}
-}}
+    }
+}
         
         </style>
     </head>
