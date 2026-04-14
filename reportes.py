@@ -3209,7 +3209,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     {bloque_como_leer}
                 </section>
 
-                <section class="section">
+                <section class="section" id="detalle-documental-section">
                     <div class="section-head">
                         <div>
                             <h3 class="section-title">Detalle documental</h3>
@@ -3234,7 +3234,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     {bloque_movimientos_menores_html()}
                 </section>
 
-                <section class="section">
+                <section class="section" id="detalle-contable-section">
                     <div class="section-head">
                         <div>
                             <h3 class="section-title">Detalle contable</h3>
