@@ -2856,61 +2856,122 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 }}
             }}
 
-            @media (max-width:560px) {{
-                .metrics-grid {{
-                    grid-template-columns:1fr;
-                }}
-
-                .company-meta {{
-                    gap:8px;
-                }}
-
-                .chip {{
-                    font-size:.82rem;
-                    padding:9px 12px;
-                }}
-            }}
-
-@media print {
+@media print {{
     .filter-toolbar,
-    .accordion-toggle,
+    .accordion-icon,
     .actions-bar,
-    .footer-actions {
+    .btn-ghost,
+    .footer-actions,
+    .topbar-shell .chip,
+    .hero-kicker,
+    .book-link,
+    .cta-button {{
         display: none !important;
-    }
+    }}
 
-    .accordion-panel {
+    .accordion-panel {{
         display: block !important;
-    }
+    }}
+
+    .accordion-shell {{
+        border: none !important;
+        box-shadow: none !important;
+        margin: 12px 0 !important;
+        page-break-inside: avoid;
+    }}
+
+    .accordion-toggle {{
+        display: none !important;
+    }}
 
     .section,
-    .hero,
+    .story-card,
+    .insight-card,
+    .diagnostic-card,
+    .recommend-card,
+    .score-card,
+    .insight-hero-card,
     .kpi,
     .metric-card,
     .alert-card,
-    .score-card {
+    .author-card,
+    .books-card,
+    .contact-card {{
         box-shadow: none !important;
+        backdrop-filter: none !important;
         background: #ffffff !important;
         page-break-inside: avoid;
-    }
+    }}
 
     .hero,
+    .hero-side,
     .metrics-grid,
-    .diagnostic-grid {
+    .diagnostic-grid,
+    .story-layout,
+    .alerts-grid {{
         display: block !important;
-    }
+    }}
 
-    table {
+    .metric-card,
+    .kpi,
+    .alert-card,
+    .score-card,
+    .insight-hero-card,
+    .diagnostic-card,
+    .recommend-card {{
+        margin-bottom: 12px !important;
+    }}
+
+    .topbar,
+    .section,
+    .hero {{
+        border: 1px solid #dbe2ea !important;
+    }}
+
+    .brand h1,
+    .hero h2,
+    .section-title,
+    .author-name,
+    .book-title {{
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }}
+
+    .table-wrap {{
+        display: block !important;
+        overflow: visible !important;
+    }}
+
+    .mobile-doc-grid,
+    .mobile-amount-grid,
+    .mobile-movements-grid,
+    .mobile-conc-grid {{
+        display: none !important;
+    }}
+
+    table {{
+        min-width: 0 !important;
         width: 100% !important;
         font-size: 11px !important;
-    }
+    }}
 
-    @page {
+    thead th,
+    tbody td {{
+        padding: 8px 10px !important;
+    }}
+
+    .footer-card {{
+        margin-top: 18px !important;
+        box-shadow: none !important;
+        background: #ffffff !important;
+    }}
+
+    @page {{
         size: A4;
         margin: 12mm;
-    }
-}
-
+    }}
+}}
+        
         </style>
     </head>
     <body>
