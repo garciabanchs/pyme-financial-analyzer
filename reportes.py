@@ -2979,6 +2979,32 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         background: #ffffff !important;
     }}
 
+    /* === RECORTE EJECUTIVO DEL PDF === */
+
+    #detalle-documental-section,
+    #detalle-contable-section {
+        display: none !important;
+    }
+
+    #movimientos-section .filter-toolbar,
+    #movimientos-section .table-shell,
+    #movimientos-section .mobile-movements-grid,
+    #movimientos-section .metrics-grid,
+    #movimientos-section .compact-grid,
+    #movimientos-section .compact-grid-soft {
+        display: none !important;
+    }
+
+    #movimientos-section {
+        display: none !important;
+    }
+
+    #conciliacion-section .filter-toolbar,
+    #conciliacion-section .table-shell,
+    #conciliacion-section .mobile-conc-grid {
+        display: none !important;
+    }
+
     @page {{
         size: A4;
         margin: 12mm;
