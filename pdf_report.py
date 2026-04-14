@@ -19,6 +19,7 @@ from reportes import (
     construir_narrativa_ejecutiva,
     normalizar_estado_conciliacion,
     humanizar_estado_conciliacion,
+    inferir_nombre_empresa,
 )
 
 
@@ -31,12 +32,10 @@ def _num(valor):
 
 
 def _resumen_flujo(documentos, ledger):
-    # Se mantiene la firma por compatibilidad, pero la lógica vive en reportes.py
     return construir_resumen_flujo(ledger)
 
 
 def _resumen_conciliacion(conciliacion):
-    # Se mantiene la firma por compatibilidad, pero la lógica vive en reportes.py
     return construir_resumen_conciliacion(conciliacion)
 
 
@@ -50,13 +49,13 @@ def _narrativa_pdf(total_documentos, docs, flujo, conc):
 
 def _hallazgos_conciliacion_texto(conc):
     return (
-        f"Pendiente de cobro estimado: € {_fmt_eur(conc['pendiente_cobro'])}. "
-        f"Pendiente de pago estimado: € {_fmt_eur(conc['pendiente_pago'])}. "
-        f"Facturas conciliadas exactas: {conc['conciliadas']}. "
-        f"Facturas exactas múltiples: {conc.get('conciliadas_multi', 0)}. "
-        f"Facturas probables: {conc['parciales']}. "
-        f"Facturas probables múltiples: {conc.get('probables_multi', 0)}. "
-        f"Registros pendientes: {conc['pendientes']}. "
+        f"Pendiente de cobro: € {_fmt_eur(conc['pendiente_cobro'])}. "
+        f"Pendiente de pago: € {_fmt_eur(conc['pendiente_pago'])}. "
+        f"Conciliaciones exactas: {conc['conciliadas']}. "
+        f"Conciliaciones exactas múltiples: {conc.get('conciliadas_multi', 0)}. "
+        f"Conciliaciones probables: {conc['parciales']}. "
+        f"Conciliaciones probables múltiples: {conc.get('probables_multi', 0)}. "
+        f"Pendientes: {conc['pendientes']}. "
         f"Movimientos sin soporte: {conc.get('sin_soporte', 0)}. "
         f"Duplicados potenciales: {conc.get('duplicados', 0)}."
     )
@@ -67,20 +66,20 @@ def _observacion_ejecutiva(conc):
 
     if nivel == "bajo":
         return (
-            "La lectura financiera todavía no puede considerarse cerrada. "
-            "Aunque el flujo del período ya es visible, existen conciliaciones no definitivas, "
-            "movimientos sin soporte o duplicados potenciales que reducen la confiabilidad del cierre."
+            "El período ya permite una lectura financiera preliminar, "
+            "pero todavía existen pendientes, movimientos sin soporte o validaciones abiertas "
+            "que impiden considerar el cierre como definitivo."
         )
 
     if nivel == "medio":
         return (
-            "La lectura financiera ya es útil, pero todavía requiere validaciones antes de considerarse cierre limpio. "
-            "Persisten coincidencias múltiples, validaciones prudenciales o señales de revisión que conviene confirmar."
+            "La lectura financiera es útil para gestión, aunque todavía conviene validar "
+            "algunas coincidencias múltiples o señales puntuales antes de dar el cierre por limpio."
         )
 
     return (
-        "La lectura financiera del período es razonablemente consistente para revisión ejecutiva preliminar. "
-        "Aun así, el informe sigue siendo automático y no sustituye validación contable o fiscal definitiva."
+        "La lectura financiera preliminar del período luce razonablemente consistente. "
+        "Aun así, este informe sigue siendo automático y no sustituye revisión contable o fiscal definitiva."
     )
 
 
@@ -303,6 +302,13 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, documentos, ledger
     docs = _resumen_documentos(clasificados)
     flujo = _resumen_flujo(documentos, ledger)
     conc = _resumen_conciliacion(conciliacion)
+
+    nombre_empresa = inferir_nombre_empresa(documentos, ledger)
+    nombre_empresa_titulo = (
+        nombre_empresa if nombre_empresa and nombre_empresa != "la empresa"
+        else "la empresa analizada"
+    )
+
     titular, narrativa = _narrativa_pdf(
         total_documentos=sum(docs.values()),
         docs=docs,
@@ -340,7 +346,11 @@ def generar_pdf_ejecutivo(pdf_path, nombre_zip, clasificados, documentos, ledger
     c.drawString(margin_x + 18, height - 2.4 * cm, "PYME FINANCIAL ANALYZER")
 
     c.setFont("Helvetica-Bold", 23)
-    c.drawString(margin_x + 18, height - 3.35 * cm, "Informe financiero ejecutivo")
+    c.drawString(
+        margin_x + 18,
+        height - 3.35 * cm,
+        f"Informe financiero de {nombre_empresa_titulo}"
+    )
 
     c.setFillColor(HexColor("#cbd5e1"))
     c.setFont("Helvetica", 10.5)
