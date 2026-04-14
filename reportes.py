@@ -813,10 +813,10 @@ def inferir_nombre_empresa(documentos, ledger):
     mejor = candidatos_ordenados[0]
 
     # Si no hay señal suficiente, fallback limpio
-    if mejor["score"] < 60:
+    if mejor["score"] < 75:
         return "la empresa"
 
-    if mejor["apariciones"] == 1 and mejor["score"] < 85:
+    if mejor["apariciones"] < 2:
         return "la empresa"
 
     return _titulo_caso(mejor["texto"])
