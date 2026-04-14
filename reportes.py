@@ -2871,121 +2871,45 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 }}
             }}
 
-            @media print {{
-                .filter-toolbar,
-                .accordion-icon,
-                .actions-bar,
-                .btn-ghost,
-                .footer-actions,
-                .topbar-shell .chip,
-                .hero-kicker,
-                .book-link,
-                .cta-button {{
-                    display: none !important;
-                }}
+@media print {
+    .filter-toolbar,
+    .accordion-toggle,
+    .actions-bar,
+    .footer-actions {
+        display: none !important;
+    }
 
-                .accordion-panel {{
-                    display: block !important;
-                }}
+    .accordion-panel {
+        display: block !important;
+    }
 
-                .accordion-shell {{
-                    border: none !important;
-                    box-shadow: none !important;
-                    margin: 12px 0 !important;
-                    page-break-inside: avoid;
-                }}
+    .section,
+    .hero,
+    .kpi,
+    .metric-card,
+    .alert-card,
+    .score-card {
+        box-shadow: none !important;
+        background: #ffffff !important;
+        page-break-inside: avoid;
+    }
 
-                .accordion-toggle {{
-                    display: none !important;
-                }}
+    .hero,
+    .metrics-grid,
+    .diagnostic-grid {
+        display: block !important;
+    }
 
-                .section,
-                .story-card,
-                .insight-card,
-                .diagnostic-card,
-                .recommend-card,
-                .score-card,
-                .insight-hero-card,
-                .kpi,
-                .metric-card,
-                .alert-card,
-                .author-card,
-                .books-card,
-                .contact-card {{
-                    box-shadow: none !important;
-                    backdrop-filter: none !important;
-                    background: #ffffff !important;
-                    page-break-inside: avoid;
-                }}
+    table {
+        width: 100% !important;
+        font-size: 11px !important;
+    }
 
-                .hero,
-                .hero-side,
-                .metrics-grid,
-                .diagnostic-grid,
-                .story-layout,
-                .alerts-grid {{
-                    display: block !important;
-                }}
-
-                .metric-card,
-                .kpi,
-                .alert-card,
-                .score-card,
-                .insight-hero-card,
-                .diagnostic-card,
-                .recommend-card {{
-                    margin-bottom: 12px !important;
-                }}
-
-                .topbar,
-                .section,
-                .hero {{
-                    border: 1px solid #dbe2ea !important;
-                }}
-
-                .brand h1,
-                .hero h2,
-                .section-title,
-                .author-name,
-                .book-title {{
-                    word-break: break-word;
-                    overflow-wrap: anywhere;
-                }}
-
-                .table-wrap {{
-                    display: block !important;
-                    overflow: visible !important;
-                }}
-
-                .mobile-doc-grid,
-                .mobile-amount-grid,
-                .mobile-movements-grid,
-                .mobile-conc-grid {{
-                    display: none !important;
-                }}
-
-                table {{
-                    min-width: 0 !important;
-                    width: 100% !important;
-                    font-size: 11px !important;
-                }}
-
-                thead th,
-                tbody td {{
-                    padding: 8px 10px !important;
-                }}
-
-                .footer-card {{
-                    margin-top: 18px !important;
-                    box-shadow: none !important;
-                    background: #ffffff !important;
-                }}
-
-                @page {{
-                    size: A4;
-                    margin: 12mm;
-                }}
-            }}
+    @page {
+        size: A4;
+        margin: 12mm;
+    }
+}
 
         </style>
     </head>
