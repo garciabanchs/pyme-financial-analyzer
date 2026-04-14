@@ -1510,6 +1510,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Informe financiero de {nombre_empresa_titulo}</title>
+        <link rel="icon" type="image/png" href="https://angelgarciabanchs.com/wp-content/uploads/2025/06/imagen-circular.png">
         <style>
             :root {{
                 --bg:#f4f7fb;
