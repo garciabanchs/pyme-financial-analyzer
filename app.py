@@ -222,14 +222,7 @@ def upload():
 
     output_pdf_filename = f"{nombre_base}_reporte.pdf"
     output_pdf_path = os.path.join(OUTPUT_FOLDER, output_pdf_filename)
-    generar_pdf_ejecutivo(
-        pdf_path=output_pdf_path,
-        nombre_zip=file.filename,
-        clasificados=clasificados,
-        documentos=documentos,
-        ledger=ledger,
-        conciliacion=conciliacion
-    )
+    generar_pdf_ejecutivo(output_pdf_path, html_resultado)
 
     enlaces_descarga = f"""
     <div style="display:flex; justify-content:center; gap:14px; flex-wrap:wrap; margin:24px 0;">
