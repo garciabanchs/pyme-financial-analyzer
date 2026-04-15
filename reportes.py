@@ -1129,17 +1129,19 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </div>
             """
 
-        def prioridad_conciliacion(item):
+         def prioridad_conciliacion(item):
             categoria = (item.get("categoria") or "").strip().lower()
             fecha = item.get("fecha", "") or ""
             archivo = item.get("archivo", "") or ""
 
-            if categoria == "factura_venta":
+            if categoria in ["factura_venta", "cobro_cliente", "otros_cobros"]:
                 prioridad = 0
-            elif categoria == "factura_compra":
+            elif categoria in ["factura_compra", "pago_proveedor", "gasto_operativo", "otros_pagos"]:
                 prioridad = 1
-            else:
+            elif categoria in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
                 prioridad = 2
+            else:
+                prioridad = 3
 
             return (prioridad, fecha, archivo)
 
