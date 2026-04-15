@@ -1157,7 +1157,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             estado_raw = item.get("estado", "-")
             estado_norm = normalizar_estado_conciliacion(estado_raw)
             estado = humanizar_estado(estado_raw)
-            badge_class = badge_class_estado(estado_raw)
+            badge_class = clase_badge_categoria(item.get("categoria"))
 
             tags = ["all"]
             if estado_norm in ["pendiente", "pendiente_cobro", "pendiente_pago"]:
