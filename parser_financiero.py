@@ -192,27 +192,36 @@ def _extraer_ultimo_total_documento(texto):
 
 def _extraer_total_desde_base_iva_total(texto):
     """
-    Busca bloques tipo:
-    BASE IMPONIBLE | IVA | TOTAL
-    y devuelve el total final, no la base.
+    Extrae el TOTAL final de una factura incluso si el OCR rompe la tabla.
+    Estrategia:
+    - Detectar bloque donde aparezcan BASE IMPONIBLE + IVA
+    - Tomar los importes cercanos
+    - El mayor importe suele ser el TOTAL
     """
+
     if not texto:
         return None
 
-    texto_norm = " ".join((texto or "").split())
-    texto_lower = texto_norm.lower()
+    texto_lower = texto.lower()
 
-    patrones = [
-        r"base imponible.*?(-?\d{1,3}(?:\.\d{3})*,\d{2}).*?(?:i\.?\s*v\.?\s*a|iva).*?(-?\d{1,3}(?:\.\d{3})*,\d{2}).*?total.*?(-?\d{1,3}(?:\.\d{3})*,\d{2})",
-        r"base imp(?:onible)?\s*.*?(-?\d{1,3}(?:\.\d{3})*,\d{2}).*?(?:i\.?\s*v\.?\s*a|iva).*?(-?\d{1,3}(?:\.\d{3})*,\d{2}).*?total.*?(-?\d{1,3}(?:\.\d{3})*,\d{2})",
-    ]
+    # Normalizar espacios para evitar saltos de línea problemáticos
+    texto_norm = " ".join(texto_lower.split())
 
-    for patron in patrones:
-        m = re.search(patron, texto_lower, flags=re.IGNORECASE | re.DOTALL)
-        if m:
-            candidato = m.group(3)
-            if normalizar_importe(candidato) is not None:
-                return candidato.strip()
+    # Buscar zona donde estén las etiquetas clave
+    if "base imponible" in texto_norm and ("iva" in texto_norm or "i.v.a" in texto_norm):
+
+        # Extraer todos los importes del bloque completo
+        importes = re.findall(r"-?\d{1,3}(?:\.\d{3})*,\d{2}", texto_norm)
+
+        importes_validos = []
+        for imp in importes:
+            valor = normalizar_importe(imp)
+            if valor is not None:
+                importes_validos.append((imp, valor))
+
+        if len(importes_validos) >= 2:
+            # 🔥 CLAVE: el mayor valor en ese bloque suele ser el TOTAL
+            return max(importes_validos, key=lambda x: x[1])[0]
 
     return None
 
