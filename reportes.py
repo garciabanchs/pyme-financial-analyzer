@@ -530,8 +530,8 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "clase_fila": "row-salida",
         })
 
-    entradas_relevantes.sort(key=lambda x: (x["fecha"], -x["importe_abs"]))
-    salidas_relevantes.sort(key=lambda x: (x["fecha"], -x["importe_abs"]))
+    entradas_relevantes.sort(key=lambda x: ("0000-00-00" if x["fecha"] == "n.a." else x["fecha"], -x["importe_abs"]))
+    salidas_relevantes.sort(key=lambda x: ("0000-00-00" if x["fecha"] == "n.a." else x["fecha"], -x["importe_abs"]))
 
     return {
         "entradas_relevantes": entradas_relevantes,
