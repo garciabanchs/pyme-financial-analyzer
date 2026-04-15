@@ -1382,7 +1382,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         return f"""
         <div class="metrics-grid compact-grid compact-grid-soft">
             <article class="kpi">
-                <div class="label">Otros cobros menores</div>
+                <div class="label">Otros ingresos menores</div>
                 <div class="amount">{analisis['otros_cobros_cantidad']}+</div>
                 <div class="meta">
                     <span class="trend up">€ {fmt(analisis['otros_cobros_total'])}</span>
