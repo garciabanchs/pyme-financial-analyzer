@@ -203,14 +203,16 @@ def construir_resumen_flujo(ledger):
             saldo_final = resumen.get("saldo_final_disponible") or 0.0
             retenido = abs(resumen.get("retenido") or 0.0)
 
-            entradas = max(resumen.get("pagos_recibidos") or 0.0, 0.0)
-            entradas += max(resumen.get("depositos_y_creditos") or 0.0, 0.0)
-            entradas += max(resumen.get("liberaciones") or 0.0, 0.0)
+            entradas = 0.0
+            entradas += abs(resumen.get("pagos_recibidos") or 0.0)
+            entradas += abs(resumen.get("depositos_y_creditos") or 0.0)
+            entradas += abs(resumen.get("liberaciones") or 0.0)
 
-            salidas = abs(min(resumen.get("pagos_enviados") or 0.0, 0.0))
-            salidas += abs(min(resumen.get("retiradas_y_cargos") or 0.0, 0.0))
-            salidas += abs(min(resumen.get("tarifas") or 0.0, 0.0))
-            salidas += abs(min(resumen.get("retenido") or 0.0, 0.0))
+            salidas = 0.0
+            salidas += abs(resumen.get("pagos_enviados") or 0.0)
+            salidas += abs(resumen.get("retiradas_y_cargos") or 0.0)
+            salidas += abs(resumen.get("tarifas") or 0.0)
+            salidas += abs(resumen.get("retenido") or 0.0)
 
             variacion = saldo_final - saldo_inicial
 
@@ -225,7 +227,6 @@ def construir_resumen_flujo(ledger):
                 "movimientos": entradas + salidas,
                 "revisar": 0.0,
             }
-
     saldo_inicial = 0.0
     entradas = 0.0
     salidas = 0.0
