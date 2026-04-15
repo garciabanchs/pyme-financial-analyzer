@@ -1129,7 +1129,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </div>
             """
 
-         def prioridad_conciliacion(item):
+        def prioridad_conciliacion(item):
             categoria = (item.get("categoria") or "").strip().lower()
             fecha = item.get("fecha", "") or ""
             archivo = item.get("archivo", "") or ""
