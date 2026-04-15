@@ -1392,7 +1392,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
             <article class="kpi">
                 <div class="label">Otros pagos menores</div>
-                <div class="amount">{analisis['otros_pagos_cantidad']}</div>
+                <div class="amount">{analisis['otros_pagos_cantidad']}+</div>
                 <div class="meta">
                     <span class="trend warn">€ {fmt(analisis['otros_pagos_total'])}</span>
                     <span>Menores a € {fmt(UMBRAL_RELEVANTE)}</span>
