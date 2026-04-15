@@ -503,7 +503,7 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
     if otros_cobros_total > 0:
         entradas_relevantes.insert(0, {
             "archivo": "-",
-            "fecha": entradas_relevantes[0]["fecha"] if entradas_relevantes else "-",
+            "fecha": "n.a.",
             "importe_abs": otros_cobros_total,
             "importe_fmt": fmt_importe_reporte(otros_cobros_total),
             "naturaleza": "entrada",
@@ -518,7 +518,7 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
     if otros_pagos_total > 0:
         salidas_relevantes.insert(0, {
             "archivo": "-",
-            "fecha": salidas_relevantes[0]["fecha"] if salidas_relevantes else "-",
+            "fecha": "n.a.",
             "importe_abs": otros_pagos_total,
             "importe_fmt": fmt_importe_reporte(otros_pagos_total),
             "naturaleza": "salida",
