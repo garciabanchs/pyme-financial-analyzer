@@ -2,7 +2,7 @@ from branding import BRANDING
 import re
 
 
-UMBRAL_RELEVANTE_REPORTE = 100.0
+UMBRAL_RELEVANTE_REPORTE = 50.0
 
 
 def fmt_importe_reporte(numero):
