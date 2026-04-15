@@ -1064,29 +1064,42 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         filas = ""
         cards = ""
 
-        for item in entradas:
-            tags = ["entradas", "cobros", "all"]
-            filas += f"""
-            <tr class="row-entrada mov-row"
-                data-kind="{' '.join(sorted(set(tags)))}"
-                data-category="{item['categoria']}"
-                data-target-section="movimientos-section">
-                <td class="mono">{item['fecha']}</td>
-                <td>{item['descripcion']}</td>
-                <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
-                <td class="mono">€ {item['importe_fmt']}</td>
-            </tr>
-            """
-        cards += tarjetas_moviles_movimientos(entradas, "row-entrada", "movimientos-section")
+        def prioridad_movimiento(item):
+            categoria = (item.get("categoria") or "").strip().lower()
+            fecha = item.get("fecha", "") or ""
 
-        for item in salidas:
-            tags = ["salidas", "all"]
-            if item["categoria"] in ["pago_proveedor", "gasto_operativo", "otros_pagos"]:
-                tags.append("pagos")
-            if item["categoria"] in ["retiro_propio", "transferencia_interna", "traspaso"]:
-                tags.append("internos")
+            if categoria in ["otros_cobros", "cobro_cliente"]:
+                grupo = 0
+            elif categoria in ["otros_pagos", "gasto_operativo", "pago_proveedor"]:
+                grupo = 1
+            elif categoria in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
+                grupo = 2
+            else:
+                grupo = 3
+
+            fecha_orden = "9999-99-99" if fecha == "n.a." else fecha
+            return (grupo, fecha_orden)
+
+        movimientos_ordenados = sorted(entradas + salidas, key=prioridad_movimiento)
+
+        for item in movimientos_ordenados:
+            categoria = (item.get("categoria") or "").strip().lower()
+
+            if categoria in ["otros_cobros", "cobro_cliente"]:
+                clase = "row-entrada"
+                tags = ["all", "entradas", "cobros"]
+            elif categoria in ["otros_pagos", "gasto_operativo", "pago_proveedor"]:
+                clase = "row-salida"
+                tags = ["all", "salidas", "pagos"]
+            elif categoria in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
+                clase = "row-salida"
+                tags = ["all", "salidas", "internos"]
+            else:
+                clase = item.get("clase_fila", "row-salida")
+                tags = ["all"]
+
             filas += f"""
-            <tr class="row-salida mov-row"
+            <tr class="{clase} mov-row"
                 data-kind="{' '.join(sorted(set(tags)))}"
                 data-category="{item['categoria']}"
                 data-target-section="movimientos-section">
@@ -1096,7 +1109,24 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <td class="mono">€ {item['importe_fmt']}</td>
             </tr>
             """
-        cards += tarjetas_moviles_movimientos(salidas, "row-salida", "movimientos-section")
+
+        cards += tarjetas_moviles_movimientos(
+            [x for x in movimientos_ordenados if (x.get("categoria") or "").strip().lower() in ["otros_cobros", "cobro_cliente"]],
+            "row-entrada",
+            "movimientos-section",
+        )
+
+        cards += tarjetas_moviles_movimientos(
+            [x for x in movimientos_ordenados if (x.get("categoria") or "").strip().lower() in ["otros_pagos", "gasto_operativo", "pago_proveedor"]],
+            "row-salida",
+            "movimientos-section",
+        )
+
+        cards += tarjetas_moviles_movimientos(
+            [x for x in movimientos_ordenados if (x.get("categoria") or "").strip().lower() in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]],
+            "row-salida",
+            "movimientos-section",
+        )
 
         return f"""
         <div class="table-shell compact-shell">
