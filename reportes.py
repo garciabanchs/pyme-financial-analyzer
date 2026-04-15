@@ -1122,25 +1122,25 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         """
 
     def prioridad_conciliacion(item):
-    categoria = (item.get("categoria") or "").strip().lower()
-    fecha = item.get("fecha", "") or ""
-    archivo = item.get("archivo", "") or ""
+        categoria = (item.get("categoria") or "").strip().lower()
+        fecha = item.get("fecha", "") or ""
+        archivo = item.get("archivo", "") or ""
 
-    if categoria == "factura_venta":
-        prioridad = 0
-    elif categoria == "factura_compra":
-        prioridad = 1
-    else:
-        prioridad = 2
+        if categoria == "factura_venta":
+            prioridad = 0
+        elif categoria == "factura_compra":
+            prioridad = 1
+        else:
+            prioridad = 2
 
-    return (prioridad, fecha, archivo)
+        return (prioridad, fecha, archivo)
 
-conciliacion_ordenada = sorted(conciliacion, key=prioridad_conciliacion)
+    conciliacion_ordenada = sorted(conciliacion, key=prioridad_conciliacion)
 
-filas = ""
-cards = ""
+    filas = ""
+    cards = ""
 
-for item in conciliacion_ordenada:
+    for item in conciliacion_ordenada:
 
             importe = fmt(normalizar_importe(item.get("importe", 0)))
             diferencia = "-"
