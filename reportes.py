@@ -3264,7 +3264,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
                     <div class="metrics-grid">
                         <article class="kpi">
-                            <div class="label">Movimiento del período</div>
+                            <div class="label">Movimiento del período (entradas + salidas)</div>
                             <div class="amount">€ {fmt(flujo["movimientos"])}</div>
                             <div class="meta"><span class="trend up">Actividad</span><span>Caja</span></div>
                         </article>
