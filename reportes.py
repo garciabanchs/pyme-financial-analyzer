@@ -1121,18 +1121,27 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
-    def tabla_conciliacion_html():
-        if not conciliacion:
-            return """
-            <div class="empty-state">
-                <p>No hay conciliación disponible.</p>
-            </div>
-            """
+    def prioridad_conciliacion(item):
+    categoria = (item.get("categoria") or "").strip().lower()
+    fecha = item.get("fecha", "") or ""
+    archivo = item.get("archivo", "") or ""
 
-        filas = ""
-        cards = ""
+    if categoria == "factura_venta":
+        prioridad = 0
+    elif categoria == "factura_compra":
+        prioridad = 1
+    else:
+        prioridad = 2
 
-        for item in conciliacion:
+    return (prioridad, fecha, archivo)
+
+conciliacion_ordenada = sorted(conciliacion, key=prioridad_conciliacion)
+
+filas = ""
+cards = ""
+
+for item in conciliacion_ordenada:
+
             importe = fmt(normalizar_importe(item.get("importe", 0)))
             diferencia = "-"
             if item.get("diferencia") is not None:
