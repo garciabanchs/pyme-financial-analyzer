@@ -885,7 +885,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     def texto_lectura_ejecutiva(flujo, conc, docs):
         return construir_narrativa_ejecutiva(total, docs, flujo, conc)
 
-        def clase_badge_categoria(categoria):
+    def clase_badge_categoria(categoria):
         categoria = (categoria or "").lower()
 
         if categoria in ["factura_venta", "cobro_cliente", "otros_cobros"]:
