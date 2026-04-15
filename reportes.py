@@ -1121,27 +1121,34 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
-    def prioridad_conciliacion(item):
-        categoria = (item.get("categoria") or "").strip().lower()
-        fecha = item.get("fecha", "") or ""
-        archivo = item.get("archivo", "") or ""
+    def tabla_conciliacion_html():
+        if not conciliacion:
+            return """
+            <div class="empty-state">
+                <p>No hay conciliación disponible.</p>
+            </div>
+            """
 
-        if categoria == "factura_venta":
-            prioridad = 0
-        elif categoria == "factura_compra":
-            prioridad = 1
-        else:
-            prioridad = 2
+        def prioridad_conciliacion(item):
+            categoria = (item.get("categoria") or "").strip().lower()
+            fecha = item.get("fecha", "") or ""
+            archivo = item.get("archivo", "") or ""
 
-        return (prioridad, fecha, archivo)
+            if categoria == "factura_venta":
+                prioridad = 0
+            elif categoria == "factura_compra":
+                prioridad = 1
+            else:
+                prioridad = 2
 
-    conciliacion_ordenada = sorted(conciliacion, key=prioridad_conciliacion)
+            return (prioridad, fecha, archivo)
 
-    filas = ""
-    cards = ""
+        conciliacion_ordenada = sorted(conciliacion, key=prioridad_conciliacion)
 
-    for item in conciliacion_ordenada:
+        filas = ""
+        cards = ""
 
+        for item in conciliacion_ordenada:
             importe = fmt(normalizar_importe(item.get("importe", 0)))
             diferencia = "-"
             if item.get("diferencia") is not None:
@@ -1155,11 +1162,20 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             tags = ["all"]
             if estado_norm in ["pendiente", "pendiente_cobro", "pendiente_pago"]:
                 tags.append("pendientes")
-            if estado_norm in ["conciliado_exacto", "conciliado_exacto_multi", "conciliado_probable", "conciliado_probable_multi"]:
+            if estado_norm in [
+                "conciliado_exacto",
+                "conciliado_exacto_multi",
+                "conciliado_probable",
+                "conciliado_probable_multi",
+            ]:
                 tags.append("conciliadas")
             if estado_norm in ["sin_soporte", "sin_soporte_menor"]:
                 tags.append("sin-soporte")
-            if estado_norm in ["no_conciliable", "movimiento_bancario_no_conciliable", "movimiento_bancario_no_conciliable_menor"]:
+            if estado_norm in [
+                "no_conciliable",
+                "movimiento_bancario_no_conciliable",
+                "movimiento_bancario_no_conciliable_menor",
+            ]:
                 tags.append("no-conciliables")
             if estado_norm in ["duplicado_potencial"]:
                 tags.append("duplicados")
@@ -1229,7 +1245,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </div>
         </div>
         """
-
+    
     def documentos_html():
         if not documentos:
             return """
