@@ -231,15 +231,6 @@ def _extraer_importe_total_explicito(texto):
 
 
 def extraer_importe_principal(texto, tipo_documento, importes):
-    """
-    Devuelve el mejor importe principal detectado.
-
-    Orden de prioridad:
-    1. Total explícito
-    2. Último total del documento
-    3. Bloque base + IVA + total
-    4. Mayor importe positivo
-    """
     if not importes:
         return None
 
@@ -252,24 +243,37 @@ def extraer_importe_principal(texto, tipo_documento, importes):
     if not importes_numericos:
         return None
 
-    if tipo_documento in {"factura_venta", "factura_compra"}:
-        total_explicito = _extraer_importe_total_explicito(texto)
-        if total_explicito:
-            return total_explicito
+    if tipo_documento == "factura_venta":
+        candidatos_linea = _extraer_totales_por_linea(texto)
+        if candidatos_linea:
+            candidatos_linea.sort(key=lambda x: x[1])
+            return candidatos_linea[-1][0]
 
         ultimo_total = _extraer_ultimo_total_documento(texto)
         if ultimo_total:
             return ultimo_total
 
-        total_bloque = _extraer_total_desde_base_iva_total(texto)
-        if total_bloque:
-            return total_bloque
+        total_base_iva = _extraer_total_desde_base_iva_total(texto)
+        if total_base_iva:
+            return total_base_iva
 
-        positivos = [x for x in importes_numericos if x[1] > 0]
-        if positivos:
-            return max(positivos, key=lambda x: x[1])[0]
+        return max(importes_numericos, key=lambda x: x[1])[0]
 
-        return max(importes_numericos, key=lambda x: abs(x[1]))[0]
+    if tipo_documento == "factura_compra":
+        candidatos_linea = _extraer_totales_por_linea(texto)
+        if candidatos_linea:
+            candidatos_linea.sort(key=lambda x: x[1])
+            return candidatos_linea[-1][0]
+
+        ultimo_total = _extraer_ultimo_total_documento(texto)
+        if ultimo_total:
+            return ultimo_total
+
+        total_base_iva = _extraer_total_desde_base_iva_total(texto)
+        if total_base_iva:
+            return total_base_iva
+
+        return max(importes_numericos, key=lambda x: x[1])[0]
 
     return None
 
