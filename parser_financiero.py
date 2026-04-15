@@ -24,7 +24,7 @@ def normalizar_importe(valor):
             s = s.replace(".", "").replace(",", ".")
         else:
             # Si viniera 1234.56 sin comas, se respeta
-            # Si viniera 1.234 y no hay coma, asumimos que el punto es decimal solo si hay 1 bloque
+            # Si viniera 1.234 y no hay coma, asumimos decimal si solo hay un punto
             if s.count(".") > 1:
                 s = s.replace(".", "")
 
@@ -144,6 +144,8 @@ def _extraer_totales_por_linea(texto):
             continue
         if "bruto" in l or "neto" in l:
             continue
+        if "iva" in l and "total" not in l:
+            continue
 
         if any(tag in l for tag in ["total factura", "importe total", "total eur", "total"]):
             importes = re.findall(r"-?\d{1,3}(?:\.\d{3})*,\d{2}", linea)
@@ -166,6 +168,9 @@ def _extraer_ultimo_total_documento(texto):
     patrones_total = [
         r"\btotal factura\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
         r"\bimporte total\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
+        r"\btotal a pagar\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
+        r"\btotal a abonar\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
+        r"\bimporte a pagar\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
         r"\btotal eur\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
         r"\btotal\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
     ]
@@ -187,28 +192,27 @@ def _extraer_ultimo_total_documento(texto):
 
 def _extraer_total_desde_base_iva_total(texto):
     """
-    Busca un bloque tipo:
-    base imponible ... IVA ... total
-    y devuelve el tercer importe.
+    Busca bloques tipo:
+    BASE IMPONIBLE | IVA | TOTAL
+    y devuelve el total final, no la base.
     """
     if not texto:
         return None
 
-    patron = (
-        r"base imponible.*?"
-        r"(-?\d{1,3}(?:\.\d{3})*,\d{2}).*?"
-        r"(?:i\.?\s*v\.?\s*a|iva).*?"
-        r"(-?\d{1,3}(?:\.\d{3})*,\d{2}).*?"
-        r"(-?\d{1,3}(?:\.\d{3})*,\d{2})"
-    )
+    texto_norm = " ".join((texto or "").split())
+    texto_lower = texto_norm.lower()
 
-    m = re.search(patron, texto, flags=re.IGNORECASE | re.DOTALL)
-    if not m:
-        return None
+    patrones = [
+        r"base imponible.*?(-?\d{1,3}(?:\.\d{3})*,\d{2}).*?(?:i\.?\s*v\.?\s*a|iva).*?(-?\d{1,3}(?:\.\d{3})*,\d{2}).*?total.*?(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+        r"base imp(?:onible)?\s*.*?(-?\d{1,3}(?:\.\d{3})*,\d{2}).*?(?:i\.?\s*v\.?\s*a|iva).*?(-?\d{1,3}(?:\.\d{3})*,\d{2}).*?total.*?(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+    ]
 
-    candidato = m.group(3)
-    if normalizar_importe(candidato) is not None:
-        return candidato.strip()
+    for patron in patrones:
+        m = re.search(patron, texto_lower, flags=re.IGNORECASE | re.DOTALL)
+        if m:
+            candidato = m.group(3)
+            if normalizar_importe(candidato) is not None:
+                return candidato.strip()
 
     return None
 
@@ -244,35 +248,43 @@ def extraer_importe_principal(texto, tipo_documento, importes):
         return None
 
     if tipo_documento == "factura_venta":
+        # 1) Primero: bloque base + IVA + total
+        total_base_iva = _extraer_total_desde_base_iva_total(texto)
+        if total_base_iva:
+            return total_base_iva
+
+        # 2) Segundo: último total explícito del documento
+        ultimo_total = _extraer_ultimo_total_documento(texto)
+        if ultimo_total:
+            return ultimo_total
+
+        # 3) Tercero: líneas que contengan total
         candidatos_linea = _extraer_totales_por_linea(texto)
         if candidatos_linea:
             candidatos_linea.sort(key=lambda x: x[1])
             return candidatos_linea[-1][0]
 
-        ultimo_total = _extraer_ultimo_total_documento(texto)
-        if ultimo_total:
-            return ultimo_total
-
-        total_base_iva = _extraer_total_desde_base_iva_total(texto)
-        if total_base_iva:
-            return total_base_iva
-
+        # 4) Fallback: mayor importe detectado
         return max(importes_numericos, key=lambda x: x[1])[0]
 
     if tipo_documento == "factura_compra":
+        # 1) Primero: bloque base + IVA + total
+        total_base_iva = _extraer_total_desde_base_iva_total(texto)
+        if total_base_iva:
+            return total_base_iva
+
+        # 2) Segundo: último total explícito del documento
+        ultimo_total = _extraer_ultimo_total_documento(texto)
+        if ultimo_total:
+            return ultimo_total
+
+        # 3) Tercero: líneas que contengan total
         candidatos_linea = _extraer_totales_por_linea(texto)
         if candidatos_linea:
             candidatos_linea.sort(key=lambda x: x[1])
             return candidatos_linea[-1][0]
 
-        ultimo_total = _extraer_ultimo_total_documento(texto)
-        if ultimo_total:
-            return ultimo_total
-
-        total_base_iva = _extraer_total_desde_base_iva_total(texto)
-        if total_base_iva:
-            return total_base_iva
-
+        # 4) Fallback: mayor importe detectado
         return max(importes_numericos, key=lambda x: x[1])[0]
 
     return None
