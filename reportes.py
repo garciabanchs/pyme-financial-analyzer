@@ -885,16 +885,21 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     def texto_lectura_ejecutiva(flujo, conc, docs):
         return construir_narrativa_ejecutiva(total, docs, flujo, conc)
 
-    def clase_badge_categoria(categoria):
+        def clase_badge_categoria(categoria):
         categoria = (categoria or "").lower()
-        if categoria in ["cobro_cliente", "otros_cobros"]:
+
+        if categoria in ["factura_venta", "cobro_cliente", "otros_cobros"]:
             return "badge-green"
-        if categoria in ["pago_proveedor", "gasto_operativo", "otros_pagos"]:
+
+        if categoria in ["factura_compra", "pago_proveedor", "gasto_operativo", "otros_pagos"]:
             return "badge-red"
-        if categoria in ["retiro_propio", "transferencia_interna", "traspaso"]:
+
+        if categoria in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
             return "badge-gray"
+
         if categoria in ["comision", "retencion", "impuesto", "ajuste"]:
             return "badge-yellow"
+
         return "badge-gray"
 
     def construir_botones_movimientos(section_target):
