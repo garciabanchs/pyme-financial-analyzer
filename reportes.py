@@ -425,7 +425,7 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
 
         fila = {
             "archivo": item.get("archivo", "-"),
-            "fecha": item.get("fecha", "-"),
+            "fecha": "n.a." if categoria in ["otros_cobros", "otros_pagos"] else item.get("fecha", "-"),
             "importe_abs": abs(valor),
             "importe_fmt": fmt_importe_reporte(abs(valor)),
             "naturaleza": item.get("naturaleza", "-"),
