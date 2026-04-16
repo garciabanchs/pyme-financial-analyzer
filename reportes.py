@@ -16,11 +16,17 @@ def normalizar_importe_reporte(valor):
         if isinstance(valor, (int, float)):
             return float(valor)
 
-        valor = str(valor).strip()
+        valor = str(valor).strip().replace("€", "").replace("$", "").replace(" ", "")
 
         if "," in valor and "." in valor:
-            valor = valor.replace(".", "").replace(",", ".")
+            if valor.rfind(",") > valor.rfind("."):
+                # Formato europeo: 1.234,56
+                valor = valor.replace(".", "").replace(",", ".")
+            else:
+                # Formato anglosajón: 1,234.56
+                valor = valor.replace(",", "")
         elif "," in valor:
+            # Formato europeo simple: 1234,56
             valor = valor.replace(",", ".")
 
         return float(valor)
@@ -1236,7 +1242,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 tags.append("salidas")
                 if item["categoria"] in ["pago_proveedor", "gasto_operativo", "otros_pagos"]:
                     tags.append("pagos")
-                if item["categoria"] in ["retiro_propio", "transferencia_interna", "traspaso"]:
+                if item["categoria"] in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
                     tags.append("internos")
 
             cards += f"""
