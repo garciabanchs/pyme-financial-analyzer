@@ -975,12 +975,13 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         return construir_narrativa_ejecutiva(total, docs, flujo, conc)
 
     def resolver_banco_visible(item):
-        return (
-            item.get("banco")
-            or item.get("entidad_financiera")
-            or item.get("cuenta")
-            or "No detectado"
-        )
+        partes = []
+
+        for valor in [item.get("banco"), item.get("entidad_financiera"), item.get("cuenta")]:
+            if valor and valor not in partes:
+                partes.append(valor)
+
+        return " | ".join(partes) if partes else "No detectado"
 
     def resolver_cliente_proveedor_visible(item):
         return item.get("cliente_proveedor") or "No detectado"
@@ -3508,7 +3509,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         </article>
                     </div>
 
-                <section class="alerts-grid">
+                    <div class="alerts-grid">
                         <article class="alert-card green">
                             <div class="alert-tag">Bien</div>
                             <h4>Base contable ya organizada</h4>
