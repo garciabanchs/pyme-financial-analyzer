@@ -544,6 +544,7 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
         "otros_pagos_cantidad": otros_pagos_cantidad_real,
         "otros_pagos_total": otros_pagos_total,
     }
+    
 def inferir_nombre_empresa(documentos, ledger):
     documentos = documentos or []
 
