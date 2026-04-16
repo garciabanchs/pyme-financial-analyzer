@@ -1244,7 +1244,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     tags.append("internos")
 
             cards += f"""
-            <article class="mobile-movement-card {clase}" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="{section_target}">
+            <article class="mobile-movement-card {clase}"
+                data-kind="{' '.join(sorted(set(tags)))}"
+                data-bank="{slug_filtro(resolver_banco_visible(item), 'bank')}"
+                data-cp="{slug_filtro(resolver_cliente_proveedor_visible(item), 'cp')}"
+                data-target-section="{section_target}">
                 <div class="mobile-movement-head">
                     <span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span>
                     <span class="mobile-amount">€ {item['importe_fmt']}</span>
@@ -1253,7 +1257,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <span class="mobile-label">Fecha</span>
                     <span class="mono">{item['fecha']}</span>
                 </div>
-                <div class="mobile-meta-row">
+                    <div class="mobile-meta-row">
                     <span class="mobile-label">Banco</span>
                     <span>{resolver_banco_visible(item)}</span>
                 </div>
@@ -1324,6 +1328,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             <tr class="{clase} mov-row"
                 data-kind="{' '.join(sorted(set(tags)))}"
                 data-category="{item['categoria']}"
+                data-bank="{slug_filtro(resolver_banco_visible(item), 'bank')}"
+                data-cp="{slug_filtro(resolver_cliente_proveedor_visible(item), 'cp')}"
                 data-target-section="movimientos-section">
                 <td class="mono">{item['fecha']}</td>
                 <td>{item['descripcion']}</td>
