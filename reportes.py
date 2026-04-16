@@ -1140,6 +1140,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         <tr>
                             <th>Fecha</th>
                             <th>Descripción</th>
+                            <th>Banco</th>
                             <th>Categoría</th>
                             <th>Importe</th>
                         </tr>
