@@ -1228,13 +1228,14 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             <tr class="conc-row" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="conciliacion-section">
                 <td>{item.get('archivo', '-')}</td>
                 <td class="mono">{item.get('fecha', '-')}</td>
+                <td>{item.get('banco', 'No detectado')}</td>
                 <td class="mono">€ {importe}</td>
                 <td><span class="badge {badge_class}">{estado}</span></td>
                 <td class="mono">{diferencia if diferencia == '-' else '€ ' + diferencia}</td>
                 <td><span class="badge {clase_badge_categoria(item.get('categoria'))}">{humanizar_categoria(item.get('categoria'))}</span></td>
             </tr>
             """
-
+            
             cards += f"""
             <article class="mobile-conc-card" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="conciliacion-section">
                 <div class="mobile-conc-head">
