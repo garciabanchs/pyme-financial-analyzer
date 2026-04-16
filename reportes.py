@@ -823,22 +823,28 @@ def generar_recomendaciones_financieras(flujo, conc):
 def generar_insight_ejecutivo(flujo, conc):
     pendientes = conc.get("pendientes", 0)
     sin_soporte = conc.get("sin_soporte", 0)
+    duplicados = conc.get("duplicados", 0)
     movimientos_internos = conc.get("movimientos_internos", 0)
     variacion = flujo.get("variacion", 0)
 
     if sin_soporte > 0 and pendientes > 0:
         return (
-            "La principal debilidad del período no parece ser la liquidez, sino la falta de respaldo suficiente para dar el cierre por confiable."
+            "El principal problema del período no parece ser la liquidez, sino que el cierre sigue siendo poco confiable por la combinación de facturas pendientes y movimientos sin soporte."
+        )
+
+    if variacion < 0 and (sin_soporte > 0 or pendientes > 0):
+        return (
+            "La caída de caja coincide con validaciones todavía abiertas, lo que eleva el riesgo del cierre y exige revisión prioritaria."
+        )
+
+    if duplicados > 0:
+        return (
+            "El período ya permite una lectura útil, pero los duplicados potenciales pueden distorsionar el cierre si no se revisan antes de consolidarlo."
         )
 
     if movimientos_internos > 0 and sin_soporte == 0 and pendientes == 0:
         return (
             "La operación luce relativamente ordenada, pero conviene separar mejor los movimientos internos para no confundirlos con gasto real del negocio."
-        )
-
-    if variacion < 0 and sin_soporte > 0:
-        return (
-            "La combinación de caída de caja y movimientos sin respaldo sugiere una señal de riesgo que conviene corregir antes del próximo cierre."
         )
 
     if variacion > 0 and pendientes == 0 and sin_soporte == 0:
@@ -849,7 +855,6 @@ def generar_insight_ejecutivo(flujo, conc):
     return (
         "El período ya permite una lectura útil para decidir, pero todavía no alcanza el nivel de orden documental ideal para cerrar con plena confianza."
     )
-
 
 def generar_html_resultado(total, clasificados, importes, documentos, ledger=None, conciliacion=None):
     assert BRANDING["modo"] in BRANDING, f"Modo inválido en BRANDING: {BRANDING.get('modo')}"
