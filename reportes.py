@@ -431,6 +431,7 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "naturaleza": item.get("naturaleza", "-"),
             "naturaleza_humana": humanizar_naturaleza(item.get("naturaleza", "-")),
             "descripcion": item.get("descripcion", "-"),
+            "banco": item.get("banco", "No detectado") or "No detectado",
             "categoria": categoria,
             "categoria_humana": humanizar_categoria(categoria),
             "moneda": item.get("moneda", "") or "",
