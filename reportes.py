@@ -11,58 +11,48 @@ def fmt_importe_reporte(numero):
     except Exception:
         return "0,00"
 
-
 def normalizar_importe_reporte(valor):
     try:
         if isinstance(valor, (int, float)):
             return float(valor)
-        return float(str(valor).replace(".", "").replace(",", "."))
+
+        valor = str(valor).strip()
+
+        if "," in valor and "." in valor:
+            valor = valor.replace(".", "").replace(",", ".")
+        elif "," in valor:
+            valor = valor.replace(",", ".")
+
+        return float(valor)
     except Exception:
         return 0.0
-
 
 def normalizar_estado_conciliacion(estado):
     estado = (estado or "").strip().lower().replace("-", "_").replace(" ", "_")
 
     mapa = {
         "conciliado_exacto": "conciliado_exacto",
-        "conciliado exacto": "conciliado_exacto",
         "conciliado_exacto_multi": "conciliado_exacto_multi",
-        "conciliado exacto multi": "conciliado_exacto_multi",
         "conciliado_probable": "conciliado_probable",
         "probablemente_conciliado": "conciliado_probable",
-        "conciliado probable": "conciliado_probable",
         "conciliado_probable_multi": "conciliado_probable_multi",
-        "conciliado probable multi": "conciliado_probable_multi",
         "probablemente_conciliado_multi": "conciliado_probable_multi",
         "pendiente": "pendiente",
         "pendiente_cobro": "pendiente_cobro",
-        "pendiente cobro": "pendiente_cobro",
         "pendiente_pago": "pendiente_pago",
-        "pendiente pago": "pendiente_pago",
         "sin_soporte": "sin_soporte",
-        "sin soporte": "sin_soporte",
         "sin_soporte_menor": "sin_soporte_menor",
-        "sin soporte menor": "sin_soporte_menor",
         "no_conciliable": "no_conciliable",
-        "no conciliable": "no_conciliable",
         "duplicado_potencial": "duplicado_potencial",
-        "duplicado potencial": "duplicado_potencial",
         "duplicado_o_conflictivo": "duplicado_potencial",
-        "duplicado o conflictivo": "duplicado_potencial",
         "movimiento_interno": "movimiento_interno",
-        "movimiento interno": "movimiento_interno",
         "movimiento_bancario_no_conciliable": "movimiento_bancario_no_conciliable",
-        "movimiento bancario no conciliable": "movimiento_bancario_no_conciliable",
         "movimiento_bancario_no_conciliable_menor": "movimiento_bancario_no_conciliable_menor",
-        "movimiento bancario no conciliable menor": "movimiento_bancario_no_conciliable_menor",
         "movimiento_agrupado": "movimiento_agrupado",
-        "movimiento agrupado": "movimiento_agrupado",
         "agrupado": "agrupado",
     }
 
     return mapa.get(estado, estado)
-
 
 def humanizar_estado_conciliacion(estado):
     estado_norm = normalizar_estado_conciliacion(estado)
@@ -215,6 +205,7 @@ def construir_resumen_flujo(ledger):
             salidas += abs(resumen.get("retenido") or 0.0)
 
             variacion = saldo_final - saldo_inicial
+            descuadre = abs((saldo_inicial + entradas - salidas) - saldo_final)
 
             return {
                 "saldo_inicial": saldo_inicial,
@@ -222,6 +213,7 @@ def construir_resumen_flujo(ledger):
                 "salidas": salidas,
                 "saldo_final": saldo_final,
                 "variacion": variacion,
+                "descuadre": descuadre,
                 "retenido": retenido,
                 "balance": variacion,
                 "movimientos": entradas + salidas,
@@ -247,12 +239,15 @@ def construir_resumen_flujo(ledger):
     saldo_final = saldo_inicial + entradas - salidas
     variacion = saldo_final - saldo_inicial
 
+    descuadre = abs((saldo_inicial + entradas - salidas) - saldo_final)
+
     return {
         "saldo_inicial": saldo_inicial,
         "entradas": entradas,
         "salidas": salidas,
         "saldo_final": saldo_final,
         "variacion": variacion,
+        "descuadre": descuadre,
         "retenido": 0.0,
         "balance": variacion,
         "movimientos": entradas + salidas,
@@ -618,11 +613,11 @@ def inferir_nombre_empresa(documentos, ledger):
         # fallback: primeras líneas útiles del extracto
         for linea in texto.splitlines()[:25]:
             linea = limpiar(linea)
-            if es_nombre_valido(linea):
+            if es_nombre_valido(linea) and linea.upper() == linea:
                 return linea[:1].upper() + linea[1:]
 
     # 2) Si no está claro en el extracto, no inventar
-    return "la empresa"
+    return None
     
 def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     saldo_inicial = flujo["saldo_inicial"]
@@ -746,21 +741,22 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
 
 
 def calcular_score_financiero(flujo, conc):
+    import math
+
     score = 100
 
-    score -= conc.get("pendientes", 0) * 12
-    score -= conc.get("sin_soporte", 0) * 8
-    score -= conc.get("duplicados", 0) * 6
-    score -= conc.get("parciales", 0) * 5
-    score -= conc.get("probables_multi", 0) * 7
-    score -= conc.get("movimientos_bancarios_no_conciliables", 0) * 3
-    score -= conc.get("movimientos_internos", 0) * 1
+    score -= min(40, math.log1p(conc.get("pendientes", 0)) * 10)
+    score -= min(30, math.log1p(conc.get("sin_soporte", 0)) * 8)
+    score -= min(20, math.log1p(conc.get("duplicados", 0)) * 6)
+    score -= min(25, math.log1p(conc.get("parciales", 0)) * 7)
+    score -= min(25, math.log1p(conc.get("probables_multi", 0)) * 8)
+    score -= min(15, math.log1p(conc.get("movimientos_bancarios_no_conciliables", 0)) * 5)
+    score -= min(8, math.log1p(conc.get("movimientos_internos", 0)) * 3)
 
     if flujo.get("variacion", 0) < 0:
         score -= 8
 
-    return max(min(score, 100), 0)
-
+    return max(min(round(score), 100), 0)
 
 def texto_score_financiero(score):
     if score >= 85:
@@ -3646,11 +3642,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <h4>{alerta_soporte_titulo}</h4>
                             <p>{alerta_soporte_texto}</p>
                         </article>
-                </section>
-
+                        </div>
+                        
                     {bloque_como_leer}
                 </section>
-
                 <section class="section" id="detalle-documental-section">
                     <div class="section-head">
                         <div>
@@ -3802,85 +3797,117 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </main>
         </div>
 
-        <script>
-            (function() {{
-                function scrollToTarget(targetId) {{
-                    const target = document.getElementById(targetId);
-                    if (target) {{
-                        target.scrollIntoView({{ behavior: "smooth", block: "start" }});
+<script>
+    (function() {{
+        function scrollToTarget(targetId) {{
+            const target = document.getElementById(targetId);
+            if (target) {{
+                target.scrollIntoView({{ behavior: "smooth", block: "start" }});
+            }}
+        }}
+
+        function getActiveButtonFilter(targetId) {{
+            const activeBtn = document.querySelector('.filter-btn.active[data-target="' + targetId + '"]');
+            return activeBtn ? activeBtn.getAttribute("data-filter") || "all" : "all";
+        }}
+
+        function getActiveSelectFilter(targetId, filterType) {{
+            const select = document.querySelector(
+                '.smart-filter-select[data-target="' + targetId + '"][data-filter-type="' + filterType + '"]'
+            );
+            return select ? (select.value || "all") : "all";
+        }}
+
+        function applyCombinedFilters(targetId, doScroll = true) {{
+            const allRows = document.querySelectorAll('[data-target-section="' + targetId + '"]');
+            const activeKind = getActiveButtonFilter(targetId);
+            const activeBank = getActiveSelectFilter(targetId, "bank");
+            const activeCp = getActiveSelectFilter(targetId, "cp");
+
+            allRows.forEach(el => {{
+                const kinds = (el.getAttribute("data-kind") || "").split(" ").filter(Boolean);
+                const bank = el.getAttribute("data-bank") || "all";
+                const cp = el.getAttribute("data-cp") || "all";
+
+                const matchesKind = activeKind === "all" || kinds.includes(activeKind);
+                const matchesBank = activeBank === "all" || bank === activeBank;
+                const matchesCp = activeCp === "all" || cp === activeCp;
+
+                if (matchesKind && matchesBank && matchesCp) {{
+                    el.classList.remove("is-hidden");
+                }} else {{
+                    el.classList.add("is-hidden");
+                }}
+            }});
+
+            if (doScroll) {{
+                scrollToTarget(targetId);
+            }}
+        }}
+
+        function applyFilter(value, targetId) {{
+            const buttons = document.querySelectorAll('.filter-btn[data-target="' + targetId + '"]');
+
+            buttons.forEach(btn => {{
+                if (btn.getAttribute("data-filter") === value) {{
+                    btn.classList.add("active");
+                }} else {{
+                    btn.classList.remove("active");
+                }}
+            }});
+
+            applyCombinedFilters(targetId, true);
+        }}
+
+        function bindAccordions() {{
+            document.querySelectorAll(".accordion-toggle").forEach(btn => {{
+                btn.addEventListener("click", function() {{
+                    const panel = this.nextElementSibling;
+                    const icon = this.querySelector(".accordion-icon");
+                    const isOpen = this.classList.contains("active");
+
+                    if (isOpen) {{
+                        this.classList.remove("active");
+                        panel.style.display = "none";
+                        if (icon) icon.textContent = "+";
+                    }} else {{
+                        this.classList.add("active");
+                        panel.style.display = "block";
+                        if (icon) icon.textContent = "−";
                     }}
-                }}
-
-                function applyFilter(value, targetId) {{
-                    const allRows = document.querySelectorAll("[data-kind]");
-                    const buttons = document.querySelectorAll('.filter-btn[data-target="' + targetId + '"]');
-
-                    buttons.forEach(btn => {{
-                        if (btn.getAttribute("data-filter") === value) {{
-                            btn.classList.add("active");
-                        }} else {{
-                            btn.classList.remove("active");
-                        }}
-                    }});
-
-                    allRows.forEach(el => {{
-                        const elementTarget = el.getAttribute("data-target-section");
-                        if (elementTarget && elementTarget !== targetId) {{
-                            return;
-                        }}
-
-                        const kinds = (el.getAttribute("data-kind") || "").split(" ").filter(Boolean);
-                        if (value === "all" || kinds.includes(value)) {{
-                            el.classList.remove("is-hidden");
-                        }} else {{
-                            el.classList.add("is-hidden");
-                        }}
-                    }});
-
-                    scrollToTarget(targetId);
-                }}
-
-                function bindAccordions() {{
-                    document.querySelectorAll(".accordion-toggle").forEach(btn => {{
-                        btn.addEventListener("click", function() {{
-                            const panel = this.nextElementSibling;
-                            const icon = this.querySelector(".accordion-icon");
-                            const isOpen = this.classList.contains("active");
-
-                            if (isOpen) {{
-                                this.classList.remove("active");
-                                panel.style.display = "none";
-                                if (icon) icon.textContent = "+";
-                            }} else {{
-                                this.classList.add("active");
-                                panel.style.display = "block";
-                                if (icon) icon.textContent = "−";
-                            }}
-                        }});
-                    }});
-                }}
-
-                document.querySelectorAll(".filter-btn").forEach(btn => {{
-                    btn.addEventListener("click", function() {{
-                        const value = this.getAttribute("data-filter") || "all";
-                        const targetId = this.getAttribute("data-target") || "movimientos-section";
-                        applyFilter(value, targetId);
-                    }});
                 }});
+            }});
+        }}
 
-                bindAccordions();
-                applyFilter("all", "movimientos-section");
-                applyFilter("all", "conciliacion-section");
-            }})();
+        document.querySelectorAll(".filter-btn").forEach(btn => {{
+            btn.addEventListener("click", function() {{
+                const value = this.getAttribute("data-filter") || "all";
+                const targetId = this.getAttribute("data-target") || "movimientos-section";
+                applyFilter(value, targetId);
+            }});
+        }});
 
-if ('scrollRestoration' in history) {{
-    history.scrollRestoration = 'manual';
-}}
+        document.querySelectorAll(".smart-filter-select").forEach(select => {{
+            select.addEventListener("change", function() {{
+                const targetId = this.getAttribute("data-target") || "movimientos-section";
+                applyCombinedFilters(targetId, true);
+            }});
+        }});
 
-window.addEventListener("load", function () {{
-    setTimeout(() => window.scrollTo(0, 0), 0);
-}});
-        </script>
+        bindAccordions();
+        applyCombinedFilters("movimientos-section", false);
+        applyCombinedFilters("conciliacion-section", false);
+    }})();
+
+    if ('scrollRestoration' in history) {{
+        history.scrollRestoration = 'manual';
+    }}
+
+    window.addEventListener("load", function () {{
+        setTimeout(() => window.scrollTo(0, 0), 0);
+    }});
+</script>
+
     </body>
     </html>
     """
