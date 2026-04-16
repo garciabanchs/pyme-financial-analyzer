@@ -1,10 +1,10 @@
+import os
 import re
 from parser_financiero import (
     normalizar_importe,
     extraer_importe_principal,
     obtener_periodo,
 )
-
 
 PATRON_FECHA = re.compile(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b")
 PATRON_IMPORTE = re.compile(r"-?\d{1,3}(?:\.\d{3})*,\d{2}")
