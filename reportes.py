@@ -979,20 +979,20 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         ignorar = {"", "-", "No detectado", "No detectada", "None", "null"}
 
         for valor in [item.get("banco"), item.get("entidad_financiera"), item.get("cuenta")]:
-        valor = str(valor).strip() if valor is not None else ""
-        if valor and valor not in ignorar and valor not in partes:
-            partes.append(valor)
+            valor = str(valor).strip() if valor is not None else ""
+            if valor and valor not in ignorar and valor not in partes:
+                partes.append(valor)
 
         return " | ".join(partes) if partes else "No detectado"
 
-def resolver_cliente_proveedor_visible(item):
-    valor = item.get("cliente_proveedor")
-    valor = str(valor).strip() if valor is not None else ""
+    def resolver_cliente_proveedor_visible(item):
+        valor = item.get("cliente_proveedor")
+        valor = str(valor).strip() if valor is not None else ""
 
-    if not valor or valor in {"-", "No detectado", "None", "null"}:
-        return "No detectado"
+        if not valor or valor in {"-", "No detectado", "None", "null"}:
+            return "No detectado"
 
-    return valor
+        return valor
 
     def clase_badge_categoria(categoria):
         categoria = (categoria or "").lower()
@@ -1099,6 +1099,23 @@ def resolver_cliente_proveedor_visible(item):
                 f'<button class="{clase}" type="button" '
                 f'data-filter="{valor}" data-target="{section_target}">{etiqueta}</button>'
             )
+
+        opciones = extraer_opciones_filtro_movimientos()
+
+        html += construir_select_filtro(
+            "Banco",
+            "bank",
+            opciones["bancos"],
+            section_target,
+        )
+
+        html += construir_select_filtro(
+            "Cliente / Proveedor",
+            "cp",
+            opciones["contrapartes"],
+            section_target,
+        )
+
         return html
 
     def construir_botones_conciliacion(section_target):
