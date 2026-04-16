@@ -1136,8 +1136,25 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 f'<button class="{clase}" type="button" '
                 f'data-filter="{valor}" data-target="{section_target}">{etiqueta}</button>'
             )
-        return html
 
+        opciones = extraer_opciones_filtro_conciliacion()
+
+        html += construir_select_filtro(
+            "Banco",
+            "bank",
+            opciones["bancos"],
+            section_target,
+        )
+
+        html += construir_select_filtro(
+            "Cliente / Proveedor",
+            "cp",
+            opciones["contrapartes"],
+            section_target,
+        )
+
+        return html
+        
     def construir_bloque_colapsable(titulo, cuerpo_html, subtitulo="", abierto=False, extra_class=""):
         clase_activa = "active" if abierto else ""
         estado_inicial = "block" if abierto else "none"
