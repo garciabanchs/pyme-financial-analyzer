@@ -510,6 +510,7 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "naturaleza": "entrada",
             "naturaleza_humana": "Entrada",
             "descripcion": f"movimientos menores agrupados",
+            "banco": "-",
             "categoria": "otros_cobros",
             "categoria_humana": "Otros ingresos",
             "moneda": "",
