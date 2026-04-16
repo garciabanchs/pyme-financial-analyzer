@@ -1443,7 +1443,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 tags.append("internos")
 
             filas += f"""
-            <tr class="conc-row" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="conciliacion-section">
+            <tr class="conc-row"
+                data-kind="{' '.join(sorted(set(tags)))}"
+                data-bank="{slug_filtro(resolver_banco_visible(item), 'bank')}"
+                data-cp="{slug_filtro(resolver_cliente_proveedor_visible(item), 'cp')}"
+                data-target-section="conciliacion-section">
                 <td>{item.get('archivo', '-')}</td>
                 <td class="mono">{item.get('fecha', '-')}</td>
                 <td>{resolver_banco_visible(item)}</td>
@@ -1456,7 +1460,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             """
             
             cards += f"""
-            <article class="mobile-conc-card" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="conciliacion-section">
+            <article class="mobile-conc-card"
+                data-kind="{' '.join(sorted(set(tags)))}"
+                data-bank="{slug_filtro(resolver_banco_visible(item), 'bank')}"
+                data-cp="{slug_filtro(resolver_cliente_proveedor_visible(item), 'cp')}"
+                data-target-section="conciliacion-section">
                 <div class="mobile-conc-head">
                     <span class="badge {badge_class}">{estado}</span>
                     <span class="mobile-amount">€ {importe}</span>
