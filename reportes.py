@@ -976,18 +976,23 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
     def resolver_banco_visible(item):
         partes = []
+        ignorar = {"", "-", "No detectado", "No detectada", "None", "null"}
 
         for valor in [item.get("banco"), item.get("entidad_financiera"), item.get("cuenta")]:
-            valor = str(valor).strip() if valor is not None else ""
-            if valor and valor != "-" and valor not in partes:
-                partes.append(valor)
+        valor = str(valor).strip() if valor is not None else ""
+        if valor and valor not in ignorar and valor not in partes:
+            partes.append(valor)
 
         return " | ".join(partes) if partes else "No detectado"
 
-    def resolver_cliente_proveedor_visible(item):
-        valor = item.get("cliente_proveedor")
-        valor = str(valor).strip() if valor is not None else ""
-        return valor if valor and valor != "-" else "No detectado"
+def resolver_cliente_proveedor_visible(item):
+    valor = item.get("cliente_proveedor")
+    valor = str(valor).strip() if valor is not None else ""
+
+    if not valor or valor in {"-", "No detectado", "None", "null"}:
+        return "No detectado"
+
+    return valor
 
     def clase_badge_categoria(categoria):
         categoria = (categoria or "").lower()
