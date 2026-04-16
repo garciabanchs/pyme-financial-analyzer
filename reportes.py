@@ -805,40 +805,62 @@ def generar_diagnostico_financiero(flujo, conc):
 def generar_recomendaciones_financieras(flujo, conc):
     recomendaciones = []
 
-    if conc.get("pendiente_cobro", 0) > 0:
+    pendiente_cobro = conc.get("pendiente_cobro", 0)
+    pendiente_pago = conc.get("pendiente_pago", 0)
+    sin_soporte = conc.get("sin_soporte", 0)
+    movimientos_internos = conc.get("movimientos_internos", 0)
+    duplicados = conc.get("duplicados", 0)
+    variacion = flujo.get("variacion", 0)
+
+    if sin_soporte > 0 and conc.get("pendientes", 0) > 0:
         recomendaciones.append(
-            f"Priorizar el cobro de facturas pendientes por € {fmt_importe_reporte(conc.get('pendiente_cobro', 0))}."
+            "Cerrar primero las facturas pendientes y conseguir soporte documental de los movimientos bancarios relevantes antes de dar por válido el cierre."
         )
 
-    if conc.get("pendiente_pago", 0) > 0:
+    if pendiente_cobro > 0:
         recomendaciones.append(
-            f"Verificar el calendario de pago de compras pendientes por € {fmt_importe_reporte(conc.get('pendiente_pago', 0))}."
+            f"Priorizar el cobro de facturas pendientes por € {fmt_importe_reporte(pendiente_cobro)}."
         )
 
-    if conc.get("sin_soporte", 0) > 0:
+    if pendiente_pago > 0:
+        recomendaciones.append(
+            f"Verificar el calendario de pago de compras pendientes por € {fmt_importe_reporte(pendiente_pago)}."
+        )
+
+    if sin_soporte > 0:
         recomendaciones.append(
             "Solicitar o localizar soporte documental de los movimientos relevantes detectados en banco."
         )
 
-    if conc.get("movimientos_internos", 0) > 0:
-        recomendaciones.append(
-            "Separar formalmente los retiros propios y movimientos internos del gasto operativo del negocio."
-        )
-
-    if flujo.get("variacion", 0) < 0:
-        recomendaciones.append(
-            "Revisar el ritmo de salidas frente a entradas para evitar presión adicional sobre la liquidez."
-        )
-
-    if conc.get("duplicados", 0) > 0:
+    if duplicados > 0:
         recomendaciones.append(
             "Revisar inmediatamente los posibles duplicados antes de cerrar el período."
         )
 
-    if not recomendaciones:
-        recomendaciones.append("Mantener el control documental y repetir este cierre con periodicidad mensual.")
+    if movimientos_internos > 0:
+        recomendaciones.append(
+            "Separar formalmente los retiros propios y movimientos internos del gasto operativo del negocio."
+        )
 
-    return recomendaciones[:5]
+    if variacion < 0:
+        recomendaciones.append(
+            "Revisar el ritmo de salidas frente a entradas para evitar presión adicional sobre la liquidez."
+        )
+
+    if not recomendaciones:
+        recomendaciones.append(
+            "Mantener el control documental y repetir este cierre con periodicidad mensual."
+        )
+
+    # eliminar duplicadas conservando orden
+    recomendaciones_unicas = []
+    vistas = set()
+    for r in recomendaciones:
+        if r not in vistas:
+            vistas.add(r)
+            recomendaciones_unicas.append(r)
+
+    return recomendaciones_unicas[:5]
 
 
 def generar_insight_ejecutivo(flujo, conc):
