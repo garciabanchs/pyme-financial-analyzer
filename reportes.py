@@ -1251,6 +1251,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <span class="mono">{item.get('fecha', '-')}</span>
                 </div>
                 <div class="mobile-meta-row">
+                    <span class="mobile-label">Banco</span>
+                    <span>{item.get('banco', 'No detectado')}</span>
+                </div>
+                <div class="mobile-meta-row">
                     <span class="mobile-label">Diferencia</span>
                     <span class="mono">{diferencia if diferencia == '-' else '€ ' + diferencia}</span>
                 </div>
@@ -1260,7 +1264,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 </div>
             </article>
             """
-
+            
         return f"""
         <div class="table-shell compact-shell">
             <div class="filter-toolbar">
