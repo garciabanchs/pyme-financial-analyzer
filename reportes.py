@@ -3476,7 +3476,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         </article>
                     </div>
 
-                    <section class="alerts-grid">
+                <section class="alerts-grid">
                         <article class="alert-card green">
                             <div class="alert-tag">Bien</div>
                             <h4>Base contable ya organizada</h4>
@@ -3484,17 +3484,17 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         </article>
 
                         <article class="alert-card {alerta_pendientes_color}">
-                            <div class="alert-tag">Revisar</div>
-                            <h4>El cierre todavía requiere seguimiento</h4>
-                            <p>Persisten {conc["pendientes"]} {pluralizar(conc["pendientes"], "factura pendiente", "facturas pendientes")} y € {fmt(conc["importe_pendiente"])} todavía por cerrar o validar antes de considerar el período razonablemente completo.</p>
+                            <div class="alert-tag">{alerta_pendientes_tag}</div>
+                            <h4>{alerta_pendientes_titulo}</h4>
+                            <p>{alerta_pendientes_texto}</p>
                         </article>
 
-                        <article class="alert-card red">
-                            <div class="alert-tag">Atención</div>
-                            <h4>Movimientos sin soporte detectados</h4>
-                            <p>Se detectan {conc.get("sin_soporte", 0)} {pluralizar(conc.get("sin_soporte", 0), "movimiento relevante sin soporte documental", "movimientos relevantes sin soporte documental")} y {conc.get("sin_soporte_menor", 0)} {pluralizar(conc.get("sin_soporte_menor", 0), "movimiento menor sin soporte directo", "movimientos menores sin soporte directo")}.</p>
+                        <article class="alert-card {alerta_soporte_color}">
+                            <div class="alert-tag">{alerta_soporte_tag}</div>
+                            <h4>{alerta_soporte_titulo}</h4>
+                            <p>{alerta_soporte_texto}</p>
                         </article>
-                    </section>
+                </section>
 
                     {bloque_como_leer}
                 </section>
