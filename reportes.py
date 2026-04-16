@@ -621,7 +621,9 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     salidas = flujo["salidas"]
     saldo_final = flujo["saldo_final"]
     variacion = flujo["variacion"]
+
     pendientes = conc["pendientes"]
+    importe_pendiente = conc.get("importe_pendiente", 0)
     probables = conc["parciales"]
     probables_multi = conc.get("probables_multi", 0)
     exactas_multi = conc.get("conciliadas_multi", 0)
@@ -632,26 +634,31 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     nivel_cierre = conc.get("nivel_cierre", "medio")
 
     if variacion > 0:
-        titular = "La caja del período cerró mejor que como empezó."
+        titular = "La caja del período cerró con mejora."
     elif variacion < 0:
-        titular = "La caja del período cerró peor que como empezó."
+        titular = "La caja del período cerró con deterioro."
     else:
-        titular = "La caja del período cerró prácticamente igual que como empezó."
+        titular = "La caja del período cerró estable."
 
     bloque_flujo = (
-        f"El saldo inicial fue de € {fmt_importe_reporte(saldo_inicial)}, "
-        f"entraron € {fmt_importe_reporte(entradas)}, "
-        f"salieron € {fmt_importe_reporte(salidas)} "
-        f"y el saldo final se ubicó en € {fmt_importe_reporte(saldo_final)}, "
-        f"con una variación neta de € {fmt_importe_reporte(variacion)}."
+        f"El período abrió con € {fmt_importe_reporte(saldo_inicial)}, "
+        f"registró entradas por € {fmt_importe_reporte(entradas)} y salidas por € {fmt_importe_reporte(salidas)}, "
+        f"por lo que cerró con € {fmt_importe_reporte(saldo_final)} "
+        f"y una variación neta de € {fmt_importe_reporte(variacion)}."
     )
 
     if nivel_cierre == "bajo":
         partes = []
+
         if pendientes > 0:
-            partes.append(f"{pendientes} {pluralizar(pendientes, 'factura pendiente', 'facturas pendientes')}")
+            partes.append(
+                f"{pendientes} {pluralizar(pendientes, 'factura pendiente', 'facturas pendientes')} "
+                f"por € {fmt_importe_reporte(importe_pendiente)}"
+            )
         if probables > 0:
-            partes.append(f"{probables} {pluralizar(probables, 'conciliación probable', 'conciliaciones probables')}")
+            partes.append(
+                f"{probables} {pluralizar(probables, 'conciliación probable', 'conciliaciones probables')}"
+            )
         if probables_multi > 0:
             partes.append(
                 f"{probables_multi} {pluralizar(probables_multi, 'conciliación probable múltiple', 'conciliaciones probables múltiples')}"
@@ -661,16 +668,22 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
                 f"{sin_soporte} {pluralizar(sin_soporte, 'movimiento relevante sin soporte', 'movimientos relevantes sin soporte')}"
             )
         if duplicados > 0:
-            partes.append(f"{duplicados} {pluralizar(duplicados, 'duplicado potencial', 'duplicados potenciales')}")
+            partes.append(
+                f"{duplicados} {pluralizar(duplicados, 'duplicado potencial', 'duplicados potenciales')}"
+            )
         if movimientos_internos > 0:
             partes.append(
                 f"{movimientos_internos} {pluralizar(movimientos_internos, 'movimiento interno', 'movimientos internos')}"
             )
 
-        detalle = ", ".join(partes) if partes else "elementos que todavía requieren validación"
-        bloque_cierre = f" El cierre todavía no puede considerarse definitivo: persisten {detalle}."
+        detalle = ", ".join(partes) if partes else "elementos todavía pendientes de validación"
+        bloque_cierre = (
+            f" El cierre preliminar es débil: persisten {detalle}, por lo que todavía no conviene tratar este período como definitivamente cerrado."
+        )
+
     elif nivel_cierre == "medio":
         partes = []
+
         if exactas_multi > 0:
             partes.append(
                 f"{exactas_multi} {pluralizar(exactas_multi, 'conciliación exacta múltiple', 'conciliaciones exactas múltiples')}"
@@ -680,33 +693,42 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
                 f"{probables_multi} {pluralizar(probables_multi, 'conciliación probable múltiple', 'conciliaciones probables múltiples')}"
             )
         if duplicados > 0:
-            partes.append(f"{duplicados} {pluralizar(duplicados, 'duplicado potencial', 'duplicados potenciales')}")
+            partes.append(
+                f"{duplicados} {pluralizar(duplicados, 'duplicado potencial', 'duplicados potenciales')}"
+            )
         if movimientos_internos > 0:
             partes.append(
                 f"{movimientos_internos} {pluralizar(movimientos_internos, 'movimiento interno', 'movimientos internos')}"
             )
 
-        detalle = ", ".join(partes) if partes else "validaciones adicionales"
-        bloque_cierre = f" La lectura es útil, pero todavía requiere validación adicional: se observan {detalle}."
+        detalle = ", ".join(partes) if partes else "algunas validaciones adicionales"
+        bloque_cierre = (
+            f" El cierre preliminar es usable, pero todavía requiere validación adicional: se observan {detalle}."
+        )
+
     elif sin_soporte > 0:
         bloque_cierre = (
-            f" No se observan pendientes fuertes de conciliación, pero existen "
+            f" El cierre preliminar es razonablemente ordenado, aunque persisten "
             f"{sin_soporte} {pluralizar(sin_soporte, 'movimiento relevante sin soporte documental', 'movimientos relevantes sin soporte documental')}."
         )
+
     elif sin_soporte_menor > 0:
         bloque_cierre = (
-            f" No se observan pendientes relevantes, aunque existen "
+            f" El cierre preliminar es razonablemente limpio, aunque existen "
             f"{sin_soporte_menor} {pluralizar(sin_soporte_menor, 'movimiento menor sin soporte directo', 'movimientos menores sin soporte directo')}."
         )
+
     else:
-        bloque_cierre = " No se observan pendientes relevantes de conciliación en la estructura analizada."
+        bloque_cierre = (
+            " El cierre preliminar luce limpio y no muestra pendientes relevantes de conciliación en la estructura analizada."
+        )
 
     resumen_docs = (
-        f"Durante el análisis se procesaron {total} {pluralizar(total, 'archivo')}: "
+        f"Se procesaron {total} {pluralizar(total, 'archivo')}: "
         f"{docs['factura_venta']} {pluralizar(docs['factura_venta'], 'factura de venta')}, "
         f"{docs['factura_compra']} {pluralizar(docs['factura_compra'], 'factura de compra')}, "
         f"{docs['extracto_bancario']} {pluralizar(docs['extracto_bancario'], 'extracto bancario')} "
-        f"y {docs['otros']} {pluralizar(docs['otros'], 'documento', 'documentos')} adicional(es)."
+        f"y {docs['otros']} {pluralizar(docs['otros'], 'documento', 'documentos')} adicionales."
     )
 
     narrativa = f"{bloque_flujo}{bloque_cierre} {resumen_docs}"
@@ -793,9 +815,20 @@ def generar_diagnostico_financiero(flujo, conc):
         diagnosticos.append(
             f"Hay {movimientos_internos} {pluralizar(movimientos_internos, 'movimiento interno', 'movimientos internos')} que no deben confundirse con gasto comercial."
         )
-    
-    return diagnosticos[:5]
 
+    if (
+        pendientes == 0
+        and sin_soporte == 0
+        and duplicados == 0
+        and probables == 0
+        and probables_multi == 0
+        and movimientos_internos == 0
+    ):
+        diagnosticos.append(
+            "No se detectan alertas relevantes de conciliación o soporte documental en el período."
+        )
+
+    return diagnosticos[:5]
 
 def generar_recomendaciones_financieras(flujo, conc):
     recomendaciones = []
@@ -1625,6 +1658,34 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     diagnosticos = generar_diagnostico_financiero(flujo, conc)
     recomendaciones = generar_recomendaciones_financieras(flujo, conc)
     insight_ejecutivo = generar_insight_ejecutivo(flujo, conc)
+
+    # === ALERTAS DINÁMICAS ===
+    alerta_pendientes_color = "yellow" if conc["pendientes"] > 0 else "green"
+    alerta_pendientes_tag = "Revisar" if conc["pendientes"] > 0 else "Bien"
+    alerta_pendientes_titulo = (
+        "El cierre todavía requiere seguimiento"
+        if conc["pendientes"] > 0
+        else "No se observan pendientes documentales relevantes"
+    )
+    alerta_pendientes_texto = (
+        f"Persisten {conc['pendientes']} {pluralizar(conc['pendientes'], 'factura pendiente', 'facturas pendientes')} y € {fmt(conc['importe_pendiente'])} todavía por cerrar o validar antes de considerar el período razonablemente completo."
+        if conc["pendientes"] > 0
+        else "No se observan facturas pendientes relevantes en la estructura analizada."
+    )
+
+    hay_alerta_soporte = conc.get("sin_soporte", 0) > 0 or conc.get("sin_soporte_menor", 0) > 0
+    alerta_soporte_color = "red" if hay_alerta_soporte else "green"
+    alerta_soporte_tag = "Atención" if hay_alerta_soporte else "Bien"
+    alerta_soporte_titulo = (
+        "Movimientos sin soporte detectados"
+        if hay_alerta_soporte
+        else "Soporte documental sin alertas relevantes"
+    )
+    alerta_soporte_texto = (
+        f"Se detectan {conc.get('sin_soporte', 0)} {pluralizar(conc.get('sin_soporte', 0), 'movimiento relevante sin soporte documental', 'movimientos relevantes sin soporte documental')} y {conc.get('sin_soporte_menor', 0)} {pluralizar(conc.get('sin_soporte_menor', 0), 'movimiento menor sin soporte directo', 'movimientos menores sin soporte directo')}."
+        if hay_alerta_soporte
+        else "No se detectan alertas relevantes de soporte documental en los movimientos revisados."
+    )
 
     total_docs_clasificados = docs["factura_venta"] + docs["factura_compra"] + docs["extracto_bancario"] + docs["otros"]
 
