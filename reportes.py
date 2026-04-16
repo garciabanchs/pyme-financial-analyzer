@@ -794,11 +794,7 @@ def generar_diagnostico_financiero(flujo, conc):
             f"Hay {movimientos_internos} {pluralizar(movimientos_internos, 'movimiento interno', 'movimientos internos')} que no deben confundirse con gasto comercial."
         )
 
-    if not diagnosticos:
-        diagnosticos.append(
-            "No se detectan alertas materiales en la lectura preliminar del período."
-        )
-
+    
     return diagnosticos[:5]
 
 
