@@ -1011,6 +1011,77 @@ def resolver_cliente_proveedor_visible(item):
 
         return "badge-gray"
 
+    def slug_filtro(valor, prefijo="f"):
+        valor = str(valor or "").strip().lower()
+        valor = re.sub(r"\s*\|\s*", " ", valor)
+        valor = re.sub(r"[^a-z0-9áéíóúüñ]+", "-", valor, flags=re.IGNORECASE)
+        valor = valor.strip("-")
+        return f"{prefijo}-{valor}" if valor else f"{prefijo}-no-detectado"
+
+    def extraer_opciones_filtro_movimientos():
+        analisis = analizar_movimientos_bancarios()
+        movimientos = analisis["entradas_relevantes"] + analisis["salidas_relevantes"]
+
+        bancos = []
+        bancos_vistos = set()
+        contrapartes = []
+        contrapartes_vistas = set()
+
+        for item in movimientos:
+            banco = resolver_banco_visible(item)
+            cp = resolver_cliente_proveedor_visible(item)
+
+            if banco not in bancos_vistos:
+                bancos_vistos.add(banco)
+                bancos.append(banco)
+
+            if cp not in contrapartes_vistas:
+                contrapartes_vistas.add(cp)
+                contrapartes.append(cp)
+
+        return {
+            "bancos": sorted(bancos, key=lambda x: (x == "No detectado", x.lower())),
+            "contrapartes": sorted(contrapartes, key=lambda x: (x == "No detectado", x.lower())),
+        }
+
+    def extraer_opciones_filtro_conciliacion():
+        bancos = []
+        bancos_vistos = set()
+        contrapartes = []
+        contrapartes_vistas = set()
+
+        for item in conciliacion or []:
+            banco = resolver_banco_visible(item)
+            cp = resolver_cliente_proveedor_visible(item)
+
+            if banco not in bancos_vistos:
+                bancos_vistos.add(banco)
+                bancos.append(banco)
+
+            if cp not in contrapartes_vistas:
+                contrapartes_vistas.add(cp)
+                contrapartes.append(cp)
+
+        return {
+            "bancos": sorted(bancos, key=lambda x: (x == "No detectado", x.lower())),
+            "contrapartes": sorted(contrapartes, key=lambda x: (x == "No detectado", x.lower())),
+        }
+
+    def construir_select_filtro(label, filtro_tipo, opciones, target_id):
+        opciones_html = ['<option value="all">Todos</option>']
+        for op in opciones:
+            slug = slug_filtro(op, filtro_tipo)
+            opciones_html.append(f'<option value="{slug}">{op}</option>')
+
+        return f"""
+        <div class="smart-filter">
+            <label>{label}</label>
+            <select class="smart-filter-select" data-filter-type="{filtro_tipo}" data-target="{target_id}">
+                {''.join(opciones_html)}
+            </select>
+        </div>
+        """
+
     def construir_botones_movimientos(section_target):
         botones = [
             ("all", "Ver todo"),
