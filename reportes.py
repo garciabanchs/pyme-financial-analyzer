@@ -1108,6 +1108,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 data-target-section="movimientos-section">
                 <td class="mono">{item['fecha']}</td>
                 <td>{item['descripcion']}</td>
+                <td>{item.get('banco', 'No detectado')}</td>
                 <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
                 <td class="mono">€ {item['importe_fmt']}</td>
             </tr>
