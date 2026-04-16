@@ -3483,7 +3483,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <p>La documentación cargada ya se transformó en una estructura útil para lectura gerencial y revisión financiera.</p>
                         </article>
 
-                        <article class="alert-card yellow">
+                        <article class="alert-card {alerta_pendientes_color}">
                             <div class="alert-tag">Revisar</div>
                             <h4>El cierre todavía requiere seguimiento</h4>
                             <p>Persisten {conc["pendientes"]} {pluralizar(conc["pendientes"], "factura pendiente", "facturas pendientes")} y € {fmt(conc["importe_pendiente"])} todavía por cerrar o validar antes de considerar el período razonablemente completo.</p>
