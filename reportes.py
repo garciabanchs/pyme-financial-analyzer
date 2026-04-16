@@ -965,6 +965,23 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     def texto_lectura_ejecutiva(flujo, conc, docs):
         return construir_narrativa_ejecutiva(total, docs, flujo, conc)
 
+        def texto_lectura_ejecutiva(flujo, conc, docs):
+        return construir_narrativa_ejecutiva(total, docs, flujo, conc)
+
+    def resolver_banco_visible(item):
+        return (
+            item.get("banco")
+            or item.get("entidad_financiera")
+            or item.get("cuenta")
+            or "No detectado"
+        )
+
+    def resolver_cliente_proveedor_visible(item):
+        return item.get("cliente_proveedor") or "No detectado"
+
+    def clase_badge_categoria(categoria):
+        categoria = (categoria or "").lower()
+
     def clase_badge_categoria(categoria):
         categoria = (categoria or "").lower()
 
@@ -1121,7 +1138,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 </div>
                 <div class="mobile-meta-row">
                     <span class="mobile-label">Banco</span>
-                    <span>{item.get('banco', 'No detectado')}</span>
+                    <span>{resolver_banco_visible(item)}</span>
                 </div>
                 <div class="mobile-meta-row">
                     <span class="mobile-label">Naturaleza</span>
@@ -1189,7 +1206,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 data-target-section="movimientos-section">
                 <td class="mono">{item['fecha']}</td>
                 <td>{item['descripcion']}</td>
-                <td>{item.get('banco', 'No detectado')}</td>
+                <td>{resolver_banco_visible(item)}</td>
                 <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
                 <td class="mono">€ {item['importe_fmt']}</td>
             </tr>
@@ -1304,7 +1321,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             <tr class="conc-row" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="conciliacion-section">
                 <td>{item.get('archivo', '-')}</td>
                 <td class="mono">{item.get('fecha', '-')}</td>
-                <td>{item.get('banco', 'No detectado')}</td>
+                <td>{resolver_banco_visible(item)}</td>
                 <td class="mono">€ {importe}</td>
                 <td><span class="badge {badge_class}">{estado}</span></td>
                 <td class="mono">{diferencia if diferencia == '-' else '€ ' + diferencia}</td>
@@ -1328,7 +1345,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 </div>
                 <div class="mobile-meta-row">
                     <span class="mobile-label">Banco</span>
-                    <span>{item.get('banco', 'No detectado')}</span>
+                    <span>{resolver_banco_visible(item)}</span>
                 </div>
                 <div class="mobile-meta-row">
                     <span class="mobile-label">Diferencia</span>
