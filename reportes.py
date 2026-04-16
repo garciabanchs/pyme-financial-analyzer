@@ -1043,6 +1043,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <span class="mono">{item['fecha']}</span>
                 </div>
                 <div class="mobile-meta-row">
+                    <span class="mobile-label">Banco</span>
+                    <span>{item.get('banco', 'No detectado')}</span>
+                </div>
+                <div class="mobile-meta-row">
                     <span class="mobile-label">Naturaleza</span>
                     <span>{item['naturaleza_humana']}</span>
                 </div>
