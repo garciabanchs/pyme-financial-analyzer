@@ -432,6 +432,9 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "naturaleza_humana": humanizar_naturaleza(item.get("naturaleza", "-")),
             "descripcion": item.get("descripcion", "-"),
             "banco": item.get("banco", "No detectado") or "No detectado",
+            "entidad_financiera": item.get("entidad_financiera"),
+            "cuenta": item.get("cuenta"),
+            "cliente_proveedor": item.get("cliente_proveedor"),         
             "categoria": categoria,
             "categoria_humana": humanizar_categoria(categoria),
             "moneda": item.get("moneda", "") or "",
@@ -511,6 +514,9 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "naturaleza_humana": "Entrada",
             "descripcion": f"movimientos menores agrupados",
             "banco": "-",
+            "entidad_financiera": None,
+            "cuenta": None,
+            "cliente_proveedor": None,          
             "categoria": "otros_cobros",
             "categoria_humana": "Otros ingresos",
             "moneda": "",
@@ -527,6 +533,9 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "naturaleza_humana": "Salida",
             "descripcion": f"movimientos menores agrupados",
             "banco": "-",
+            "entidad_financiera": None,
+            "cuenta": None,
+            "cliente_proveedor": None,
             "categoria": "otros_pagos",
             "categoria_humana": "Otros pagos",
             "moneda": "",
@@ -965,9 +974,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     def texto_lectura_ejecutiva(flujo, conc, docs):
         return construir_narrativa_ejecutiva(total, docs, flujo, conc)
 
-        def texto_lectura_ejecutiva(flujo, conc, docs):
-        return construir_narrativa_ejecutiva(total, docs, flujo, conc)
-
     def resolver_banco_visible(item):
         return (
             item.get("banco")
@@ -978,9 +984,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
     def resolver_cliente_proveedor_visible(item):
         return item.get("cliente_proveedor") or "No detectado"
-
-    def clase_badge_categoria(categoria):
-        categoria = (categoria or "").lower()
 
     def clase_badge_categoria(categoria):
         categoria = (categoria or "").lower()
@@ -1141,6 +1144,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <span>{resolver_banco_visible(item)}</span>
                 </div>
                 <div class="mobile-meta-row">
+                    <span class="mobile-label">Cliente / Proveedor</span>
+                    <span>{resolver_cliente_proveedor_visible(item)}</span>
+                </div>
+                <div class="mobile-meta-row">
                     <span class="mobile-label">Naturaleza</span>
                     <span>{item['naturaleza_humana']}</span>
                 </div>
@@ -1207,6 +1214,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <td class="mono">{item['fecha']}</td>
                 <td>{item['descripcion']}</td>
                 <td>{resolver_banco_visible(item)}</td>
+                <td>{resolver_cliente_proveedor_visible(item)}</td>
                 <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
                 <td class="mono">€ {item['importe_fmt']}</td>
             </tr>
@@ -1239,6 +1247,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <th>Fecha</th>
                             <th>Descripción</th>
                             <th>Banco</th>
+                            <th>Cliente / Proveedor</th>
                             <th>Categoría</th>
                             <th>Importe</th>
                         </tr>
@@ -1322,6 +1331,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <td>{item.get('archivo', '-')}</td>
                 <td class="mono">{item.get('fecha', '-')}</td>
                 <td>{resolver_banco_visible(item)}</td>
+                <td>{resolver_cliente_proveedor_visible(item)}</td>
                 <td class="mono">€ {importe}</td>
                 <td><span class="badge {badge_class}">{estado}</span></td>
                 <td class="mono">{diferencia if diferencia == '-' else '€ ' + diferencia}</td>
@@ -1348,6 +1358,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <span>{resolver_banco_visible(item)}</span>
                 </div>
                 <div class="mobile-meta-row">
+                    <span class="mobile-label">Cliente / Proveedor</span>
+                    <span>{resolver_cliente_proveedor_visible(item)}</span>
+                </div>
+                <div class="mobile-meta-row">
                     <span class="mobile-label">Diferencia</span>
                     <span class="mono">{diferencia if diferencia == '-' else '€ ' + diferencia}</span>
                 </div>
@@ -1370,6 +1384,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <th>Archivo</th>
                             <th>Fecha</th>
                             <th>Banco</th>
+                            <th>Cliente / Proveedor</th>
                             <th>Importe</th>
                             <th>Estado</th>
                             <th>Diferencia</th>
