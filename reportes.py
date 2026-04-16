@@ -746,37 +746,58 @@ def texto_score_financiero(score):
 def generar_diagnostico_financiero(flujo, conc):
     diagnosticos = []
 
-    if flujo.get("variacion", 0) > 0:
+    variacion = flujo.get("variacion", 0)
+    pendientes = conc.get("pendientes", 0)
+    importe_pendiente = conc.get("importe_pendiente", 0)
+    sin_soporte = conc.get("sin_soporte", 0)
+    duplicados = conc.get("duplicados", 0)
+    probables = conc.get("parciales", 0)
+    probables_multi = conc.get("probables_multi", 0)
+    movimientos_internos = conc.get("movimientos_internos", 0)
+
+    if variacion > 0:
         diagnosticos.append(
-            f"La caja mejoró en el período, con una variación positiva de € {fmt_importe_reporte(flujo.get('variacion', 0))}."
+            f"La caja mejoró en el período, con una variación positiva de € {fmt_importe_reporte(variacion)}."
         )
-    elif flujo.get("variacion", 0) < 0:
+    elif variacion < 0:
         diagnosticos.append(
-            f"La caja se deterioró en el período, con una variación negativa de € {fmt_importe_reporte(abs(flujo.get('variacion', 0)))}."
+            f"La caja se deterioró en el período, con una variación negativa de € {fmt_importe_reporte(abs(variacion))}."
         )
     else:
-        diagnosticos.append("La caja cerró prácticamente al mismo nivel con el que empezó el período.")
-
-    if conc.get("pendientes", 0) > 0:
         diagnosticos.append(
-            f"Persisten {conc.get('pendientes', 0)} {pluralizar(conc.get('pendientes', 0), 'factura pendiente', 'facturas pendientes')}, "
-            f"con € {fmt_importe_reporte(conc.get('importe_pendiente', 0))} todavía por validar o cerrar."
+            "La caja cerró prácticamente al mismo nivel con el que empezó el período."
         )
 
-    if conc.get("sin_soporte", 0) > 0:
+    if pendientes > 0:
         diagnosticos.append(
-            f"Se identificaron {conc.get('sin_soporte', 0)} {pluralizar(conc.get('sin_soporte', 0), 'movimiento relevante sin soporte', 'movimientos relevantes sin soporte')}, "
-            "lo que reduce la confiabilidad del cierre."
+            f"Persisten {pendientes} {pluralizar(pendientes, 'factura pendiente', 'facturas pendientes')}, con € {fmt_importe_reporte(importe_pendiente)} todavía por validar o cerrar."
         )
 
-    if conc.get("movimientos_internos", 0) > 0:
+    if sin_soporte > 0:
         diagnosticos.append(
-            f"Hay {conc.get('movimientos_internos', 0)} {pluralizar(conc.get('movimientos_internos', 0), 'movimiento interno', 'movimientos internos')} "
-            "que no deben confundirse con gasto comercial."
+            f"Se identificaron {sin_soporte} {pluralizar(sin_soporte, 'movimiento relevante sin soporte', 'movimientos relevantes sin soporte')}, lo que reduce la confiabilidad del cierre."
+        )
+
+    if duplicados > 0:
+        diagnosticos.append(
+            f"Se detectaron {duplicados} {pluralizar(duplicados, 'duplicado potencial', 'duplicados potenciales')}, que conviene revisar antes de considerar el período como cerrado."
+        )
+
+    if probables > 0 or probables_multi > 0:
+        total_probables = probables + probables_multi
+        diagnosticos.append(
+            f"Existen {total_probables} conciliaciones no exactas que todavía requieren validación adicional."
+        )
+
+    if movimientos_internos > 0:
+        diagnosticos.append(
+            f"Hay {movimientos_internos} {pluralizar(movimientos_internos, 'movimiento interno', 'movimientos internos')} que no deben confundirse con gasto comercial."
         )
 
     if not diagnosticos:
-        diagnosticos.append("No se detectan alertas materiales en la lectura preliminar del período.")
+        diagnosticos.append(
+            "No se detectan alertas materiales en la lectura preliminar del período."
+        )
 
     return diagnosticos[:5]
 
