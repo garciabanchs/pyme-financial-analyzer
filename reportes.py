@@ -192,73 +192,167 @@ def construir_resumen_documentos(clasificados):
     }
 
 
-def construir_resumen_flujo(ledger):
+def construir_resumen_flujo_por_banco(ledger):
     ledger = ledger or []
 
-    for item in ledger:
-        if item.get("tipo") == "extracto_resumen":
-            resumen = item.get("resumen_extracto", {}) or {}
+    bancos = {}
 
-            saldo_inicial = resumen.get("saldo_inicial_disponible") or 0.0
-            saldo_final = resumen.get("saldo_final_disponible") or 0.0
-            retenido = abs(resumen.get("retenido") or 0.0)
+    def asegurar_banco(nombre_banco):
+        nombre = (nombre_banco or "").strip() or "Banco sin nombre"
 
-            entradas = 0.0
-            entradas += abs(resumen.get("pagos_recibidos") or 0.0)
-            entradas += abs(resumen.get("depositos_y_creditos") or 0.0)
-            entradas += abs(resumen.get("liberaciones") or 0.0)
-
-            salidas = 0.0
-            salidas += abs(resumen.get("pagos_enviados") or 0.0)
-            salidas += abs(resumen.get("retiradas_y_cargos") or 0.0)
-            salidas += abs(resumen.get("tarifas") or 0.0)
-            salidas += abs(resumen.get("retenido") or 0.0)
-
-            variacion = saldo_final - saldo_inicial
-
-            return {
-                "saldo_inicial": saldo_inicial,
-                "entradas": entradas,
-                "salidas": salidas,
-                "saldo_final": saldo_final,
-                "variacion": variacion,
-                "retenido": retenido,
-                "balance": variacion,
-                "movimientos": entradas + salidas,
+        if nombre not in bancos:
+            bancos[nombre] = {
+                "banco": nombre,
+                "saldo_inicial": 0.0,
+                "entradas": 0.0,
+                "salidas": 0.0,
+                "saldo_final": 0.0,
+                "variacion": 0.0,
+                "retenido": 0.0,
+                "balance": 0.0,
+                "movimientos": 0.0,
                 "revisar": 0.0,
+                "tiene_resumen": False,
             }
-    saldo_inicial = 0.0
-    entradas = 0.0
-    salidas = 0.0
 
+        return bancos[nombre]
+
+    # 1) Prioridad: construir cada banco desde su extracto_resumen
+    for item in ledger:
+        if item.get("tipo") != "extracto_resumen":
+            continue
+
+        resumen = item.get("resumen_extracto", {}) or {}
+
+        banco = (
+            item.get("banco")
+            or resumen.get("banco")
+            or item.get("cuenta")
+            or item.get("archivo")
+            or "Banco sin nombre"
+        )
+
+        fila = asegurar_banco(banco)
+
+        saldo_inicial = resumen.get("saldo_inicial_disponible") or 0.0
+        saldo_final = resumen.get("saldo_final_disponible") or 0.0
+        retenido = abs(resumen.get("retenido") or 0.0)
+
+        entradas = 0.0
+        entradas += abs(resumen.get("pagos_recibidos") or 0.0)
+        entradas += abs(resumen.get("depositos_y_creditos") or 0.0)
+        entradas += abs(resumen.get("liberaciones") or 0.0)
+
+        salidas = 0.0
+        salidas += abs(resumen.get("pagos_enviados") or 0.0)
+        salidas += abs(resumen.get("retiradas_y_cargos") or 0.0)
+        salidas += abs(resumen.get("tarifas") or 0.0)
+        salidas += abs(resumen.get("retenido") or 0.0)
+
+        variacion = saldo_final - saldo_inicial
+
+        fila["saldo_inicial"] = saldo_inicial
+        fila["entradas"] = entradas
+        fila["salidas"] = salidas
+        fila["saldo_final"] = saldo_final
+        fila["variacion"] = variacion
+        fila["retenido"] = retenido
+        fila["balance"] = variacion
+        fila["movimientos"] = entradas + salidas
+        fila["revisar"] = 0.0
+        fila["tiene_resumen"] = True
+
+    # 2) Para bancos sin extracto_resumen, construir desde extracto_bancario
     for item in ledger:
         if item.get("tipo") != "extracto_bancario":
             continue
 
+        banco = (
+            item.get("banco")
+            or item.get("cuenta")
+            or item.get("archivo")
+            or "Banco sin nombre"
+        )
+
+        fila = asegurar_banco(banco)
+
+        # Si ya tiene resumen completo, no duplicamos
+        if fila["tiene_resumen"]:
+            continue
+
         valor_firmado = item.get("importe_firmado_num")
+
+        if valor_firmado is None:
+            valor_firmado = normalizar_importe_reporte(item.get("importe", 0))
+            if (item.get("naturaleza") or "").strip().lower() == "salida":
+                valor_firmado = -abs(valor_firmado)
+
         if valor_firmado is None:
             continue
 
         if valor_firmado > 0:
-            entradas += valor_firmado
+            fila["entradas"] += abs(valor_firmado)
         elif valor_firmado < 0:
-            salidas += abs(valor_firmado)
+            fila["salidas"] += abs(valor_firmado)
 
-    saldo_final = saldo_inicial + entradas - salidas
-    variacion = saldo_final - saldo_inicial
+    # 3) Cerrar métricas calculadas para bancos sin resumen
+    for _, fila in bancos.items():
+        if not fila["tiene_resumen"]:
+            fila["saldo_final"] = fila["saldo_inicial"] + fila["entradas"] - fila["salidas"]
+            fila["variacion"] = fila["saldo_final"] - fila["saldo_inicial"]
+            fila["balance"] = fila["variacion"]
+            fila["movimientos"] = fila["entradas"] + fila["salidas"]
 
-    return {
-        "saldo_inicial": saldo_inicial,
-        "entradas": entradas,
-        "salidas": salidas,
-        "saldo_final": saldo_final,
-        "variacion": variacion,
+    # 4) Ordenar visualmente por volumen total movido
+    bancos_ordenados = sorted(
+        bancos.values(),
+        key=lambda x: (-(x.get("movimientos", 0.0)), (x.get("banco") or "").lower())
+    )
+
+    return bancos_ordenados
+
+
+def construir_resumen_flujo(ledger):
+    bancos = construir_resumen_flujo_por_banco(ledger)
+
+    if not bancos:
+        return {
+            "saldo_inicial": 0.0,
+            "entradas": 0.0,
+            "salidas": 0.0,
+            "saldo_final": 0.0,
+            "variacion": 0.0,
+            "retenido": 0.0,
+            "balance": 0.0,
+            "movimientos": 0.0,
+            "revisar": 0.0,
+        }
+
+    total = {
+        "saldo_inicial": 0.0,
+        "entradas": 0.0,
+        "salidas": 0.0,
+        "saldo_final": 0.0,
+        "variacion": 0.0,
         "retenido": 0.0,
-        "balance": variacion,
-        "movimientos": entradas + salidas,
+        "balance": 0.0,
+        "movimientos": 0.0,
         "revisar": 0.0,
     }
 
+    for banco in bancos:
+        total["saldo_inicial"] += banco.get("saldo_inicial", 0.0)
+        total["entradas"] += banco.get("entradas", 0.0)
+        total["salidas"] += banco.get("salidas", 0.0)
+        total["saldo_final"] += banco.get("saldo_final", 0.0)
+        total["retenido"] += banco.get("retenido", 0.0)
+        total["movimientos"] += banco.get("movimientos", 0.0)
+        total["revisar"] += banco.get("revisar", 0.0)
+
+    total["variacion"] = total["saldo_final"] - total["saldo_inicial"]
+    total["balance"] = total["variacion"]
+
+    return total
 
 def construir_resumen_conciliacion(conciliacion):
     conciliacion = conciliacion or []
@@ -880,6 +974,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     def resumen_flujo():
         return construir_resumen_flujo(ledger)
 
+    def resumen_flujo_bancos():
+        return construir_resumen_flujo_por_banco(ledger)
+
     def resumen_conciliacion():
         return construir_resumen_conciliacion(conciliacion)
 
@@ -968,6 +1065,75 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </div>
         </div>
         """
+
+    def construir_metric_cards_hero(flujo_total, flujo_bancos):
+        cards = []
+
+        cards.append(f"""
+        <article class="metric-card metric-total">
+            <div class="metric-card-head">
+                <div class="metric-label">Total consolidado</div>
+                <div class="metric-bank-tag">General</div>
+            </div>
+
+            <div class="metric-split">
+                <div class="metric-block">
+                    <div class="metric-mini-label">Saldo inicial</div>
+                    <div class="metric-mini-value">€ {fmt(flujo_total["saldo_inicial"])}</div>
+                </div>
+                <div class="metric-block">
+                    <div class="metric-mini-label">Entradas</div>
+                    <div class="metric-mini-value">€ {fmt(flujo_total["entradas"])}</div>
+                </div>
+                <div class="metric-block">
+                    <div class="metric-mini-label">Salidas</div>
+                    <div class="metric-mini-value">€ {fmt(flujo_total["salidas"])}</div>
+                </div>
+                <div class="metric-block">
+                    <div class="metric-mini-label">Saldo final</div>
+                    <div class="metric-mini-value">€ {fmt(flujo_total["saldo_final"])}</div>
+                </div>
+            </div>
+
+            <div class="metric-delta">
+                <span>Variación: € {fmt(flujo_total["variacion"])}</span>
+                <span>Consolidado</span>
+            </div>
+        </article>
+        """)
+
+        for banco in flujo_bancos:
+            cards.append(f"""
+            <article class="metric-card metric-bank">
+                <div class="metric-card-head">
+                    <div class="metric-label">{banco["banco"]}</div>
+                    <div class="metric-bank-tag">Banco</div>
+                </div>
+
+                <div class="metric-bank-main">€ {fmt(banco["saldo_final"])}</div>
+
+                <div class="metric-bank-grid">
+                    <div>
+                        <div class="metric-mini-label">Inicial</div>
+                        <div class="metric-mini-number">€ {fmt(banco["saldo_inicial"])}</div>
+                    </div>
+                    <div>
+                        <div class="metric-mini-label">Entradas</div>
+                        <div class="metric-mini-number">€ {fmt(banco["entradas"])}</div>
+                    </div>
+                    <div>
+                        <div class="metric-mini-label">Salidas</div>
+                        <div class="metric-mini-number">€ {fmt(banco["salidas"])}</div>
+                    </div>
+                    <div>
+                        <div class="metric-mini-label">Variación</div>
+                        <div class="metric-mini-number">€ {fmt(banco["variacion"])}</div>
+                    </div>
+                </div>
+            </article>
+            """)
+
+        return "".join(cards)
 
     def tabla_ledger_html():
         if not ledger:
@@ -1302,7 +1468,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </div>
         </div>
         """
-    
+
     def documentos_html():
         if not documentos:
             return """
@@ -1582,6 +1748,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
     docs = contar_docs()
     flujo = resumen_flujo()
+    flujo_bancos = resumen_flujo_bancos()
     conc = resumen_conciliacion()
     nombre_empresa = inferir_nombre_empresa(documentos, ledger)
     nombre_empresa_titulo = nombre_empresa if nombre_empresa and nombre_empresa != "la empresa" else "la empresa analizada"
@@ -1860,14 +2027,19 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
             .hero-side {{
                 display:grid;
-                grid-template-columns:repeat(2,1fr);
+                grid-template-columns:repeat(2, minmax(0,1fr));
                 gap:14px;
+                align-content:start;
+            }}
+
+            .hero-side-bancos .metric-total {{
+                grid-column:1 / -1;
             }}
 
             .metric-card {{
                 padding:20px;
                 border-radius:26px;
-                background:rgba(255,255,255,.9);
+                background:rgba(255,255,255,.92);
                 border:1px solid rgba(255,255,255,.72);
                 box-shadow:var(--shadow-sm);
                 min-height:164px;
@@ -1876,18 +2048,30 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 justify-content:space-between;
             }}
 
-            .metric-label {{
-                color:var(--muted);
-                font-weight:700;
-                font-size:.95rem;
+            .metric-card-head {{
+                display:flex;
+                align-items:flex-start;
+                justify-content:space-between;
+                gap:12px;
             }}
 
-            .metric-value {{
-                margin-top:8px;
-                font-size:clamp(1.7rem,2.3vw,2.4rem);
+            .metric-label {{
+                color:var(--text);
+                font-weight:800;
+                font-size:.98rem;
+            }}
+
+            .metric-bank-tag {{
+                display:inline-flex;
+                align-items:center;
+                justify-content:center;
+                padding:7px 10px;
+                border-radius:999px;
+                background:#eef5ff;
+                color:var(--blue-1);
+                font-size:.74rem;
                 font-weight:900;
-                letter-spacing:-.05em;
-                line-height:1;
+                white-space:nowrap;
             }}
 
             .metric-delta {{
@@ -1899,26 +2083,77 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 font-weight:600;
             }}
 
-            .metric-primary {{
-                background:linear-gradient(180deg,#ffffff,#f7fbff);
+            .metric-total {{
+                background:linear-gradient(135deg, rgba(15,76,255,.96), rgba(94,167,255,.90));
+                color:#fff;
+                min-height:198px;
             }}
 
-            .metric-in {{
-                background:linear-gradient(180deg,#f8fcff,#f0f7ff);
+            .metric-total .metric-label,
+            .metric-total .metric-mini-label,
+            .metric-total .metric-mini-value,
+            .metric-total .metric-delta,
+            .metric-total .metric-bank-tag {{
+                color:#fff;
             }}
 
-            .metric-out {{
-                background:linear-gradient(180deg,#fffdf8,#fff7eb);
+            .metric-total .metric-bank-tag {{
+                background:rgba(255,255,255,.18);
+                border:1px solid rgba(255,255,255,.20);
             }}
 
-            .metric-end {{
-                background:linear-gradient(135deg, rgba(15,76,255,.95), rgba(94,167,255,.88));
-                color:white;
+            .metric-split {{
+                display:grid;
+                grid-template-columns:repeat(2, minmax(0,1fr));
+                gap:14px;
+                margin:18px 0 16px;
             }}
 
-            .metric-end .metric-label,
-            .metric-end .metric-delta {{
-                color:rgba(255,255,255,.82);
+            .metric-block {{
+                background:rgba(255,255,255,.10);
+                border:1px solid rgba(255,255,255,.14);
+                border-radius:18px;
+                padding:14px;
+            }}
+
+            .metric-mini-label {{
+                font-size:.78rem;
+                font-weight:800;
+                color:var(--muted);
+                margin-bottom:8px;
+            }}
+
+            .metric-mini-value {{
+                font-size:1.45rem;
+                line-height:1.05;
+                font-weight:900;
+                letter-spacing:-.04em;
+            }}
+
+            .metric-bank {{
+                background:linear-gradient(180deg,#ffffff,#f8fbff);
+            }}
+
+            .metric-bank-main {{
+                margin:14px 0 16px;
+                font-size:2.1rem;
+                line-height:1;
+                font-weight:900;
+                letter-spacing:-.05em;
+                color:var(--text);
+            }}
+
+            .metric-bank-grid {{
+                display:grid;
+                grid-template-columns:repeat(2, minmax(0,1fr));
+                gap:12px 16px;
+            }}
+
+            .metric-mini-number {{
+                font-size:.95rem;
+                font-weight:800;
+                color:#0f172a;
+                line-height:1.35;
             }}
 
             .section {{
@@ -2862,6 +3097,15 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 .hero-side {{
                     grid-template-columns:1fr;
                 }}
+
+                .hero-side-bancos .metric-total {{
+                    grid-column:auto;
+                }}
+
+                .metric-split,
+                .metric-bank-grid {{
+                    grid-template-columns:1fr 1fr;
+                }}
             }}
 
             @media (max-width:760px) {{
@@ -2941,6 +3185,16 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
                 .compact-grid {{
                     grid-template-columns:1fr;
+                }}
+
+                .metric-split,
+                .metric-bank-grid {{
+                    grid-template-columns:1fr;
+                }}
+
+                .metric-bank-main,
+                .metric-mini-value {{
+                    word-break:break-word;
                 }}
 
                 .alerts-grid {{
@@ -3028,264 +3282,261 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 }}
             }}
 
-@media (max-width:560px) {{
-    .metrics-grid {{
-        grid-template-columns:1fr;
-    }}
+            @media (max-width:560px) {{
+                .metrics-grid {{
+                    grid-template-columns:1fr;
+                }}
 
-    .company-meta {{
-        gap:8px;
-    }}
+                .company-meta {{
+                    gap:8px;
+                }}
 
-    .chip {{
-        font-size:.82rem;
-        padding:9px 12px;
-    }}
-}}
+                .chip {{
+                    font-size:.82rem;
+                    padding:9px 12px;
+                }}
+            }}
 
-@media print {{
-    .filter-toolbar,
-    .accordion-icon,
-    .actions-bar,
-    .btn-ghost,
-    .topbar-shell .chip,
-    .hero-kicker {{
-        display: none !important;
-    }}
+            @media print {{
+                .filter-toolbar,
+                .accordion-icon,
+                .actions-bar,
+                .btn-ghost,
+                .topbar-shell .chip,
+                .hero-kicker {{
+                    display: none !important;
+                }}
 
-    .accordion-panel {{
-        display: block !important;
-    }}
+                .accordion-panel {{
+                    display: block !important;
+                }}
 
-    .accordion-shell {{
-        border: none !important;
-        box-shadow: none !important;
-        margin: 12px 0 !important;
-        page-break-inside: avoid;
-    }}
+                .accordion-shell {{
+                    border: none !important;
+                    box-shadow: none !important;
+                    margin: 12px 0 !important;
+                    page-break-inside: avoid;
+                }}
 
-    .accordion-toggle {{
-        display: none !important;
-    }}
+                .accordion-toggle {{
+                    display: none !important;
+                }}
 
-    .section,
-    .story-card,
-    .insight-card,
-    .diagnostic-card,
-    .recommend-card,
-    .score-card,
-    .insight-hero-card,
-    .kpi,
-    .metric-card,
-    .alert-card,
-    .author-card,
-    .books-card,
-    .contact-card {{
-        box-shadow: none !important;
-        backdrop-filter: none !important;
-        background: #ffffff !important;
-        page-break-inside: avoid;
-    }}
+                .section,
+                .story-card,
+                .insight-card,
+                .diagnostic-card,
+                .recommend-card,
+                .score-card,
+                .insight-hero-card,
+                .kpi,
+                .metric-card,
+                .alert-card,
+                .author-card,
+                .books-card,
+                .contact-card {{
+                    box-shadow: none !important;
+                    backdrop-filter: none !important;
+                    background: #ffffff !important;
+                    page-break-inside: avoid;
+                }}
 
-    .hero,
-    .hero-side,
-    .metrics-grid,
-    .diagnostic-grid,
-    .story-layout,
-    .alerts-grid {{
-        display: block !important;
-    }}
+                .hero,
+                .hero-side,
+                .metrics-grid,
+                .diagnostic-grid,
+                .story-layout,
+                .alerts-grid {{
+                    display: block !important;
+                }}
 
-    .metric-card,
-    .kpi,
-    .alert-card,
-    .score-card,
-    .insight-hero-card,
-    .diagnostic-card,
-    .recommend-card {{
-        margin-bottom: 12px !important;
-    }}
+                .metric-card,
+                .kpi,
+                .alert-card,
+                .score-card,
+                .insight-hero-card,
+                .diagnostic-card,
+                .recommend-card {{
+                    margin-bottom: 12px !important;
+                }}
 
-    .topbar,
-    .section,
-    .hero {{
-        border: 1px solid #dbe2ea !important;
-    }}
+                .topbar,
+                .section,
+                .hero {{
+                    border: 1px solid #dbe2ea !important;
+                }}
 
-    .brand h1,
-    .hero h2,
-    .section-title,
-    .author-name,
-    .book-title {{
-        word-break: break-word;
-        overflow-wrap: anywhere;
-    }}
+                .brand h1,
+                .hero h2,
+                .section-title,
+                .author-name,
+                .book-title {{
+                    word-break: break-word;
+                    overflow-wrap: anywhere;
+                }}
 
-    .table-wrap {{
-        display: block !important;
-        overflow: visible !important;
-    }}
+                .table-wrap {{
+                    display: block !important;
+                    overflow: visible !important;
+                }}
 
-    .mobile-doc-grid,
-    .mobile-amount-grid,
-    .mobile-movements-grid,
-    .mobile-conc-grid {{
-        display: none !important;
-    }}
+                .mobile-doc-grid,
+                .mobile-amount-grid,
+                .mobile-movements-grid,
+                .mobile-conc-grid {{
+                    display: none !important;
+                }}
 
-    table {{
-        min-width: 0 !important;
-        width: 100% !important;
-        font-size: 11px !important;
-    }}
+                table {{
+                    min-width: 0 !important;
+                    width: 100% !important;
+                    font-size: 11px !important;
+                }}
 
-    thead th,
-    tbody td {{
-        padding: 8px 10px !important;
-    }}
+                thead th,
+                tbody td {{
+                    padding: 8px 10px !important;
+                }}
 
-    .footer-card {{
-        margin-top: 18px !important;
-        box-shadow: none !important;
-        background: #ffffff !important;
-    }}
+                .footer-card {{
+                    margin-top: 18px !important;
+                    box-shadow: none !important;
+                    background: #ffffff !important;
+                }}
 
-    /* === RECORTE EJECUTIVO DEL PDF === */
+                #detalle-documental-section,
+                #detalle-contable-section {{
+                    display: none !important;
+                }}
 
-    #detalle-documental-section,
-    #detalle-contable-section {{
-        display: none !important;
-    }}
+                #movimientos-section .filter-toolbar,
+                #movimientos-section .table-shell,
+                #movimientos-section .mobile-movements-grid,
+                #movimientos-section .metrics-grid,
+                #movimientos-section .compact-grid,
+                #movimientos-section .compact-grid-soft {{
+                    display: none !important;
+                }}
 
-    #movimientos-section .filter-toolbar,
-    #movimientos-section .table-shell,
-    #movimientos-section .mobile-movements-grid,
-    #movimientos-section .metrics-grid,
-    #movimientos-section .compact-grid,
-    #movimientos-section .compact-grid-soft {{
-        display: none !important;
-    }}
+                #movimientos-section {{
+                    display: none !important;
+                }}
 
-    #movimientos-section {{
-        display: none !important;
-    }}
+                #conciliacion-section .filter-toolbar,
+                #conciliacion-section .table-shell,
+                #conciliacion-section .mobile-conc-grid {{
+                    display: none !important;
+                }}
 
-    #conciliacion-section .filter-toolbar,
-    #conciliacion-section .table-shell,
-    #conciliacion-section .mobile-conc-grid {{
-        display: none !important;
-    }}
+                .contact-card {{
+                    display:block !important;
+                    text-align:left !important;
+                }}
 
-.contact-card {{
-    display:block !important;
-    text-align:left !important;
-}}
+                .cta-button {{
+                    display:inline-flex !important;
+                    width:auto !important;
+                    min-width:0 !important;
+                    margin-top:14px !important;
+                    box-shadow:none !important;
+                }}
 
-.cta-button {{
-    display:inline-flex !important;
-    width:auto !important;
-    min-width:0 !important;
-    margin-top:14px !important;
-    box-shadow:none !important;
-}}
+                .book-link {{
+                    display:inline-block !important;
+                    width:auto !important;
+                }}
 
-.book-link {{
-    display:inline-block !important;
-    width:auto !important;
-}}
+                .footer-actions,
+                .footer-right,
+                .footer-pill {{
+                    display:none !important;
+                }}
 
-.footer-actions,
-.footer-right,
-.footer-pill {{
-    display:none !important;
-}}
+                .footer-card {{
+                    display:block !important;
+                    text-align:left !important;
+                    padding:14px 16px !important;
+                    margin-top:14px !important;
+                }}
 
-.footer-card {{
-    display:block !important;
-    text-align:left !important;
-    padding:14px 16px !important;
-    margin-top:14px !important;
-}}
+                .footer-card strong {{
+                    display:inline !important;
+                }}
 
-.footer-card strong {{
-    display:inline !important;
-}}
+                #movimientos-section {{
+                    page-break-before:auto;
+                }}
 
-#movimientos-section {{
-    page-break-before:auto;
-}}
+                .books-section,
+                .author-card,
+                .books-card,
+                .contact-card {{
+                    page-break-inside: avoid;
+                }}
 
-.books-section,
-.author-card,
-.books-card,
-.contact-card {{
-    page-break-inside: avoid;
-}}
+                .amount-chip-wrap {{
+                    gap:6px !important;
+                }}
 
-.amount-chip-wrap {{
-    gap:6px !important;
-}}
+                .amount-chip {{
+                    padding:6px 8px !important;
+                    font-size:10px !important;
+                }}
 
-.amount-chip {{
-    padding:6px 8px !important;
-    font-size:10px !important;
-}}
+                @page {{
+                    size: A4;
+                    margin: 12mm;
+                }}
+            }}
 
-    @page {{
-        size: A4;
-        margin: 12mm;
-    }}
-}}        
+            #conciliacion-section table {{
+                min-width: 1200px;
+            }}
 
-#conciliacion-section table {{
-    min-width: 1200px;
-}}
+            #movimientos-section table {{
+                min-width: 1120px;
+            }}
 
-#movimientos-section table {{
-    min-width: 1120px;
-}}
+            #movimientos-section table th:nth-child(1),
+            #movimientos-section table td:nth-child(1) {{
+                min-width: 120px;
+            }}
 
-#movimientos-section table th:nth-child(1),
-#movimientos-section table td:nth-child(1) {{
-    min-width: 120px;
-}}
+            #movimientos-section table th:nth-child(2),
+            #movimientos-section table td:nth-child(2) {{
+                min-width: 420px;
+            }}
 
-#movimientos-section table th:nth-child(2),
-#movimientos-section table td:nth-child(2) {{
-    min-width: 420px;
-}}
+            #movimientos-section table th:nth-child(3),
+            #movimientos-section table td:nth-child(3) {{
+                min-width: 180px;
+                white-space: nowrap;
+            }}
 
-#movimientos-section table th:nth-child(3),
-#movimientos-section table td:nth-child(3) {{
-    min-width: 180px;
-    white-space: nowrap;
-}}
+            #movimientos-section table th:nth-child(4),
+            #movimientos-section table td:nth-child(4) {{
+                min-width: 180px;
+            }}
 
-#movimientos-section table th:nth-child(4),
-#movimientos-section table td:nth-child(4) {{
-    min-width: 180px;
-}}
+            #movimientos-section table th:nth-child(5),
+            #movimientos-section table td:nth-child(5) {{
+                min-width: 130px;
+                white-space: nowrap;
+            }}
 
-#movimientos-section table th:nth-child(5),
-#movimientos-section table td:nth-child(5) {{
-    min-width: 130px;
-    white-space: nowrap;
-}}
+            #conciliacion-section table th,
+            #conciliacion-section table td {{
+                white-space: nowrap;
+            }}
 
-#conciliacion-section table th,
-#conciliacion-section table td {{
-    white-space: nowrap;
-}}
-
-#conciliacion-section table th:nth-child(5),
-#conciliacion-section table td:nth-child(5),
-#conciliacion-section table th:nth-child(6),
-#conciliacion-section table td:nth-child(6),
-#conciliacion-section table th:nth-child(8),
-#conciliacion-section table td:nth-child(8) {{
-    min-width: 180px;
-}}
-
+            #conciliacion-section table th:nth-child(5),
+            #conciliacion-section table td:nth-child(5),
+            #conciliacion-section table th:nth-child(6),
+            #conciliacion-section table td:nth-child(6),
+            #conciliacion-section table th:nth-child(8),
+            #conciliacion-section table td:nth-child(8) {{
+                min-width: 180px;
+            }}
         </style>
     </head>
     <body>
@@ -3315,50 +3566,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         <p>{narrativa_ejecutiva}</p>
                     </div>
 
-                    <div class="hero-side">
-                        <article class="metric-card metric-primary">
-                            <div>
-                                <div class="metric-label">Saldo inicial</div>
-                                <div class="metric-value">€ {fmt(flujo["saldo_inicial"])}</div>
-                            </div>
-                            <div class="metric-delta">
-                                <span>Inicio del período</span>
-                                <span>{nombre_empresa_titulo}</span>
-                            </div>
-                        </article>
-
-                        <article class="metric-card metric-in">
-                            <div>
-                                <div class="metric-label">Entradas</div>
-                                <div class="metric-value">€ {fmt(flujo["entradas"])}</div>
-                            </div>
-                            <div class="metric-delta">
-                                <span>Dinero que entró</span>
-                                <span>Período</span>
-                            </div>
-                        </article>
-
-                        <article class="metric-card metric-out">
-                            <div>
-                                <div class="metric-label">Salidas</div>
-                                <div class="metric-value">€ {fmt(flujo["salidas"])}</div>
-                            </div>
-                            <div class="metric-delta">
-                                <span>Dinero que salió</span>
-                                <span>Período</span>
-                            </div>
-                        </article>
-
-                        <article class="metric-card metric-end">
-                            <div>
-                                <div class="metric-label">Saldo final</div>
-                                <div class="metric-value">€ {fmt(flujo["saldo_final"])}</div>
-                            </div>
-                            <div class="metric-delta">
-                                <span>Variación: € {fmt(flujo["variacion"])}</span>
-                                <span>Cierre</span>
-                            </div>
-                        </article>
+                    <div class="hero-side hero-side-bancos">
+                        {construir_metric_cards_hero(flujo, flujo_bancos)}
                     </div>
                 </section>
 
