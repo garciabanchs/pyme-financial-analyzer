@@ -20,7 +20,7 @@ UMBRAL_MOVIMIENTO_RELEVANTE = 100.0
 # Déjalo en False normalmente.
 # Ponlo en True solo para diagnosticar N26.
 # =========================================================
-DEBUG_EXTRACTOS = False
+DEBUG_EXTRACTOS = True
 DEBUG_SOLO_BANCOS = {"N26"}
 DEBUG_FILE = "debug_extractos_n26.txt"
 
