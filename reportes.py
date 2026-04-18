@@ -1395,16 +1395,16 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         """
 
     def clase_tarjeta_banco(nombre_banco):
-    nombre = (nombre_banco or "").strip().lower()
+        nombre = (nombre_banco or "").strip().lower()
 
-    if nombre == "total":
-        return "bank-card bank-card-total"
-    if nombre == "paypal":
-        return "bank-card bank-card-wallet"
-    if nombre == "n26":
-        return "bank-card bank-card-bank"
+        if nombre == "total":
+            return "bank-card bank-card-total"
+        if nombre == "paypal":
+            return "bank-card bank-card-wallet"
+        if nombre == "n26":
+            return "bank-card bank-card-bank"
 
-    return "bank-card bank-card-generic"
+        return "bank-card bank-card-generic"
     
     def tabla_ledger_html():
         if not ledger:
