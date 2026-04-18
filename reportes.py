@@ -2055,12 +2055,12 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 box-shadow:var(--shadow-lg);
             }}
 
-            .hero-copy {
+            .hero-copy {{
                 display:flex;
                 flex-direction:column;
                 justify-content:flex-start;   /* 🔥 CLAVE */
                 gap:12px;
-            }
+            }}
 
             .hero-kicker {{
                 display:inline-flex;
