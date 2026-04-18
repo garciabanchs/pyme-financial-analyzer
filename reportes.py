@@ -196,19 +196,19 @@ def construir_resumen_flujo_por_banco(ledger):
     ledger = ledger or []
 
     bancos = {}
+    banco_por_archivo = {}
 
     def inferir_nombre_banco(item, resumen=None):
         resumen = resumen or {}
 
-        # 1) PRIORIDAD ABSOLUTA: si parser/ledger ya trae banco, respetarlo
         banco_directo = (item.get("banco") or resumen.get("banco") or "").strip()
         if banco_directo:
             return banco_directo
 
         candidatos = [
-            item.get("cuenta"),
-            item.get("descripcion"),
             item.get("archivo"),
+            item.get("descripcion"),
+            item.get("cuenta"),
             item.get("texto"),
         ]
 
@@ -233,15 +233,14 @@ def construir_resumen_flujo_por_banco(ledger):
             if clave in texto:
                 return nombre
 
-        # 2) Solo si no hubo banco explícito, inferir por estructura real
-        # PayPal de verdad suele tener estos campos específicos con valor útil
+        # fallback estructural PayPal
         if any(
             resumen.get(k) not in [None, "", 0, 0.0]
             for k in ["pagos_recibidos", "pagos_enviados", "liberaciones", "retenido", "tarifas"]
         ):
             return "PayPal"
 
-        # N26 de verdad suele venir resumido solo con saldo inicial/final y entradas/salidas
+        # fallback estructural N26
         if any(
             resumen.get(k) not in [None, "", 0, 0.0]
             for k in ["saldo_inicial_disponible", "saldo_final_disponible", "depositos_y_creditos", "retiradas_y_cargos"]
@@ -270,13 +269,29 @@ def construir_resumen_flujo_por_banco(ledger):
 
         return bancos[nombre]
 
-    # 1) Primero: extracto_resumen
+    # 1) construir mapa archivo -> banco a partir de todo lo que venga informado
+    for item in ledger:
+        archivo = (item.get("archivo") or "").strip()
+        resumen = item.get("resumen_extracto", {}) or {}
+
+        banco = (item.get("banco") or resumen.get("banco") or "").strip()
+        if not banco:
+            banco = inferir_nombre_banco(item, resumen)
+
+        if archivo and banco and banco != "Banco sin nombre":
+            banco_por_archivo[archivo] = banco
+
+    # 2) procesar extractos resumen
     for item in ledger:
         if item.get("tipo") != "extracto_resumen":
             continue
 
         resumen = item.get("resumen_extracto", {}) or {}
-        banco = inferir_nombre_banco(item, resumen)
+        archivo = (item.get("archivo") or "").strip()
+
+        banco = banco_por_archivo.get(archivo) or inferir_nombre_banco(item, resumen)
+        if archivo and banco and banco != "Banco sin nombre":
+            banco_por_archivo[archivo] = banco
 
         saldo_inicial = resumen.get("saldo_inicial_disponible") or 0.0
         saldo_final = resumen.get("saldo_final_disponible") or 0.0
@@ -293,31 +308,23 @@ def construir_resumen_flujo_por_banco(ledger):
         salidas += abs(resumen.get("tarifas") or 0.0)
         salidas += abs(resumen.get("retenido") or 0.0)
 
-        variacion = saldo_final - saldo_inicial
-
-        # No crear banco si absolutamente todo está vacío
-        if (
-            saldo_inicial == 0.0 and
-            saldo_final == 0.0 and
-            entradas == 0.0 and
-            salidas == 0.0 and
-            retenido == 0.0
-        ):
-            continue
-
+        # si no trae resumen numérico útil, no lo pierdas:
+        # crea el banco igual y deja que se alimente con detalle
         fila = asegurar_banco(banco)
-        fila["saldo_inicial"] = saldo_inicial
-        fila["entradas"] = entradas
-        fila["salidas"] = salidas
-        fila["saldo_final"] = saldo_final
-        fila["variacion"] = variacion
-        fila["retenido"] = retenido
-        fila["balance"] = variacion
-        fila["movimientos"] = entradas + salidas
-        fila["revisar"] = 0.0
-        fila["tiene_resumen"] = True
 
-    # 2) Después: movimientos bancarios
+        if any([saldo_inicial, saldo_final, entradas, salidas, retenido]):
+            fila["saldo_inicial"] = saldo_inicial
+            fila["entradas"] = entradas
+            fila["salidas"] = salidas
+            fila["saldo_final"] = saldo_final
+            fila["variacion"] = saldo_final - saldo_inicial
+            fila["retenido"] = retenido
+            fila["balance"] = fila["variacion"]
+            fila["movimientos"] = entradas + salidas
+            fila["revisar"] = 0.0
+            fila["tiene_resumen"] = True
+
+    # 3) procesar movimientos bancarios y heredar banco por archivo
     for item in ledger:
         if item.get("tipo") != "extracto_bancario":
             continue
@@ -332,31 +339,37 @@ def construir_resumen_flujo_por_banco(ledger):
             elif naturaleza == "entrada":
                 valor_firmado = abs(valor_firmado)
 
-        # No crear banco desde filas vacías o neutras
         if valor_firmado is None or valor_firmado == 0:
             continue
 
-        banco = inferir_nombre_banco(item)
+        archivo = (item.get("archivo") or "").strip()
+
+        banco = (
+            (item.get("banco") or "").strip()
+            or banco_por_archivo.get(archivo, "").strip()
+            or inferir_nombre_banco(item)
+        )
+
+        if archivo and banco and banco != "Banco sin nombre":
+            banco_por_archivo[archivo] = banco
+
         fila = asegurar_banco(banco)
 
-        if fila["tiene_resumen"]:
-            # Si ya existe resumen para ese banco, no dupliques desde detalle
-            continue
-
+        # si no hubo resumen, el banco se arma por detalle
         if valor_firmado > 0:
             fila["entradas"] += abs(valor_firmado)
         elif valor_firmado < 0:
             fila["salidas"] += abs(valor_firmado)
 
-    # 3) Cerrar métricas para bancos sin resumen
-    for _, fila in bancos.items():
+    # 4) cerrar métricas
+    for fila in bancos.values():
         if not fila["tiene_resumen"]:
             fila["saldo_final"] = fila["saldo_inicial"] + fila["entradas"] - fila["salidas"]
             fila["variacion"] = fila["saldo_final"] - fila["saldo_inicial"]
             fila["balance"] = fila["variacion"]
             fila["movimientos"] = fila["entradas"] + fila["salidas"]
 
-    # 4) Eliminar bancos fantasma totalmente vacíos
+    # 5) eliminar fantasmas solo si están absolutamente vacíos
     bancos_filtrados = []
     for fila in bancos.values():
         if (
