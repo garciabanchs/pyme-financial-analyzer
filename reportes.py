@@ -431,6 +431,7 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "naturaleza": item.get("naturaleza", "-"),
             "naturaleza_humana": humanizar_naturaleza(item.get("naturaleza", "-")),
             "descripcion": item.get("descripcion", "-"),
+            "banco": item.get("banco", "-") or "-",
             "categoria": categoria,
             "categoria_humana": humanizar_categoria(categoria),
             "moneda": item.get("moneda", "") or "",
@@ -509,6 +510,7 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "naturaleza": "entrada",
             "naturaleza_humana": "Entrada",
             "descripcion": f"movimientos menores agrupados",
+            "banco": "-",
             "categoria": "otros_cobros",
             "categoria_humana": "Otros ingresos",
             "moneda": "",
@@ -524,6 +526,7 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "naturaleza": "salida",
             "naturaleza_humana": "Salida",
             "descripcion": f"movimientos menores agrupados",
+            "banco": "-",
             "categoria": "otros_pagos",
             "categoria_humana": "Otros pagos",
             "moneda": "",
@@ -541,6 +544,7 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
         "otros_pagos_cantidad": otros_pagos_cantidad_real,
         "otros_pagos_total": otros_pagos_total,
     }
+    
 def inferir_nombre_empresa(documentos, ledger):
     documentos = documentos or []
 
@@ -1026,7 +1030,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 tags.append("salidas")
                 if item["categoria"] in ["pago_proveedor", "gasto_operativo", "otros_pagos"]:
                     tags.append("pagos")
-                if item["categoria"] in ["retiro_propio", "transferencia_interna", "traspaso"]:
+                if item["categoria"] in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
                     tags.append("internos")
 
             cards += f"""
@@ -1042,6 +1046,10 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <div class="mobile-meta-row">
                     <span class="mobile-label">Naturaleza</span>
                     <span>{item['naturaleza_humana']}</span>
+                </div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Banco</span>
+                    <span>{item.get('banco', '-')}</span>
                 </div>
                 <div class="mobile-description">{item['descripcion']}</div>
             </article>
@@ -1105,6 +1113,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 data-target-section="movimientos-section">
                 <td class="mono">{item['fecha']}</td>
                 <td>{item['descripcion']}</td>
+                <td>{item.get('banco', '-')}</td>
                 <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
                 <td class="mono">€ {item['importe_fmt']}</td>
             </tr>
@@ -1136,6 +1145,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         <tr>
                             <th>Fecha</th>
                             <th>Descripción</th>
+                            <th>Banco</th>
                             <th>Categoría</th>
                             <th>Importe</th>
                         </tr>
@@ -3229,6 +3239,37 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
 #conciliacion-section table {{
     min-width: 1200px;
+}}
+
+#movimientos-section table {{
+    min-width: 1120px;
+}}
+
+#movimientos-section table th:nth-child(1),
+#movimientos-section table td:nth-child(1) {{
+    min-width: 120px;
+}}
+
+#movimientos-section table th:nth-child(2),
+#movimientos-section table td:nth-child(2) {{
+    min-width: 420px;
+}}
+
+#movimientos-section table th:nth-child(3),
+#movimientos-section table td:nth-child(3) {{
+    min-width: 180px;
+    white-space: nowrap;
+}}
+
+#movimientos-section table th:nth-child(4),
+#movimientos-section table td:nth-child(4) {{
+    min-width: 180px;
+}}
+
+#movimientos-section table th:nth-child(5),
+#movimientos-section table td:nth-child(5) {{
+    min-width: 130px;
+    white-space: nowrap;
 }}
 
 #conciliacion-section table th,
