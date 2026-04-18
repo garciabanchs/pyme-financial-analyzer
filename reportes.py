@@ -1216,12 +1216,14 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
             filas += f"""
             <tr class="conc-row" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="conciliacion-section">
-                <td>{item.get('archivo', '-')}</td>
                 <td class="mono">{item.get('fecha', '-')}</td>
                 <td class="mono">€ {importe}</td>
                 <td><span class="badge {badge_class}">{estado}</span></td>
                 <td class="mono">{diferencia if diferencia == '-' else '€ ' + diferencia}</td>
+                <td>{banco}</td>
+                <td>{cliente_proveedor}</td>
                 <td><span class="badge {clase_badge_categoria(item.get('categoria'))}">{humanizar_categoria(item.get('categoria'))}</span></td>
+                <td>{item.get('archivo', '-')}</td>
             </tr>
             """
 
@@ -1232,10 +1234,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <span class="mobile-amount">€ {importe}</span>
                 </div>
                 <div class="mobile-meta-row">
-                    <span class="mobile-label">Archivo</span>
-                    <span>{item.get('archivo', '-')}</span>
-                </div>
-                <div class="mobile-meta-row">
                     <span class="mobile-label">Fecha</span>
                     <span class="mono">{item.get('fecha', '-')}</span>
                 </div>
@@ -1244,8 +1242,20 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <span class="mono">{diferencia if diferencia == '-' else '€ ' + diferencia}</span>
                 </div>
                 <div class="mobile-meta-row">
+                    <span class="mobile-label">Banco</span>
+                    <span>{banco}</span>
+                </div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Cliente/Proveedor</span>
+                    <span>{cliente_proveedor}</span>
+                </div>
+                <div class="mobile-meta-row">
                     <span class="mobile-label">Categoría</span>
                     <span>{humanizar_categoria(item.get('categoria'))}</span>
+                </div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Archivo</span>
+                    <span>{item.get('archivo', '-')}</span>
                 </div>
             </article>
             """
@@ -1259,12 +1269,14 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <table>
                     <thead>
                         <tr>
-                            <th>Archivo</th>
                             <th>Fecha</th>
                             <th>Importe</th>
                             <th>Estado</th>
                             <th>Diferencia</th>
+                            <th>Banco</th>
+                            <th>Cliente/Proveedor</th>        
                             <th>Categoría</th>
+                            <th>Archivo</th>
                         </tr>
                     </thead>
                     <tbody id="conc-body">
@@ -3212,6 +3224,24 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     }}
 }}        
 
+#conciliacion-section table {{
+    min-width: 1200px;
+}}
+
+#conciliacion-section table th,
+#conciliacion-section table td {{
+    white-space: nowrap;
+}}
+
+#conciliacion-section table th:nth-child(5),
+#conciliacion-section table td:nth-child(5),
+#conciliacion-section table th:nth-child(6),
+#conciliacion-section table td:nth-child(6),
+#conciliacion-section table th:nth-child(8),
+#conciliacion-section table td:nth-child(8) {{
+    min-width: 180px;
+}}
+
         </style>
     </head>
     <body>
@@ -3530,7 +3560,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </main>
         </div>
 
-                <script>
+        <script>
             (function() {{
                 function scrollToTarget(targetId) {{
                     const target = document.getElementById(targetId);
@@ -3653,4 +3683,3 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     """
 
     return html
-
