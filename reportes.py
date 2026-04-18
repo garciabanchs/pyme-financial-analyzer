@@ -1255,23 +1255,39 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         return "badge-gray"
 
     def construir_botones_movimientos(section_target):
-        botones = [
-            ("all", "Ver todo"),
-            ("entradas", "Entradas"),
-            ("salidas", "Salidas"),
-            ("cobros", "Cobros"),
-            ("pagos", "Pagos"),
-            ("internos", "Movimientos internos"),
-        ]
+    bancos = sorted({
+        (item.get("banco") or "").strip()
+        for item in (ledger or [])
+        if item.get("tipo") in ["extracto_bancario", "extracto_resumen"]
+        and (item.get("banco") or "").strip()
+    })
 
-        html = ""
-        for valor, etiqueta in botones:
-            clase = "filter-btn active" if valor == "all" else "filter-btn"
-            html += (
-                f'<button class="{clase}" type="button" '
-                f'data-filter="{valor}" data-target="{section_target}">{etiqueta}</button>'
-            )
-        return html
+    def slug_banco(nombre):
+        slug = re.sub(r"[^a-z0-9]+", "-", (nombre or "").strip().lower())
+        slug = slug.strip("-")
+        return f"bank-{slug}" if slug else "bank-desconocido"
+
+    botones = [
+        ("all", "Ver todo"),
+        ("entradas", "Entradas"),
+        ("salidas", "Salidas"),
+        ("cobros", "Cobros"),
+        ("pagos", "Pagos"),
+        ("internos", "Movimientos internos"),
+    ]
+
+    # Añadir filtros por banco
+    for banco in bancos:
+        botones.append((slug_banco(banco), f"Solo {banco}"))
+
+    html = ""
+    for valor, etiqueta in botones:
+        clase = "filter-btn active" if valor == "all" else "filter-btn"
+        html += (
+            f'<button class="{clase}" type="button" '
+            f'data-filter="{valor}" data-target="{section_target}">{etiqueta}</button>'
+        )
+    return html 
 
     def construir_botones_conciliacion(section_target):
         botones = [
@@ -1475,108 +1491,160 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         return cards
 
     def tabla_movimientos_relevantes_html():
-        analisis = analizar_movimientos_bancarios()
-        entradas = analisis["entradas_relevantes"]
-        salidas = analisis["salidas_relevantes"]
+    analisis = analizar_movimientos_bancarios()
+    entradas = analisis["entradas_relevantes"]
+    salidas = analisis["salidas_relevantes"]
 
-        if not entradas and not salidas:
-            return """
-            <div class="empty-state">
-                <p>No hay movimientos bancarios relevantes para mostrar.</p>
-            </div>
-            """
+    if not entradas and not salidas:
+        return """
+        <div class="empty-state">
+            <p>No hay movimientos bancarios relevantes para mostrar.</p>
+        </div>
+        """
 
-        filas = ""
-        cards = ""
+    filas = ""
+    cards = ""
 
-        def prioridad_movimiento(item):
+    def slug_banco(nombre):
+        slug = re.sub(r"[^a-z0-9]+", "-", (nombre or "").strip().lower())
+        slug = slug.strip("-")
+        return f"bank-{slug}" if slug else "bank-desconocido"
+
+    def fecha_ordenable(valor):
+        raw = str(valor or "").strip()
+
+        if raw.lower() in ["n.a.", "na", "-", "", "no detectada"]:
+            return datetime.max
+
+        formatos = [
+            "%d/%m/%Y",
+            "%d/%m/%y",
+            "%d-%m-%Y",
+            "%d-%m-%y",
+            "%d.%m.%Y",
+            "%d.%m.%y",
+        ]
+
+        for fmt in formatos:
+            try:
+                return datetime.strptime(raw, fmt)
+            except Exception:
+                continue
+
+        return datetime.max
+
+    def prioridad_movimiento(item):
+        banco = (item.get("banco") or "").strip().lower()
+        fecha = fecha_ordenable(item.get("fecha"))
+        importe = -(item.get("importe_abs") or 0.0)
+        descripcion = str(item.get("descripcion") or "").lower()
+
+        return (banco, fecha, importe, descripcion)
+
+    movimientos_ordenados = sorted(entradas + salidas, key=prioridad_movimiento)
+
+    for item in movimientos_ordenados:
+        categoria = (item.get("categoria") or "").strip().lower()
+        banco = (item.get("banco") or "-").strip() or "-"
+        banco_tag = slug_banco(banco)
+
+        if categoria in ["otros_cobros", "cobro_cliente"]:
+            clase = "row-entrada"
+            tags = ["all", "entradas", "cobros", banco_tag]
+        elif categoria in ["otros_pagos", "gasto_operativo", "pago_proveedor"]:
+            clase = "row-salida"
+            tags = ["all", "salidas", "pagos", banco_tag]
+        elif categoria in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
+            clase = "row-salida"
+            tags = ["all", "salidas", "internos", banco_tag]
+        else:
+            clase = item.get("clase_fila", "row-salida")
+            tags = ["all", banco_tag]
+
+        filas += f"""
+        <tr class="{clase} mov-row"
+            data-kind="{' '.join(sorted(set(tags)))}"
+            data-category="{item['categoria']}"
+            data-bank="{banco}"
+            data-target-section="movimientos-section">
+            <td class="mono">{item['fecha']}</td>
+            <td>{item['descripcion']}</td>
+            <td>{banco}</td>
+            <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
+            <td class="mono">€ {item['importe_fmt']}</td>
+        </tr>
+        """
+
+    def tarjetas_moviles_movimientos(items):
+        cards_html = ""
+
+        for item in items:
             categoria = (item.get("categoria") or "").strip().lower()
-            fecha = item.get("fecha", "") or ""
-
-            if categoria in ["otros_cobros", "cobro_cliente"]:
-                grupo = 0
-            elif categoria in ["otros_pagos", "gasto_operativo", "pago_proveedor"]:
-                grupo = 1
-            elif categoria in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
-                grupo = 2
-            else:
-                grupo = 3
-
-            fecha_orden = "9999-99-99" if fecha == "n.a." else fecha
-            return (grupo, fecha_orden)
-
-        movimientos_ordenados = sorted(entradas + salidas, key=prioridad_movimiento)
-
-        for item in movimientos_ordenados:
-            categoria = (item.get("categoria") or "").strip().lower()
+            banco = (item.get("banco") or "-").strip() or "-"
+            banco_tag = slug_banco(banco)
 
             if categoria in ["otros_cobros", "cobro_cliente"]:
                 clase = "row-entrada"
-                tags = ["all", "entradas", "cobros"]
+                tags = ["all", "entradas", "cobros", banco_tag]
             elif categoria in ["otros_pagos", "gasto_operativo", "pago_proveedor"]:
                 clase = "row-salida"
-                tags = ["all", "salidas", "pagos"]
+                tags = ["all", "salidas", "pagos", banco_tag]
             elif categoria in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
                 clase = "row-salida"
-                tags = ["all", "salidas", "internos"]
+                tags = ["all", "salidas", "internos", banco_tag]
             else:
                 clase = item.get("clase_fila", "row-salida")
-                tags = ["all"]
+                tags = ["all", banco_tag]
 
-            filas += f"""
-            <tr class="{clase} mov-row"
+            cards_html += f"""
+            <article class="mobile-movement-card {clase}"
                 data-kind="{' '.join(sorted(set(tags)))}"
                 data-category="{item['categoria']}"
+                data-bank="{banco}"
                 data-target-section="movimientos-section">
-                <td class="mono">{item['fecha']}</td>
-                <td>{item['descripcion']}</td>
-                <td>{item.get('banco', '-')}</td>
-                <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
-                <td class="mono">€ {item['importe_fmt']}</td>
-            </tr>
+                <div class="mobile-movement-head">
+                    <span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span>
+                    <span class="mobile-amount">€ {item['importe_fmt']}</span>
+                </div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Fecha</span>
+                    <span class="mono">{item['fecha']}</span>
+                </div>
+                <div class="mobile-meta-row">
+                    <span class="mobile-label">Banco</span>
+                    <span>{banco}</span>
+                </div>
+                <div class="mobile-description">{item['descripcion']}</div>
+            </article>
             """
 
-        cards += tarjetas_moviles_movimientos(
-            [x for x in movimientos_ordenados if (x.get("categoria") or "").strip().lower() in ["otros_cobros", "cobro_cliente"]],
-            "row-entrada",
-            "movimientos-section",
-        )
+        return cards_html
 
-        cards += tarjetas_moviles_movimientos(
-            [x for x in movimientos_ordenados if (x.get("categoria") or "").strip().lower() in ["otros_pagos", "gasto_operativo", "pago_proveedor"]],
-            "row-salida",
-            "movimientos-section",
-        )
+    cards = tarjetas_moviles_movimientos(movimientos_ordenados)
 
-        cards += tarjetas_moviles_movimientos(
-            [x for x in movimientos_ordenados if (x.get("categoria") or "").strip().lower() in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]],
-            "row-salida",
-            "movimientos-section",
-        )
-
-        return f"""
-        <div class="table-shell compact-shell">
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Descripción</th>
-                            <th>Banco</th>
-                            <th>Categoría</th>
-                            <th>Importe</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filas}
-                    </tbody>
-                </table>
-            </div>
-            <div class="mobile-movements-grid">
-                {cards}
-            </div>
+    return f"""
+    <div class="table-shell compact-shell">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Descripción</th>
+                        <th>Banco</th>
+                        <th>Categoría</th>
+                        <th>Importe</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {filas}
+                </tbody>
+            </table>
         </div>
-        """
+        <div class="mobile-movements-grid">
+            {cards}
+        </div>
+    </div>
+    """
 
     def tabla_conciliacion_html():
         if not conciliacion:
