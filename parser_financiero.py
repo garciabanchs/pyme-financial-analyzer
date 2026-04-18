@@ -198,7 +198,6 @@ def _extraer_total_desde_base_iva_total(texto):
     - Tomar los importes cercanos
     - El mayor importe suele ser el TOTAL
     """
-
     if not texto:
         return None
 
@@ -220,7 +219,6 @@ def _extraer_total_desde_base_iva_total(texto):
                 importes_validos.append((imp, valor))
 
         if len(importes_validos) >= 2:
-            # el mayor valor en ese bloque suele ser el TOTAL
             return max(importes_validos, key=lambda x: x[1])[0]
 
     return None
@@ -294,9 +292,14 @@ def extraer_importe_principal(texto, tipo_documento, importes):
 def inferir_banco_desde_texto(texto):
     texto = (texto or "").lower()
 
+    # Prioridad fuerte por nombre explícito
+    if "n26" in texto:
+        return "N26"
+
+    if "paypal" in texto:
+        return "PayPal"
+
     mapa = [
-        ("paypal", "PayPal"),
-        ("n26", "N26"),
         ("caixabank", "CaixaBank"),
         ("caixa", "CaixaBank"),
         ("santander", "Santander"),
@@ -313,6 +316,17 @@ def inferir_banco_desde_texto(texto):
         if clave in texto:
             return nombre
 
+    # Señales N26 primero
+    claves_n26 = [
+        "saldo previo",
+        "transacciones salientes",
+        "transacciones entrantes",
+        "tu nuevo saldo",
+    ]
+    if any(k in texto for k in claves_n26):
+        return "N26"
+
+    # Señales PayPal después
     claves_paypal = [
         "saldo inicial disponible",
         "saldo final disponible",
@@ -327,15 +341,6 @@ def inferir_banco_desde_texto(texto):
     ]
     if any(k in texto for k in claves_paypal):
         return "PayPal"
-
-    claves_n26 = [
-        "saldo previo",
-        "transacciones salientes",
-        "transacciones entrantes",
-        "tu nuevo saldo",
-    ]
-    if any(k in texto for k in claves_n26):
-        return "N26"
 
     return None
 
@@ -358,6 +363,45 @@ def extraer_resumen_extracto(texto):
         "retenido": None,
     }
 
+    # =========================
+    # 1) PRIMERO N26
+    # =========================
+    patrones_n26 = {
+        "saldo_previo": [
+            r"saldo previo\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+        ],
+        "transacciones_salientes": [
+            r"transacciones salientes\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+        ],
+        "transacciones_entrantes": [
+            r"transacciones entrantes\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+        ],
+        "tu_nuevo_saldo": [
+            r"tu nuevo saldo\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+        ],
+    }
+
+    saldo_previo = _buscar_importe_en_texto(texto, patrones_n26["saldo_previo"])
+    transacciones_salientes = _buscar_importe_en_texto(texto, patrones_n26["transacciones_salientes"])
+    transacciones_entrantes = _buscar_importe_en_texto(texto, patrones_n26["transacciones_entrantes"])
+    tu_nuevo_saldo = _buscar_importe_en_texto(texto, patrones_n26["tu_nuevo_saldo"])
+
+    if any([saldo_previo, transacciones_salientes, transacciones_entrantes, tu_nuevo_saldo]):
+        campos["banco"] = "N26"
+        campos["saldo_inicial_disponible"] = normalizar_importe(saldo_previo) if saldo_previo else None
+        campos["saldo_final_disponible"] = normalizar_importe(tu_nuevo_saldo) if tu_nuevo_saldo else None
+        campos["depositos_y_creditos"] = normalizar_importe(transacciones_entrantes) if transacciones_entrantes else 0.0
+        campos["retiradas_y_cargos"] = normalizar_importe(transacciones_salientes) if transacciones_salientes else 0.0
+        campos["pagos_recibidos"] = 0.0
+        campos["pagos_enviados"] = 0.0
+        campos["tarifas"] = 0.0
+        campos["liberaciones"] = 0.0
+        campos["retenido"] = 0.0
+        return campos
+
+    # =========================
+    # 2) DESPUÉS PAYPAL
+    # =========================
     patrones_paypal = {
         "saldo_inicial_disponible": [
             r"saldo inicial disponible\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
@@ -416,41 +460,7 @@ def extraer_resumen_extracto(texto):
     )
 
     if hay_paypal:
-        if not campos["banco"]:
-            campos["banco"] = "PayPal"
-        return campos
-
-    patrones_n26 = {
-        "saldo_previo": [
-            r"saldo previo\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
-        ],
-        "transacciones_salientes": [
-            r"transacciones salientes\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
-        ],
-        "transacciones_entrantes": [
-            r"transacciones entrantes\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
-        ],
-        "tu_nuevo_saldo": [
-            r"tu nuevo saldo\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
-        ],
-    }
-
-    saldo_previo = _buscar_importe_en_texto(texto, patrones_n26["saldo_previo"])
-    transacciones_salientes = _buscar_importe_en_texto(texto, patrones_n26["transacciones_salientes"])
-    transacciones_entrantes = _buscar_importe_en_texto(texto, patrones_n26["transacciones_entrantes"])
-    tu_nuevo_saldo = _buscar_importe_en_texto(texto, patrones_n26["tu_nuevo_saldo"])
-
-    if any([saldo_previo, transacciones_salientes, transacciones_entrantes, tu_nuevo_saldo]):
-        campos["banco"] = campos["banco"] or "N26"
-        campos["saldo_inicial_disponible"] = normalizar_importe(saldo_previo) if saldo_previo else None
-        campos["saldo_final_disponible"] = normalizar_importe(tu_nuevo_saldo) if tu_nuevo_saldo else None
-        campos["depositos_y_creditos"] = normalizar_importe(transacciones_entrantes) if transacciones_entrantes else 0.0
-        campos["retiradas_y_cargos"] = normalizar_importe(transacciones_salientes) if transacciones_salientes else 0.0
-        campos["pagos_recibidos"] = 0.0
-        campos["pagos_enviados"] = 0.0
-        campos["tarifas"] = 0.0
-        campos["liberaciones"] = 0.0
-        campos["retenido"] = 0.0
+        campos["banco"] = "PayPal"
         return campos
 
     return campos
