@@ -685,11 +685,22 @@ def inferir_nombre_empresa(documentos, ledger):
             r"^\s*sold to\s*[:\-]?\s*(.+?)\s*$",
         ]
 
-        for linea in lineas:
+        for i, linea in enumerate(lineas):
             for patron in patrones_cliente:
                 m = re.search(patron, linea, flags=re.IGNORECASE)
                 if m:
                     candidato = limpiar(m.group(1))
+                    if es_nombre_valido(candidato):
+                        return candidato
+
+            # Caso bloque: "Cliente" en una línea y nombre en la siguiente
+            if re.fullmatch(r"\s*cliente\s*[:\-]?\s*", linea, flags=re.IGNORECASE) \
+               or re.fullmatch(r"\s*destinatario\s*[:\-]?\s*", linea, flags=re.IGNORECASE) \
+               or re.fullmatch(r"\s*bill to\s*[:\-]?\s*", linea, flags=re.IGNORECASE) \
+               or re.fullmatch(r"\s*sold to\s*[:\-]?\s*", linea, flags=re.IGNORECASE):
+
+                if i + 1 < len(lineas):
+                    candidato = limpiar(lineas[i + 1])
                     if es_nombre_valido(candidato):
                         return candidato
 
