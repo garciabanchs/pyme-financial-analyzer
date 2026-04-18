@@ -201,6 +201,20 @@ def upload():
                 })
 
     ledger = construir_ledger(documentos)
+
+    print("\n========== DEBUG LEDGER BANCOS ==========")
+    for item in ledger:
+        if item.get("tipo") in ["extracto_resumen", "extracto_bancario"]:
+            print({
+                "archivo": item.get("archivo"),
+                "tipo": item.get("tipo"),
+                "banco": item.get("banco"),
+                "descripcion": item.get("descripcion"),
+                "importe": item.get("importe"),
+                "importe_firmado_num": item.get("importe_firmado_num"),
+            })
+    print("========== FIN DEBUG LEDGER BANCOS ==========\n")
+
     conciliacion = detectar_inconsistencias(ledger)
 
     html_resultado = generar_html_resultado(
