@@ -197,6 +197,45 @@ def construir_resumen_flujo_por_banco(ledger):
 
     bancos = {}
 
+    def inferir_nombre_banco(item, resumen=None):
+        resumen = resumen or {}
+
+        candidatos = [
+            item.get("banco"),
+            resumen.get("banco"),
+            item.get("cuenta"),
+            item.get("descripcion"),
+            item.get("archivo"),
+            item.get("texto"),
+        ]
+
+        texto = " ".join(str(x or "") for x in candidatos).lower()
+
+        mapa = [
+            ("paypal", "PayPal"),
+            ("n26", "N26"),
+            ("caixabank", "CaixaBank"),
+            ("caixa", "CaixaBank"),
+            ("santander", "Santander"),
+            ("bbva", "BBVA"),
+            ("sabadell", "Sabadell"),
+            ("revolut", "Revolut"),
+            ("wise", "Wise"),
+            ("bankinter", "Bankinter"),
+            ("abanca", "Abanca"),
+            ("ing", "ING"),
+        ]
+
+        for clave, nombre in mapa:
+            if clave in texto:
+                return nombre
+
+        nombre_directo = (item.get("banco") or resumen.get("banco") or "").strip()
+        if nombre_directo:
+            return nombre_directo
+
+        return "Banco sin nombre"
+
     def asegurar_banco(nombre_banco):
         nombre = (nombre_banco or "").strip() or "Banco sin nombre"
 
@@ -217,21 +256,13 @@ def construir_resumen_flujo_por_banco(ledger):
 
         return bancos[nombre]
 
-    # 1) Prioridad: construir cada banco desde su extracto_resumen
+    # 1) Prioridad: extracto_resumen
     for item in ledger:
         if item.get("tipo") != "extracto_resumen":
             continue
 
         resumen = item.get("resumen_extracto", {}) or {}
-
-        banco = (
-            item.get("banco")
-            or resumen.get("banco")
-            or item.get("cuenta")
-            or item.get("archivo")
-            or "Banco sin nombre"
-        )
-
+        banco = inferir_nombre_banco(item, resumen)
         fila = asegurar_banco(banco)
 
         saldo_inicial = resumen.get("saldo_inicial_disponible") or 0.0
@@ -262,21 +293,14 @@ def construir_resumen_flujo_por_banco(ledger):
         fila["revisar"] = 0.0
         fila["tiene_resumen"] = True
 
-    # 2) Para bancos sin extracto_resumen, construir desde extracto_bancario
+    # 2) Fallback: construir desde movimientos bancarios
     for item in ledger:
         if item.get("tipo") != "extracto_bancario":
             continue
 
-        banco = (
-            item.get("banco")
-            or item.get("cuenta")
-            or item.get("archivo")
-            or "Banco sin nombre"
-        )
-
+        banco = inferir_nombre_banco(item)
         fila = asegurar_banco(banco)
 
-        # Si ya tiene resumen completo, no duplicamos
         if fila["tiene_resumen"]:
             continue
 
@@ -284,8 +308,11 @@ def construir_resumen_flujo_por_banco(ledger):
 
         if valor_firmado is None:
             valor_firmado = normalizar_importe_reporte(item.get("importe", 0))
-            if (item.get("naturaleza") or "").strip().lower() == "salida":
+            naturaleza = (item.get("naturaleza") or "").strip().lower()
+            if naturaleza == "salida":
                 valor_firmado = -abs(valor_firmado)
+            elif naturaleza == "entrada":
+                valor_firmado = abs(valor_firmado)
 
         if valor_firmado is None:
             continue
@@ -295,7 +322,7 @@ def construir_resumen_flujo_por_banco(ledger):
         elif valor_firmado < 0:
             fila["salidas"] += abs(valor_firmado)
 
-    # 3) Cerrar métricas calculadas para bancos sin resumen
+    # 3) Cierre de métricas para bancos sin resumen
     for _, fila in bancos.items():
         if not fila["tiene_resumen"]:
             fila["saldo_final"] = fila["saldo_inicial"] + fila["entradas"] - fila["salidas"]
@@ -303,56 +330,12 @@ def construir_resumen_flujo_por_banco(ledger):
             fila["balance"] = fila["variacion"]
             fila["movimientos"] = fila["entradas"] + fila["salidas"]
 
-    # 4) Ordenar visualmente por volumen total movido
     bancos_ordenados = sorted(
         bancos.values(),
         key=lambda x: (-(x.get("movimientos", 0.0)), (x.get("banco") or "").lower())
     )
 
     return bancos_ordenados
-
-
-def construir_resumen_flujo(ledger):
-    bancos = construir_resumen_flujo_por_banco(ledger)
-
-    if not bancos:
-        return {
-            "saldo_inicial": 0.0,
-            "entradas": 0.0,
-            "salidas": 0.0,
-            "saldo_final": 0.0,
-            "variacion": 0.0,
-            "retenido": 0.0,
-            "balance": 0.0,
-            "movimientos": 0.0,
-            "revisar": 0.0,
-        }
-
-    total = {
-        "saldo_inicial": 0.0,
-        "entradas": 0.0,
-        "salidas": 0.0,
-        "saldo_final": 0.0,
-        "variacion": 0.0,
-        "retenido": 0.0,
-        "balance": 0.0,
-        "movimientos": 0.0,
-        "revisar": 0.0,
-    }
-
-    for banco in bancos:
-        total["saldo_inicial"] += banco.get("saldo_inicial", 0.0)
-        total["entradas"] += banco.get("entradas", 0.0)
-        total["salidas"] += banco.get("salidas", 0.0)
-        total["saldo_final"] += banco.get("saldo_final", 0.0)
-        total["retenido"] += banco.get("retenido", 0.0)
-        total["movimientos"] += banco.get("movimientos", 0.0)
-        total["revisar"] += banco.get("revisar", 0.0)
-
-    total["variacion"] = total["saldo_final"] - total["saldo_inicial"]
-    total["balance"] = total["variacion"]
-
-    return total
 
 def construir_resumen_conciliacion(conciliacion):
     conciliacion = conciliacion or []
@@ -1993,7 +1976,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 display:flex;
                 flex-direction:column;
                 justify-content:space-between;
-                gap:22px;
+                gap:14px;
             }}
 
             .hero-kicker {{
@@ -2023,6 +2006,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 color:var(--muted);
                 font-size:1.02rem;
                 line-height:1.72;
+                margin-top:6px;
             }}
 
             .hero-side {{
