@@ -3,6 +3,7 @@ from datetime import datetime
 
 
 UMBRAL_IMPORTE_MINIMO = 0.01
+PATRON_IMPORTE = r"-?\d{1,3}(?:\.\d{3})*,\d{2}"
 
 
 def normalizar_importe(valor):
@@ -19,12 +20,9 @@ def normalizar_importe(valor):
         s = s.replace("\xa0", " ").replace(" ", "")
         s = s.replace("−", "-").replace("–", "-").replace("—", "-")
 
-        # Caso español: 1.234,56
         if "," in s:
             s = s.replace(".", "").replace(",", ".")
         else:
-            # Si viniera 1234.56 sin comas, se respeta
-            # Si viniera 1.234 y no hay coma, asumimos decimal si solo hay un punto
             if s.count(".") > 1:
                 s = s.replace(".", "")
 
@@ -50,14 +48,7 @@ def extraer_importes(texto):
         return []
 
     texto = str(texto)
-
-    # Acepta:
-    # 1.234,56
-    # -1.234,56
-    # 123,45
-    patron = r"(?<!\d)-?\d{1,3}(?:\.\d{3})*,\d{2}(?!\d)"
-
-    montos = re.findall(patron, texto)
+    montos = re.findall(rf"(?<!\d){PATRON_IMPORTE}(?!\d)", texto)
 
     unicos = []
     vistos = set()
@@ -117,15 +108,31 @@ def _buscar_importe_en_texto(texto, patrones):
     return None
 
 
+def _buscar_importe_despues_de_etiqueta(texto, etiquetas, max_chars=120):
+    """
+    Busca un importe después de una etiqueta, aunque haya OCR roto,
+    espacios, tabulaciones o columnas entre medio.
+    """
+    if not texto:
+        return None
+
+    texto_norm = str(texto).replace("\xa0", " ")
+    texto_norm = re.sub(r"[ \t]+", " ", texto_norm)
+
+    for etiqueta in etiquetas:
+        patron = rf"{etiqueta}.{{0,{max_chars}}}?({PATRON_IMPORTE})"
+        m = re.search(patron, texto_norm, flags=re.IGNORECASE | re.DOTALL)
+        if m:
+            return m.group(1)
+
+    return None
+
+
 def buscar_importe_por_patrones(texto_lower, patrones):
     return _buscar_importe_en_texto(texto_lower, patrones)
 
 
 def _extraer_totales_por_linea(texto):
-    """
-    Busca importes en líneas que parezcan contener el total final de una factura.
-    Evita quedarse con base imponible, subtotales o importes intermedios.
-    """
     if not texto:
         return []
 
@@ -148,7 +155,7 @@ def _extraer_totales_por_linea(texto):
             continue
 
         if any(tag in l for tag in ["total factura", "importe total", "total eur", "total"]):
-            importes = re.findall(r"-?\d{1,3}(?:\.\d{3})*,\d{2}", linea)
+            importes = re.findall(PATRON_IMPORTE, linea)
             for imp in importes:
                 valor = normalizar_importe(imp)
                 if valor is not None:
@@ -158,21 +165,17 @@ def _extraer_totales_por_linea(texto):
 
 
 def _extraer_ultimo_total_documento(texto):
-    """
-    Busca todas las apariciones de total en el documento
-    y devuelve la última válida, que suele ser el total final.
-    """
     if not texto:
         return None
 
     patrones_total = [
-        r"\btotal factura\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
-        r"\bimporte total\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
-        r"\btotal a pagar\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
-        r"\btotal a abonar\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
-        r"\bimporte a pagar\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
-        r"\btotal eur\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
-        r"\btotal\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
+        rf"\btotal factura\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
+        rf"\bimporte total\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
+        rf"\btotal a pagar\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
+        rf"\btotal a abonar\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
+        rf"\bimporte a pagar\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
+        rf"\btotal eur\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
+        rf"\btotal\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
     ]
 
     encontrados = []
@@ -191,26 +194,14 @@ def _extraer_ultimo_total_documento(texto):
 
 
 def _extraer_total_desde_base_iva_total(texto):
-    """
-    Extrae el TOTAL final de una factura incluso si el OCR rompe la tabla.
-    Estrategia:
-    - Detectar bloque donde aparezcan BASE IMPONIBLE + IVA
-    - Tomar los importes cercanos
-    - El mayor importe suele ser el TOTAL
-    """
     if not texto:
         return None
 
     texto_lower = texto.lower()
-
-    # Normalizar espacios para evitar saltos de línea problemáticos
     texto_norm = " ".join(texto_lower.split())
 
-    # Buscar zona donde estén las etiquetas clave
     if "base imponible" in texto_norm and ("iva" in texto_norm or "i.v.a" in texto_norm):
-
-        # Extraer todos los importes del bloque completo
-        importes = re.findall(r"-?\d{1,3}(?:\.\d{3})*,\d{2}", texto_norm)
+        importes = re.findall(PATRON_IMPORTE, texto_norm)
 
         importes_validos = []
         for imp in importes:
@@ -229,13 +220,13 @@ def _extraer_importe_total_explicito(texto):
         return None
 
     patrones_total = [
-        r"\btotal factura\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
-        r"\bimporte total\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
-        r"\btotal a pagar\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
-        r"\btotal a abonar\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
-        r"\bimporte a pagar\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
-        r"\btotal eur\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
-        r"\btotal\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})\b",
+        rf"\btotal factura\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
+        rf"\bimporte total\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
+        rf"\btotal a pagar\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
+        rf"\btotal a abonar\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
+        rf"\bimporte a pagar\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
+        rf"\btotal eur\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
+        rf"\btotal\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})\b",
     ]
 
     return _buscar_importe_en_texto(texto, patrones_total)
@@ -292,7 +283,6 @@ def extraer_importe_principal(texto, tipo_documento, importes):
 def inferir_banco_desde_texto(texto):
     texto = (texto or "").lower()
 
-    # Prioridad fuerte por nombre explícito
     if "n26" in texto:
         return "N26"
 
@@ -316,7 +306,6 @@ def inferir_banco_desde_texto(texto):
         if clave in texto:
             return nombre
 
-    # Señales N26 primero
     claves_n26 = [
         "saldo previo",
         "transacciones salientes",
@@ -326,7 +315,6 @@ def inferir_banco_desde_texto(texto):
     if any(k in texto for k in claves_n26):
         return "N26"
 
-    # Señales PayPal después
     claves_paypal = [
         "saldo inicial disponible",
         "saldo final disponible",
@@ -363,35 +351,32 @@ def extraer_resumen_extracto(texto):
         "retenido": None,
     }
 
-    # =========================
-    # 1) PRIMERO N26
-    # =========================
-    patrones_n26 = {
-        "saldo_previo": [
-            r"saldo previo\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
-        ],
-        "transacciones_salientes": [
-            r"transacciones salientes\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
-        ],
-        "transacciones_entrantes": [
-            r"transacciones entrantes\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
-        ],
-        "tu_nuevo_saldo": [
-            r"tu nuevo saldo\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
-        ],
-    }
-
-    saldo_previo = _buscar_importe_en_texto(texto, patrones_n26["saldo_previo"])
-    transacciones_salientes = _buscar_importe_en_texto(texto, patrones_n26["transacciones_salientes"])
-    transacciones_entrantes = _buscar_importe_en_texto(texto, patrones_n26["transacciones_entrantes"])
-    tu_nuevo_saldo = _buscar_importe_en_texto(texto, patrones_n26["tu_nuevo_saldo"])
+    # ======================================================
+    # 1) N26 PRIMERO
+    # ======================================================
+    saldo_previo = _buscar_importe_despues_de_etiqueta(
+        texto,
+        [r"saldo previo"]
+    )
+    transacciones_salientes = _buscar_importe_despues_de_etiqueta(
+        texto,
+        [r"transacciones salientes"]
+    )
+    transacciones_entrantes = _buscar_importe_despues_de_etiqueta(
+        texto,
+        [r"transacciones entrantes"]
+    )
+    tu_nuevo_saldo = _buscar_importe_despues_de_etiqueta(
+        texto,
+        [r"tu nuevo saldo"]
+    )
 
     if any([saldo_previo, transacciones_salientes, transacciones_entrantes, tu_nuevo_saldo]):
         campos["banco"] = "N26"
-        campos["saldo_inicial_disponible"] = normalizar_importe(saldo_previo) if saldo_previo else None
-        campos["saldo_final_disponible"] = normalizar_importe(tu_nuevo_saldo) if tu_nuevo_saldo else None
-        campos["depositos_y_creditos"] = normalizar_importe(transacciones_entrantes) if transacciones_entrantes else 0.0
-        campos["retiradas_y_cargos"] = normalizar_importe(transacciones_salientes) if transacciones_salientes else 0.0
+        campos["saldo_inicial_disponible"] = normalizar_importe(saldo_previo) if saldo_previo else 0.0
+        campos["saldo_final_disponible"] = normalizar_importe(tu_nuevo_saldo) if tu_nuevo_saldo else 0.0
+        campos["depositos_y_creditos"] = abs(normalizar_importe(transacciones_entrantes) or 0.0)
+        campos["retiradas_y_cargos"] = abs(normalizar_importe(transacciones_salientes) or 0.0)
         campos["pagos_recibidos"] = 0.0
         campos["pagos_enviados"] = 0.0
         campos["tarifas"] = 0.0
@@ -399,50 +384,52 @@ def extraer_resumen_extracto(texto):
         campos["retenido"] = 0.0
         return campos
 
-    # =========================
-    # 2) DESPUÉS PAYPAL
-    # =========================
+    # ======================================================
+    # 2) PAYPAL DESPUÉS
+    # ======================================================
     patrones_paypal = {
         "saldo_inicial_disponible": [
-            r"saldo inicial disponible\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+            rf"saldo inicial disponible\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})",
         ],
         "saldo_final_disponible": [
-            r"saldo final disponible\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+            rf"saldo final disponible\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})",
         ],
         "saldo_inicial_retenido": [
-            r"saldo inicial retenido\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+            rf"saldo inicial retenido\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})",
         ],
         "saldo_final_retenido": [
-            r"saldo final retenido\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+            rf"saldo final retenido\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})",
         ],
         "pagos_recibidos": [
-            r"pagos recibidos\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+            rf"pagos recibidos\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})",
         ],
         "pagos_enviados": [
-            r"pagos enviados\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+            rf"pagos enviados\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})",
         ],
         "retiradas_y_cargos": [
-            r"retiradas y cargos\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+            rf"retiradas y cargos\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})",
         ],
         "depositos_y_creditos": [
-            r"depósitos y créditos\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
-            r"depositos y creditos\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+            rf"depósitos y créditos\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})",
+            rf"depositos y creditos\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})",
         ],
         "tarifas": [
-            r"tarifas\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+            rf"tarifas\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})",
         ],
         "liberaciones": [
-            r"liberaciones\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+            rf"liberaciones\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})",
         ],
         "retenido": [
-            r"\bretenido\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
+            rf"\bretenido\s*[:\-]?\s*€?\s*({PATRON_IMPORTE})",
         ],
     }
 
     for campo, lista_patrones in patrones_paypal.items():
         encontrado = _buscar_importe_en_texto(texto, lista_patrones)
         if encontrado is not None:
-            campos[campo] = normalizar_importe(encontrado)
+            valor = normalizar_importe(encontrado)
+            if valor is not None:
+                campos[campo] = valor
 
     hay_paypal = any(
         campos[k] is not None
