@@ -15,6 +15,13 @@ PATRON_MONEDA = re.compile(
 
 UMBRAL_MOVIMIENTO_RELEVANTE = 100.0
 
+# =========================================================
+# DEBUG CONTROLADO
+# Cambia a True solo si quieres inspeccionar N26 en logs.
+# =========================================================
+DEBUG_EXTRACTOS = False
+DEBUG_SOLO_BANCOS = {"N26"}
+
 
 def limpiar_descripcion(linea):
     return " ".join((linea or "").strip().split())
@@ -294,7 +301,6 @@ def tiene_huella_transaccional(linea_lower):
         "merchant",
         "store",
         "vendor",
-        # ampliar para extractos más secos tipo N26 / otros bancos
         "transaction",
         "booking",
         "bank transfer",
@@ -310,6 +316,7 @@ def tiene_huella_transaccional(linea_lower):
         "outgoing transfer",
     ]
     return any(p in linea_lower for p in patrones)
+
 
 def partir_en_bloques_transaccionales(texto):
     bloques = []
@@ -451,17 +458,12 @@ def bloque_es_agregado_o_resumen(bloque):
     tiene_fecha = any(bool(PATRON_FECHA.search(linea)) for linea in bloque)
     tiene_huella = tiene_huella_transaccional(texto)
 
-    # Si no hay importes, no es movimiento útil
     if total_importes == 0:
         return True
 
-    # Si parece claramente una tabla/resumen agregada
     if len(bloque) >= 4 and total_importes >= 4 and not tiene_fecha:
         return True
 
-    # Antes aquí descartabas TODO lo que no tuviera huella transaccional.
-    # Eso mata movimientos reales de N26 y de otros bancos.
-    # Nuevo criterio: si tiene fecha + importe, lo dejamos pasar aunque no tenga huella.
     if not tiene_huella and not tiene_fecha:
         return True
 
@@ -499,11 +501,11 @@ def _normalizar_categoria_agrupada(categoria, valor):
 
     return "otros_pagos"
 
+
 def _es_linea_resumen_bancario(linea):
     linea_lower = (linea or "").strip().lower()
 
     patrones_resumen = [
-        # resúmenes clásicos
         "saldo inicial",
         "saldo final",
         "saldo previo",
@@ -517,7 +519,6 @@ def _es_linea_resumen_bancario(linea):
         "subtotal",
         "totales",
         "total",
-        # paypal
         "pagos recibidos",
         "pagos enviados",
         "retiradas y cargos",
@@ -526,13 +527,10 @@ def _es_linea_resumen_bancario(linea):
         "tarifas",
         "liberaciones",
         "retenido",
-        # n26 / otros bancos
         "transacciones entrantes",
         "transacciones salientes",
         "incoming transactions",
         "outgoing transactions",
-        "incoming",
-        "outgoing",
         "credits total",
         "debits total",
         "account summary",
@@ -542,7 +540,6 @@ def _es_linea_resumen_bancario(linea):
     if any(p in linea_lower for p in patrones_resumen):
         return True
 
-    # Si la línea es extremadamente corta y parece puro resumen con 1 importe
     importes = PATRON_IMPORTE.findall(linea or "")
     if len(importes) == 1:
         tokens = [t for t in linea_lower.split() if t]
@@ -555,6 +552,7 @@ def _es_linea_resumen_bancario(linea):
 
     return False
 
+
 def _linea_candidata_movimiento(linea):
     if not linea:
         return False
@@ -564,7 +562,6 @@ def _linea_candidata_movimiento(linea):
     if es_linea_ruido(linea_lower):
         return False
 
-    # NUEVO: cortar de raíz los resúmenes del banco
     if _es_linea_resumen_bancario(linea):
         return False
 
@@ -572,25 +569,49 @@ def _linea_candidata_movimiento(linea):
     if not importes:
         return False
 
-    # Si la línea tiene demasiados importes, probablemente es resumen/tabulación agregada
     if len(importes) >= 4:
         return False
 
-    # Si tiene fecha + importe, casi seguro es movimiento
     if PATRON_FECHA.search(linea):
         return True
 
-    # Si tiene importe y huella transaccional, también
     if tiene_huella_transaccional(linea_lower):
         return True
 
-    # Fallback más permisivo para bancos distintos de PayPal:
-    # línea con importe y suficiente texto
     palabras = [p for p in linea.split() if p]
     if len(importes) >= 1 and len(palabras) >= 3:
         return True
 
     return False
+
+
+def _debug_lineas_extracto(texto, archivo="", banco=""):
+    if not DEBUG_EXTRACTOS:
+        return
+
+    if DEBUG_SOLO_BANCOS and banco not in DEBUG_SOLO_BANCOS:
+        return
+
+    print("\n" + "=" * 90)
+    print(f"DEBUG EXTRACTO | banco={banco} | archivo={archivo}")
+    print("=" * 90)
+
+    for i, raw in enumerate((texto or "").splitlines(), start=1):
+        linea = limpiar_descripcion(raw)
+        if not linea:
+            continue
+
+        tiene_fecha = bool(PATRON_FECHA.search(linea))
+        importes = PATRON_IMPORTE.findall(linea)
+        huella = tiene_huella_transaccional(linea.lower())
+        resumen = _es_linea_resumen_bancario(linea)
+        candidata = _linea_candidata_movimiento(linea)
+
+        if importes or tiene_fecha or huella:
+            print(
+                f"[{i:03}] fecha={tiene_fecha} huella={huella} resumen={resumen} "
+                f"candidata={candidata} importes={importes} :: {linea}"
+            )
 
 
 def _extraer_movimientos_extracto_por_linea(texto, archivo, fecha_doc, banco=None):
@@ -619,7 +640,6 @@ def _extraer_movimientos_extracto_por_linea(texto, archivo, fecha_doc, banco=Non
         if not importes:
             continue
 
-        # Tomamos el importe de mayor valor absoluto de la línea
         candidatos = []
         for imp in importes:
             valor = normalizar_importe(imp)
@@ -848,17 +868,12 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
             "estado_conciliacion": "agrupado",
         })
 
-    # =========================================================
-    # FALLBACK SEGURO:
-    # si el parser principal no generó movimientos individuales,
-    # intentar rescatar líneas una por una.
-    # Esto ataca justo el caso N26 sin romper PayPal.
-    # =========================================================
     movimientos_individuales = [
         m for m in movimientos
         if m.get("categoria") not in ["otros_cobros", "otros_pagos"]
     ]
 
+    # Fallback solo si el parser principal no sacó movimientos individuales
     if not movimientos_individuales:
         fallback = _extraer_movimientos_extracto_por_linea(
             texto=texto,
@@ -866,7 +881,15 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
             fecha_doc=fecha_doc,
             banco=banco,
         )
-        if fallback:
+
+        # Blindaje extra: si el fallback solo produce agrupados o nada,
+        # preferimos devolver vacío antes que inventar movimientos falsos.
+        fallback_individuales = [
+            m for m in fallback
+            if m.get("categoria") not in ["otros_cobros", "otros_pagos"]
+        ]
+
+        if fallback_individuales:
             return fallback
 
     return movimientos
@@ -923,6 +946,8 @@ def construir_ledger(documentos):
 
             if banco_doc and not resumen_extracto.get("banco"):
                 resumen_extracto["banco"] = banco_doc
+
+            _debug_lineas_extracto(texto=texto, archivo=archivo, banco=banco_doc)
 
             if resumen_extracto:
                 ledger.append({
