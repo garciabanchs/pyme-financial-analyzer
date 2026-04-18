@@ -899,11 +899,12 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
 def construir_ledger(documentos):
     ledger = []
 
-    # limpiar archivo debug al arrancar
+    print("========== DEBUG CONSTRUIR_LEDGER INICIO ==========")
+    print(f"Total documentos recibidos: {len(documentos or [])}")
+
     if DEBUG_EXTRACTOS:
         try:
-            with open(DEBUG_FILE, "w", encoding="utf-8") as f:
-                f.write("DEBUG DE EXTRACTOS\n")
+            print(f"DEBUG_EXTRACTOS=True | DEBUG_SOLO_BANCOS={DEBUG_SOLO_BANCOS}")
         except Exception:
             pass
 
@@ -916,6 +917,11 @@ def construir_ledger(documentos):
         importes = doc.get("importes", [])
         resumen_extracto = doc.get("resumen_extracto", {}) or {}
         moneda_doc = detectar_moneda(texto)
+
+        print(
+            f"[DOC {idx}] archivo={archivo} tipo={tipo_doc} fecha={fecha} "
+            f"texto_len={len(texto or '')} importes_detectados={len(importes or [])}"
+        )
 
         if tipo_doc in ["factura_venta", "factura_compra"]:
             importe_principal = extraer_importe_principal(texto, tipo_doc, importes)
@@ -956,6 +962,11 @@ def construir_ledger(documentos):
             if banco_doc and not resumen_extracto.get("banco"):
                 resumen_extracto["banco"] = banco_doc
 
+            print(
+                f"[EXTRACTO {idx}] archivo={archivo} banco={banco_doc} "
+                f"fecha={fecha} resumen_keys={list(resumen_extracto.keys()) if resumen_extracto else []}"
+            )
+
             _debug_lineas_extracto(texto=texto, archivo=archivo, banco=banco_doc)
 
             if resumen_extracto:
@@ -985,6 +996,11 @@ def construir_ledger(documentos):
                 banco=banco_doc,
             )
 
+            print(
+                f"[EXTRACTO {idx}] archivo={archivo} banco={banco_doc} "
+                f"movimientos_generados={len(movimientos)}"
+            )
+
             for n, movimiento in enumerate(movimientos, start=1):
                 movimiento["id"] = f"bank_{idx}_{n}"
                 ledger.append(movimiento)
@@ -1009,5 +1025,8 @@ def construir_ledger(documentos):
                     "soporte": True,
                     "estado_conciliacion": "pendiente",
                 })
+
+    print("========== DEBUG CONSTRUIR_LEDGER FIN ==========")
+    print(f"Total items ledger generados: {len(ledger)}")
 
     return ledger
