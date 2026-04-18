@@ -1255,50 +1255,29 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         return "badge-gray"
 
     def construir_botones_movimientos(section_target):
-    bancos = sorted({
-        (item.get("banco") or "").strip()
-        for item in (ledger or [])
-        if item.get("tipo") in ["extracto_bancario", "extracto_resumen"]
-        and (item.get("banco") or "").strip()
-    })
+        bancos = sorted({
+            (item.get("banco") or "").strip()
+            for item in (ledger or [])
+            if item.get("tipo") in ["extracto_bancario", "extracto_resumen"]
+            and (item.get("banco") or "").strip()
+        })
 
-    def slug_banco(nombre):
-        slug = re.sub(r"[^a-z0-9]+", "-", (nombre or "").strip().lower())
-        slug = slug.strip("-")
-        return f"bank-{slug}" if slug else "bank-desconocido"
+        def slug_banco(nombre):
+            slug = re.sub(r"[^a-z0-9]+", "-", (nombre or "").strip().lower())
+            slug = slug.strip("-")
+            return f"bank-{slug}" if slug else "bank-desconocido"
 
-    botones = [
-        ("all", "Ver todo"),
-        ("entradas", "Entradas"),
-        ("salidas", "Salidas"),
-        ("cobros", "Cobros"),
-        ("pagos", "Pagos"),
-        ("internos", "Movimientos internos"),
-    ]
-
-    # Añadir filtros por banco
-    for banco in bancos:
-        botones.append((slug_banco(banco), f"Solo {banco}"))
-
-    html = ""
-    for valor, etiqueta in botones:
-        clase = "filter-btn active" if valor == "all" else "filter-btn"
-        html += (
-            f'<button class="{clase}" type="button" '
-            f'data-filter="{valor}" data-target="{section_target}">{etiqueta}</button>'
-        )
-    return html 
-
-    def construir_botones_conciliacion(section_target):
         botones = [
             ("all", "Ver todo"),
-            ("pendientes", "Facturas pendientes"),
-            ("conciliadas", "Facturas conciliadas"),
-            ("sin-soporte", "Sin soporte"),
-            ("no-conciliables", "No conciliables"),
-            ("duplicados", "Duplicados potenciales"),
+            ("entradas", "Entradas"),
+            ("salidas", "Salidas"),
+            ("cobros", "Cobros"),
+            ("pagos", "Pagos"),
             ("internos", "Movimientos internos"),
         ]
+
+        for banco in bancos:
+            botones.append((slug_banco(banco), f"Solo {banco}"))
 
         html = ""
         for valor, etiqueta in botones:
@@ -1307,6 +1286,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 f'<button class="{clase}" type="button" '
                 f'data-filter="{valor}" data-target="{section_target}">{etiqueta}</button>'
             )
+    
         return html
 
     def construir_bloque_colapsable(titulo, cuerpo_html, subtitulo="", abierto=False, extra_class=""):
