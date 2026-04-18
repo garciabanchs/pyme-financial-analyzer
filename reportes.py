@@ -554,7 +554,96 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
         "otros_pagos_cantidad": otros_pagos_cantidad_real,
         "otros_pagos_total": otros_pagos_total,
     }
-    
+
+
+def construir_resumen_por_banco(ledger):
+    ledger = ledger or []
+
+    resumen = {}
+
+    def normalizar_nombre_banco(item):
+        candidatos = [
+            item.get("banco"),
+            item.get("entidad_financiera"),
+        ]
+
+        for c in candidatos:
+            c = (str(c).strip() if c is not None else "")
+            if c and c.lower() not in {"no detectado", "none", "null", "-"}:
+                return c
+
+        archivo = (item.get("archivo") or "").lower()
+        descripcion = (item.get("descripcion") or "").lower()
+
+        if "paypal" in archivo or "paypal" in descripcion:
+            return "PayPal"
+        if "n26" in archivo or "n26" in descripcion:
+            return "N26"
+
+        return "No detectado"
+
+    def asegurar_banco(nombre):
+        if nombre not in resumen:
+            resumen[nombre] = {
+                "banco": nombre,
+                "entradas": 0.0,
+                "salidas": 0.0,
+                "movimientos": 0.0,
+                "cantidad": 0,
+                "saldo_neto": 0.0,
+            }
+
+    for item in ledger:
+        if item.get("tipo") != "extracto_bancario":
+            continue
+
+        banco = normalizar_nombre_banco(item)
+        asegurar_banco(banco)
+
+        valor = item.get("importe_firmado_num")
+        if valor is None:
+            valor = normalizar_importe_reporte(item.get("importe", 0))
+            if (item.get("naturaleza") or "").lower() == "salida":
+                valor = -abs(valor)
+
+        if valor is None:
+            continue
+
+        resumen[banco]["cantidad"] += 1
+        resumen[banco]["movimientos"] += abs(valor)
+        resumen[banco]["saldo_neto"] += valor
+
+        if valor >= 0:
+            resumen[banco]["entradas"] += abs(valor)
+        else:
+            resumen[banco]["salidas"] += abs(valor)
+
+    bancos = list(resumen.values())
+    bancos.sort(key=lambda x: x["banco"].lower())
+
+    total = {
+        "banco": "Total",
+        "entradas": sum(x["entradas"] for x in bancos),
+        "salidas": sum(x["salidas"] for x in bancos),
+        "movimientos": sum(x["movimientos"] for x in bancos),
+        "cantidad": sum(x["cantidad"] for x in bancos),
+        "saldo_neto": sum(x["saldo_neto"] for x in bancos),
+    }
+
+    return [total] + bancos
+
+def clase_tarjeta_banco(nombre_banco):
+    nombre = (nombre_banco or "").strip().lower()
+
+    if nombre == "total":
+        return "bank-card bank-card-total"
+    if nombre == "paypal":
+        return "bank-card bank-card-wallet"
+    if nombre == "n26":
+        return "bank-card bank-card-bank"
+
+    return "bank-card bank-card-generic"
+
 def inferir_nombre_empresa(documentos, ledger):
     documentos = documentos or []
 
@@ -1305,6 +1394,18 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
+    def clase_tarjeta_banco(nombre_banco):
+    nombre = (nombre_banco or "").strip().lower()
+
+    if nombre == "total":
+        return "bank-card bank-card-total"
+    if nombre == "paypal":
+        return "bank-card bank-card-wallet"
+    if nombre == "n26":
+        return "bank-card bank-card-bank"
+
+    return "bank-card bank-card-generic"
+    
     def tabla_ledger_html():
         if not ledger:
             return """
@@ -1712,6 +1813,58 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
+    def tarjetas_resumen_bancos_html():
+        tarjetas = construir_resumen_por_banco(ledger)
+
+        if not tarjetas:
+            return """
+            <div class="empty-state">
+                <p>No hay bancos detectados para resumir.</p>
+            </div>
+            """
+
+        html = ""
+        for item in tarjetas:
+            banco = item["banco"]
+            entradas = item["entradas"]
+            salidas = item["salidas"]
+            movimientos = item["movimientos"]
+            cantidad = item["cantidad"]
+            saldo_neto = item["saldo_neto"]
+
+            if saldo_neto > 0:
+                tendencia = "trend up"
+                tendencia_texto = f"Neto: +€ {fmt(saldo_neto)}"
+            elif saldo_neto < 0:
+                tendencia = "trend down"
+                tendencia_texto = f"Neto: -€ {fmt(abs(saldo_neto))}"
+            else:
+                tendencia = "trend gray"
+                tendencia_texto = "Neto: € 0,00"
+
+            html += f"""
+            <article class="{clase_tarjeta_banco(banco)}">
+                <div class="label">{banco}</div>
+                <div class="amount">€ {fmt(movimientos)}</div>
+                <div class="meta-block">
+                    <div class="meta-line"><span>Entradas</span><strong>€ {fmt(entradas)}</strong></div>
+                    <div class="meta-line"><span>Salidas</span><strong>€ {fmt(salidas)}</strong></div>
+                    <div class="meta-line"><span>Movimientos</span><strong>{cantidad}</strong></div>
+                </div>
+                <div class="meta">
+                    <span class="{tendencia}">{tendencia_texto}</span>
+                    <span>Banco</span>
+                </div>
+            </article>
+            """
+
+        return f"""
+        <div class="bank-cards-grid">
+            {html}
+        </div>
+        """
+    
+    
     def _seleccionar_importes_presentables(importes_lista, max_visibles=200):
         if not importes_lista:
             return []
@@ -3626,7 +3779,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     }}
 }}        
 
-        </style>
+</style>
     </head>
     <body>
         <div class="wrap">
@@ -3738,37 +3891,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         </div>
                     </div>
 
-                    <div class="metrics-grid">
-                        <article class="kpi">
-                            <div class="label">Volumen total movido (entradas + salidas)</div>
-                            <div class="amount">€ {fmt(flujo["movimientos"])}</div>
-                            <div class="meta"><span class="trend up">Actividad</span><span>Caja</span></div>
-                        </article>
-
-                        <article class="kpi">
-                            <div class="label">Retenido</div>
-                            <div class="amount">€ {fmt(flujo["retenido"])}</div>
-                            <div class="meta"><span class="trend warn">Liquidez</span><span>Bloqueada</span></div>
-                        </article>
-
-                        <article class="kpi">
-                            <div class="label">Facturas conciliadas</div>
-                            <div class="amount">{conc["conciliadas"]}</div>
-                            <div class="meta"><span class="trend up">Correcto</span><span>Exactas</span></div>
-                        </article>
-
-                        <article class="kpi">
-                            <div class="label">Facturas pendientes</div>
-                            <div class="amount">{conc["pendientes"]}</div>
-                            <div class="meta"><span class="trend down">Seguimiento</span><span>Documental</span></div>
-                        </article>
-
-                        <article class="kpi">
-                            <div class="label">Movimientos sin soporte</div>
-                            <div class="amount">{conc.get("sin_soporte", 0)}</div>
-                            <div class="meta"><span class="trend down">Banco</span><span>Revisar</span></div>
-                        </article>
-                    </div>
+                    {tarjetas_resumen_bancos_html()}
 
                     <div class="alerts-grid">
                         <article class="alert-card green">
@@ -3788,10 +3911,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <h4>{alerta_soporte_titulo}</h4>
                             <p>{alerta_soporte_texto}</p>
                         </article>
-                        </div>
+                    </div>
                         
                     {bloque_como_leer}
                 </section>
+
                 <section class="section" id="detalle-documental-section">
                     <div class="section-head">
                         <div>
