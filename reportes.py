@@ -736,8 +736,10 @@ def inferir_nombre_empresa(documentos, ledger):
             "fecha", "periodo", "período", "movimiento", "movimientos",
             "documento", "documentos", "cliente", "proveedor", "concepto",
             "descripcion", "descripción", "iban", "swift", "bic", "cuenta",
-            "payment", "transfer", "transferencia"
+            "payment", "transfer", "transferencia",
+            "carolina", "gonzalez", "gonzález", "arlett"
         ]
+
         if any(b in t for b in bloqueados):
             return False
 
@@ -752,9 +754,9 @@ def inferir_nombre_empresa(documentos, ledger):
 
         return True
 
-    # 1) PRIORIDAD ABSOLUTA: extracto bancario
+    # 1) Buscar primero en facturas
     for item in documentos:
-        if item.get("tipo") != "extracto_bancario":
+        if item.get("tipo") not in ["factura_venta", "factura_compra"]:
             continue
 
         texto = (item.get("texto") or "").strip()
@@ -763,11 +765,9 @@ def inferir_nombre_empresa(documentos, ledger):
 
         patrones = [
             r"(?im)^\s*raz[oó]n social\s*[:\-]\s*(.+?)\s*$",
-            r"(?im)^\s*nombre\s+del\s+titular\s*[:\-]\s*(.+?)\s*$",
-            r"(?im)^\s*titular\s*[:\-]\s*(.+?)\s*$",
-            r"(?im)^\s*account holder\s*[:\-]\s*(.+?)\s*$",
-            r"(?im)^\s*business name\s*[:\-]\s*(.+?)\s*$",
             r"(?im)^\s*empresa\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*business name\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*nombre comercial\s*[:\-]\s*(.+?)\s*$",
         ]
 
         for patron in patrones:
@@ -777,14 +777,8 @@ def inferir_nombre_empresa(documentos, ledger):
                 if es_nombre_valido(candidato):
                     return candidato[:1].upper() + candidato[1:]
 
-        # fallback: primeras líneas útiles del extracto
-        for linea in texto.splitlines()[:25]:
-            linea = limpiar(linea)
-            if es_nombre_valido(linea):
-                return linea[:1].upper() + linea[1:]
-
-    # 2) Si no está claro en el extracto, no inventar
-    return "la empresa"
+    # 2) Si no se encuentra bien, usar nombre neutro
+    return "la empresa analizada"
     
 def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     saldo_inicial = flujo["saldo_inicial"]
