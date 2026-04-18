@@ -1,5 +1,6 @@
 from branding import BRANDING
 import re
+from datetime import datetime
 
 
 UMBRAL_RELEVANTE_REPORTE = 50.0
