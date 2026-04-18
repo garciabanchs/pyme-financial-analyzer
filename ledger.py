@@ -114,13 +114,25 @@ PATRON_ULTIMOS_4 = re.compile(
 # PATRONES DE CONTRAPARTE / CLIENTE_PROVEEDOR
 # =========================================================
 PATRONES_CLIENTE_PROVEEDOR = [
-    re.compile(r"\b(?:cliente|customer|bill to|billed to|sold to|client)\s*[:\-]\s*([A-ZÁÉÍÓÚÑ0-9][^\n|]{2,120})", re.IGNORECASE),
-    re.compile(r"\b(?:proveedor|supplier|vendor)\s*[:\-]\s*([A-ZÁÉÍÓÚÑ0-9][^\n|]{2,120})", re.IGNORECASE),
-    re.compile(r"\b(?:payment received from|received from|paid by|cobro de|abono de|ingreso de)\s+([A-ZÁÉÍÓÚÑ0-9][A-ZÁÉÍÓÚÑ0-9&.,()'\/ \-]{2,120})", re.IGNORECASE),
-    re.compile(r"\b(?:payment sent to|payment to|paid to|pago a|transfer to|transferencia a|sent to)\s+([A-ZÁÉÍÓÚÑ0-9][A-ZÁÉÍÓÚÑ0-9&.,()'\/ \-]{2,120})", re.IGNORECASE),
-    re.compile(r"\b(?:merchant|comercio|beneficiary|beneficiario|ordenante|remitente)\s*[:\-]\s*([A-ZÁÉÍÓÚÑ0-9][^\n|]{2,120})", re.IGNORECASE),
-]
+    re.compile(r"\b(?:cliente|customer|bill to|billed to|sold to|client)\s*[:\-]\s*([^\n|]{2,120})", re.IGNORECASE),
+    re.compile(r"\b(?:proveedor|supplier|vendor)\s*[:\-]\s*([^\n|]{2,120})", re.IGNORECASE),
 
+    # Factura de venta: patrones típicos del cliente
+    re.compile(r"\bcliente\s*[:\-]\s*([^\n|]{2,120})", re.IGNORECASE),
+    re.compile(r"\bdatos del cliente\s*[:\-]?\s*([^\n|]{2,120})", re.IGNORECASE),
+    re.compile(r"\bseñor(?:es)?\s*[:\-]?\s*([^\n|]{2,120})", re.IGNORECASE),
+    re.compile(r"\bdestinatario\s*[:\-]?\s*([^\n|]{2,120})", re.IGNORECASE),
+
+    # Factura de compra: patrones típicos del proveedor
+    re.compile(r"\bproveedor\s*[:\-]\s*([^\n|]{2,120})", re.IGNORECASE),
+    re.compile(r"\bemisor\s*[:\-]?\s*([^\n|]{2,120})", re.IGNORECASE),
+    re.compile(r"\braz[oó]n social\s*[:\-]?\s*([^\n|]{2,120})", re.IGNORECASE),
+
+    # Extractos / movimientos
+    re.compile(r"\b(?:payment received from|received from|paid by|cobro de|abono de|ingreso de)\s+([^\n|]{2,120})", re.IGNORECASE),
+    re.compile(r"\b(?:payment sent to|payment to|paid to|pago a|transfer to|transferencia a|sent to)\s+([^\n|]{2,120})", re.IGNORECASE),
+    re.compile(r"\b(?:merchant|comercio|beneficiary|beneficiario|ordenante|remitente)\s*[:\-]\s*([^\n|]{2,120})", re.IGNORECASE),
+]
 STOPWORDS_CONTRAPARTE = {
     "payment",
     "payments",
