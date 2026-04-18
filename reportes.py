@@ -337,6 +337,48 @@ def construir_resumen_flujo_por_banco(ledger):
 
     return bancos_ordenados
 
+def construir_resumen_flujo(ledger):
+    bancos = construir_resumen_flujo_por_banco(ledger)
+
+    if not bancos:
+        return {
+            "saldo_inicial": 0.0,
+            "entradas": 0.0,
+            "salidas": 0.0,
+            "saldo_final": 0.0,
+            "variacion": 0.0,
+            "retenido": 0.0,
+            "balance": 0.0,
+            "movimientos": 0.0,
+            "revisar": 0.0,
+        }
+
+    total = {
+        "saldo_inicial": 0.0,
+        "entradas": 0.0,
+        "salidas": 0.0,
+        "saldo_final": 0.0,
+        "variacion": 0.0,
+        "retenido": 0.0,
+        "balance": 0.0,
+        "movimientos": 0.0,
+        "revisar": 0.0,
+    }
+
+    for banco in bancos:
+        total["saldo_inicial"] += banco.get("saldo_inicial", 0.0)
+        total["entradas"] += banco.get("entradas", 0.0)
+        total["salidas"] += banco.get("salidas", 0.0)
+        total["saldo_final"] += banco.get("saldo_final", 0.0)
+        total["retenido"] += banco.get("retenido", 0.0)
+        total["movimientos"] += banco.get("movimientos", 0.0)
+        total["revisar"] += banco.get("revisar", 0.0)
+
+    total["variacion"] = total["saldo_final"] - total["saldo_inicial"]
+    total["balance"] = total["variacion"]
+
+    return total
+
 def construir_resumen_conciliacion(conciliacion):
     conciliacion = conciliacion or []
 
