@@ -200,24 +200,12 @@ def construir_resumen_flujo_por_banco(ledger):
     def inferir_nombre_banco(item, resumen=None):
         resumen = resumen or {}
 
-        # 1) Si el resumen tiene estructura típica de PayPal, forzar PayPal
-        claves_paypal = [
-            "pagos_recibidos",
-            "pagos_enviados",
-            "retenido",
-            "liberaciones",
-            "depositos_y_creditos",
-            "retiradas_y_cargos",
-            "tarifas",
-            "saldo_inicial_disponible",
-            "saldo_final_disponible",
-        ]
-        if any(k in resumen for k in claves_paypal):
-            return "PayPal"
+        # 1) PRIORIDAD ABSOLUTA: si parser/ledger ya trae banco, respetarlo
+        banco_directo = (item.get("banco") or resumen.get("banco") or "").strip()
+        if banco_directo:
+            return banco_directo
 
         candidatos = [
-            item.get("banco"),
-            resumen.get("banco"),
             item.get("cuenta"),
             item.get("descripcion"),
             item.get("archivo"),
@@ -245,9 +233,20 @@ def construir_resumen_flujo_por_banco(ledger):
             if clave in texto:
                 return nombre
 
-        nombre_directo = (item.get("banco") or resumen.get("banco") or "").strip()
-        if nombre_directo:
-            return nombre_directo
+        # 2) Solo si no hubo banco explícito, inferir por estructura real
+        # PayPal de verdad suele tener estos campos específicos con valor útil
+        if any(
+            resumen.get(k) not in [None, "", 0, 0.0]
+            for k in ["pagos_recibidos", "pagos_enviados", "liberaciones", "retenido", "tarifas"]
+        ):
+            return "PayPal"
+
+        # N26 de verdad suele venir resumido solo con saldo inicial/final y entradas/salidas
+        if any(
+            resumen.get(k) not in [None, "", 0, 0.0]
+            for k in ["saldo_inicial_disponible", "saldo_final_disponible", "depositos_y_creditos", "retiradas_y_cargos"]
+        ):
+            return "N26"
 
         return "Banco sin nombre"
 
