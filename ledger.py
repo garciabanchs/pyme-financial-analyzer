@@ -642,47 +642,47 @@ def construir_ledger(documentos):
                     "estado_conciliacion": "pendiente",
                 })
 
-elif tipo_doc == "extracto_bancario":
-    banco_doc = (resumen_extracto.get("banco") or "").strip()
+        elif tipo_doc == "extracto_bancario":
+            banco_doc = (resumen_extracto.get("banco") or "").strip()
 
-    if not banco_doc:
-        archivo_lower = (archivo or "").lower()
-        texto_lower = (texto or "").lower()
+            if not banco_doc:
+                archivo_lower = (archivo or "").lower()
+                texto_lower = (texto or "").lower()
 
-        if "n26" in archivo_lower or "n26" in texto_lower:
-            banco_doc = "N26"
-        elif "paypal" in archivo_lower or "paypal" in texto_lower:
-            banco_doc = "PayPal"
+                if "n26" in archivo_lower or "n26" in texto_lower:
+                    banco_doc = "N26"
+                elif "paypal" in archivo_lower or "paypal" in texto_lower:
+                    banco_doc = "PayPal"
 
-    if banco_doc and not resumen_extracto.get("banco"):
-        resumen_extracto["banco"] = banco_doc
+            if banco_doc and not resumen_extracto.get("banco"):
+                resumen_extracto["banco"] = banco_doc
 
-    if resumen_extracto:
-        ledger.append({
-            "id": f"extract_summary_{idx}",
-            "archivo": archivo,
-            "tipo": "extracto_resumen",
-            "fecha": fecha,
-            "periodo": periodo,
-            "importe": "0,00",
-            "importe_num": 0.0,
-            "importe_firmado_num": 0.0,
-            "naturaleza": "resumen",
-            "categoria": "resumen_extracto",
-            "descripcion": archivo,
-            "moneda": moneda_doc,
-            "banco": banco_doc,
-            "soporte": True,
-            "resumen_extracto": resumen_extracto,
-            "estado_conciliacion": "no_aplica",
-        })
+            if resumen_extracto:
+                ledger.append({
+                    "id": f"extract_summary_{idx}",
+                    "archivo": archivo,
+                    "tipo": "extracto_resumen",
+                    "fecha": fecha,
+                    "periodo": periodo,
+                    "importe": "0,00",
+                    "importe_num": 0.0,
+                    "importe_firmado_num": 0.0,
+                    "naturaleza": "resumen",
+                    "categoria": "resumen_extracto",
+                    "descripcion": archivo,
+                    "moneda": moneda_doc,
+                    "banco": banco_doc,
+                    "soporte": True,
+                    "resumen_extracto": resumen_extracto,
+                    "estado_conciliacion": "no_aplica",
+                })
 
-    movimientos = extraer_movimientos_extracto(
-        texto=texto,
-        archivo=archivo,
-        fecha_doc=fecha,
-        banco=banco_doc,
-    )
+            movimientos = extraer_movimientos_extracto(
+                texto=texto,
+                archivo=archivo,
+                fecha_doc=fecha,
+                banco=banco_doc,
+            )
 
             for n, movimiento in enumerate(movimientos, start=1):
                 movimiento["id"] = f"bank_{idx}_{n}"
