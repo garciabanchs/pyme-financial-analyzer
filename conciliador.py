@@ -2,43 +2,8 @@ from itertools import combinations
 
 
 def normalizar_importe(valor):
-    if valor is None:
-        return None
-
-    if isinstance(valor, (int, float)):
-        return float(valor)
-
     try:
-        v = str(valor).strip()
-
-        # eliminar símbolos de moneda
-        v = v.replace("€", "").replace("$", "").replace("US$", "")
-        v = v.replace(" ", "")
-
-        # detectar formato
-        if "," in v and "." in v:
-            # ambos presentes → detectar cuál es decimal (el último)
-            if v.rfind(",") > v.rfind("."):
-                # formato europeo: 1.234,56
-                v = v.replace(".", "").replace(",", ".")
-            else:
-                # formato anglosajón: 1,234.56
-                v = v.replace(",", "")
-        elif "," in v:
-            # solo coma → puede ser decimal europeo
-            if len(v.split(",")[-1]) == 2:
-                v = v.replace(".", "").replace(",", ".")
-            else:
-                v = v.replace(",", "")
-        elif "." in v:
-            # solo punto → puede ser decimal anglosajón
-            if len(v.split(".")[-1]) == 2:
-                pass  # correcto → no tocar
-            else:
-                v = v.replace(".", "")
-
-        return float(v)
-
+        return float(str(valor).replace(".", "").replace(",", "."))
     except Exception:
         return None
 
@@ -252,133 +217,6 @@ def _clasificar_movimiento_suelto(mov):
     return "sin soporte menor", "bajo"
 
 
-def _es_valor_util(valor):
-    if valor is None:
-        return False
-
-    if isinstance(valor, str):
-        v = valor.strip()
-        if not v:
-            return False
-        if v in ["No detectado", "No detectada", "No aplica", "No aplica.", "N/A", "n/a"]:
-            return False
-        return True
-
-    return True
-
-
-def _normalizar_valor_combinable(valor):
-    if not _es_valor_util(valor):
-        return None
-    if isinstance(valor, str):
-        return " ".join(valor.strip().split())
-    return str(valor)
-
-
-def _combinar_valores(valores, fallback=None, separador=" | "):
-    vistos = []
-    normalizados = set()
-
-    for valor in valores or []:
-        v = _normalizar_valor_combinable(valor)
-        if not v:
-            continue
-
-        clave = v.lower()
-        if clave in normalizados:
-            continue
-
-        normalizados.add(clave)
-        vistos.append(v)
-
-        if len(vistos) >= 3:
-            break
-
-    if not vistos:
-        return fallback
-
-    return separador.join(vistos)
-
-
-def _combinar_bancos(valores, fallback="No detectado"):
-    return _combinar_valores(valores, fallback=fallback)
-
-
-def _combinar_contrapartes(valores, fallback=None):
-    return _combinar_valores(valores, fallback=fallback)
-
-
-def _combinar_cuentas(valores, fallback=None):
-    return _combinar_valores(valores, fallback=fallback)
-
-
-def _combinar_entidades_financieras(valores, fallback="No detectada"):
-    return _combinar_valores(valores, fallback=fallback)
-
-
-def _valor_prioritario(*valores, fallback=None):
-    for valor in valores:
-        v = _normalizar_valor_combinable(valor)
-        if v:
-            return v
-    return fallback
-
-
-def _normalizar_banco_salida(valor):
-    v = _normalizar_valor_combinable(valor)
-    return v if v else "No detectado"
-
-
-def _normalizar_entidad_financiera_salida(valor):
-    v = _normalizar_valor_combinable(valor)
-    return v if v else "No detectada"
-
-
-def _normalizar_cliente_proveedor_salida(valor):
-    v = _normalizar_valor_combinable(valor)
-    return v if v else None
-
-
-def _normalizar_cuenta_salida(valor):
-    v = _normalizar_valor_combinable(valor)
-    return v if v else None
-
-
-def _resolver_banco_resultado(factura, movimientos):
-    bancos_mov = [m.get("banco") for m in movimientos]
-    banco_mov = _combinar_bancos(bancos_mov, fallback=None)
-    if banco_mov:
-        return _normalizar_banco_salida(banco_mov)
-    return _normalizar_banco_salida(_valor_prioritario(factura.get("banco"), fallback=None))
-
-
-def _resolver_entidad_financiera_resultado(factura, movimientos):
-    entidades_mov = [m.get("entidad_financiera") for m in movimientos]
-    entidad_mov = _combinar_entidades_financieras(entidades_mov, fallback=None)
-    if entidad_mov:
-        return _normalizar_entidad_financiera_salida(entidad_mov)
-    return _normalizar_entidad_financiera_salida(
-        _valor_prioritario(factura.get("entidad_financiera"), factura.get("banco"), fallback=None)
-    )
-
-
-def _resolver_cuenta_resultado(factura, movimientos):
-    cuentas_mov = [m.get("cuenta") for m in movimientos]
-    cuenta_mov = _combinar_cuentas(cuentas_mov, fallback=None)
-    if cuenta_mov:
-        return _normalizar_cuenta_salida(cuenta_mov)
-    return _normalizar_cuenta_salida(_valor_prioritario(factura.get("cuenta"), fallback=None))
-
-
-def _resolver_cliente_proveedor_resultado(factura, movimientos):
-    cliente_factura = _normalizar_valor_combinable(factura.get("cliente_proveedor"))
-    if cliente_factura:
-        return _normalizar_cliente_proveedor_salida(cliente_factura)
-
-    contrapartes_mov = [m.get("cliente_proveedor") for m in movimientos]
-    return _normalizar_cliente_proveedor_salida(_combinar_contrapartes(contrapartes_mov, fallback=None))
-
-
 def _preparar_facturas_y_banco(ledger):
     facturas = []
     movimientos_banco = []
@@ -406,10 +244,6 @@ def _preparar_facturas_y_banco(ledger):
                 "moneda": item.get("moneda"),
                 "categoria": item.get("categoria"),
                 "descripcion": item.get("descripcion"),
-                "banco": item.get("banco"),
-                "entidad_financiera": item.get("entidad_financiera"),
-                "cuenta": item.get("cuenta"),
-                "cliente_proveedor": item.get("cliente_proveedor"),
             })
 
         elif tipo == "extracto_bancario":
@@ -425,10 +259,6 @@ def _preparar_facturas_y_banco(ledger):
                 "categoria": item.get("categoria"),
                 "descripcion": item.get("descripcion"),
                 "moneda": item.get("moneda"),
-                "banco": item.get("banco"),
-                "entidad_financiera": item.get("entidad_financiera"),
-                "cuenta": item.get("cuenta"),
-                "cliente_proveedor": item.get("cliente_proveedor"),
             })
 
     return facturas, movimientos_banco
@@ -612,8 +442,6 @@ def detectar_inconsistencias(ledger):
 
         # 1D. resultado factura
         if match is not None:
-            movimientos_match = [movimientos_banco[idx] for idx in match["indices"]]
-
             for idx in match["indices"]:
                 usados_banco.add(idx)
 
@@ -632,14 +460,6 @@ def detectar_inconsistencias(ledger):
                 "diferencia": match["diferencia"],
                 "categoria": factura.get("categoria"),
                 "moneda": factura.get("moneda"),
-                "banco": _normalizar_banco_salida(_resolver_banco_resultado(factura, movimientos_match)),
-                "entidad_financiera": _normalizar_entidad_financiera_salida(
-                    _resolver_entidad_financiera_resultado(factura, movimientos_match)
-                ),
-                "cuenta": _normalizar_cuenta_salida(_resolver_cuenta_resultado(factura, movimientos_match)),
-                "cliente_proveedor": _normalizar_cliente_proveedor_salida(
-                    _resolver_cliente_proveedor_resultado(factura, movimientos_match)
-                ),
                 "riesgo": riesgo,
             })
 
@@ -658,14 +478,6 @@ def detectar_inconsistencias(ledger):
                 "diferencia": None,
                 "categoria": factura.get("categoria"),
                 "moneda": factura.get("moneda"),
-                "banco": _normalizar_banco_salida(_valor_prioritario(factura.get("banco"), fallback=None)),
-                "entidad_financiera": _normalizar_entidad_financiera_salida(
-                    _valor_prioritario(factura.get("entidad_financiera"), factura.get("banco"), fallback=None)
-                ),
-                "cuenta": _normalizar_cuenta_salida(_valor_prioritario(factura.get("cuenta"), fallback=None)),
-                "cliente_proveedor": _normalizar_cliente_proveedor_salida(
-                    _valor_prioritario(factura.get("cliente_proveedor"), fallback=None)
-                ),
                 "riesgo": "alto",
             })
 
@@ -688,14 +500,6 @@ def detectar_inconsistencias(ledger):
             "diferencia": None,
             "categoria": mov.get("categoria"),
             "moneda": mov.get("moneda"),
-            "banco": _normalizar_banco_salida(_valor_prioritario(mov.get("banco"), fallback=None)),
-            "entidad_financiera": _normalizar_entidad_financiera_salida(
-                _valor_prioritario(mov.get("entidad_financiera"), mov.get("banco"), fallback=None)
-            ),
-            "cuenta": _normalizar_cuenta_salida(_valor_prioritario(mov.get("cuenta"), fallback=None)),
-            "cliente_proveedor": _normalizar_cliente_proveedor_salida(
-                _valor_prioritario(mov.get("cliente_proveedor"), fallback=None)
-            ),
             "riesgo": "medio",
         })
 
@@ -723,14 +527,6 @@ def detectar_inconsistencias(ledger):
             "diferencia": None,
             "categoria": mov.get("categoria"),
             "moneda": mov.get("moneda"),
-            "banco": _normalizar_banco_salida(_valor_prioritario(mov.get("banco"), fallback=None)),
-            "entidad_financiera": _normalizar_entidad_financiera_salida(
-                _valor_prioritario(mov.get("entidad_financiera"), mov.get("banco"), fallback=None)
-            ),
-            "cuenta": _normalizar_cuenta_salida(_valor_prioritario(mov.get("cuenta"), fallback=None)),
-            "cliente_proveedor": _normalizar_cliente_proveedor_salida(
-                _valor_prioritario(mov.get("cliente_proveedor"), fallback=None)
-            ),
             "riesgo": riesgo,
         })
 
