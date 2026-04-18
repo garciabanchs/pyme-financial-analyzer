@@ -505,7 +505,7 @@ def _normalizar_categoria_agrupada(categoria, valor):
     return "otros_pagos"
 
 
-def extraer_movimientos_extracto(texto, archivo, fecha_doc):
+def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
     movimientos = []
     if not texto:
         return movimientos
@@ -578,19 +578,19 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc):
             "id": f"bank_{contador}",
             "archivo": archivo,
             "tipo": "extracto_bancario",
-            "fecha": fecha or "No detectada",
-            "periodo": obtener_periodo(fecha or "No detectada"),
-            "importe": f"{abs(valor):.2f}".replace(".", ","),
-            "importe_num": abs(valor),
-            "importe_firmado_num": valor,
-            "naturaleza": naturaleza,
-            "categoria": categoria,
-            "descripcion": descripcion,
-            "moneda": moneda,
+            "fecha": fecha_doc or "No detectada",
+            "periodo": obtener_periodo(fecha_doc or "No detectada"),
+            "importe": f"{otros_cobros_total:.2f}".replace(".", ","),
+            "importe_num": otros_cobros_total,
+            "importe_firmado_num": otros_cobros_total,
+            "naturaleza": "entrada",
+            "categoria": "otros_cobros",
+            "descripcion": f"{otros_cobros_cantidad} movimientos menores agrupados",
+            "moneda": detectar_moneda(texto),
+            "banco": banco,
             "soporte": False,
-            "estado_conciliacion": "pendiente",
+            "estado_conciliacion": "agrupado",
         })
-
         vistos.add(clave)
         contador += 1
 
@@ -656,20 +656,22 @@ def construir_ledger(documentos):
                 importe_num = normalizar_importe(importe_principal) or 0.0
 
                 ledger.append({
-                    "id": f"doc_{idx}",
+                    "id": f"extract_summary_{idx}",
                     "archivo": archivo,
-                    "tipo": tipo_doc,
+                    "tipo": "extracto_resumen",
                     "fecha": fecha,
                     "periodo": periodo,
-                    "importe": importe_principal,
-                    "importe_num": importe_num,
-                    "importe_firmado_num": importe_num if naturaleza == "entrada" else -importe_num,
-                    "naturaleza": naturaleza,
-                    "categoria": tipo_doc,
+                    "importe": "0,00",
+                    "importe_num": 0.0,
+                    "importe_firmado_num": 0.0,
+                    "naturaleza": "resumen",
+                    "categoria": "resumen_extracto",
                     "descripcion": archivo,
                     "moneda": moneda_doc,
+                    "banco": resumen_extracto.get("banco"),
                     "soporte": True,
-                    "estado_conciliacion": "pendiente",
+                    "resumen_extracto": resumen_extracto,
+                    "estado_conciliacion": "no_aplica",
                 })
 
         elif tipo_doc == "extracto_bancario":
@@ -696,6 +698,7 @@ def construir_ledger(documentos):
                 texto=texto,
                 archivo=archivo,
                 fecha_doc=fecha,
+                banco=resumen_extracto.get("banco"),
             )
 
             for n, movimiento in enumerate(movimientos, start=1):
