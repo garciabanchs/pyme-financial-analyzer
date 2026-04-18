@@ -560,10 +560,20 @@ def inferir_nombre_empresa(documentos, ledger):
 
     def limpiar(texto):
         texto = (texto or "").strip()
-        texto = texto.splitlines()[0] if texto else ""
         texto = re.sub(r"\([^)]*\)", "", texto)
         texto = re.sub(r"\s+", " ", texto).strip(" .,:;_-")
         return texto
+
+    def parece_banco_o_encabezado(texto):
+        t = (texto or "").lower()
+
+        patrones_banco = [
+            "banco", "bank", "banc", "financial", "finance", "credito", "crédito",
+            "cuenta corriente", "cuenta ahorro", "account statement", "bank statement",
+            "extracto bancario", "estado de cuenta", "resumen de cuenta",
+            "customer service", "atención al cliente", "iban", "swift", "bic"
+        ]
+        return any(p in t for p in patrones_banco)
 
     def es_nombre_valido(texto):
         if not texto:
@@ -573,30 +583,33 @@ def inferir_nombre_empresa(documentos, ledger):
         if not texto:
             return False
 
-        t = texto.lower().strip()
+        t = texto.lower()
 
         bloqueados = [
             "extracto", "statement", "factura", "invoice", "resumen", "saldo",
             "fecha", "periodo", "período", "movimiento", "movimientos",
             "documento", "documentos", "cliente", "proveedor", "concepto",
             "descripcion", "descripción", "iban", "swift", "bic", "cuenta",
-            "payment", "transfer", "transferencia", "eur", "usd", "€", "$",
+            "payment", "transfer", "transferencia", "eur", "usd",
             "saldo inicial", "saldo final", "pagos recibidos", "pagos enviados",
             "retiradas y cargos", "depositos y creditos", "depósitos y créditos",
-            "dni", "cif", "nif", "dirección", "direccion", "pol industrial",
-            "local", "avda", "avenida", "calle", "cp", "código postal", "codigo postal"
+            "nif", "cif", "rif", "dni", "ruc", "nit",
+            "dirección", "direccion", "avenida", "av.", "calle", "urb.", "local", "cp"
         ]
         if any(b in t for b in bloqueados):
             return False
 
-        if len(texto) < 3 or len(texto) > 80:
+        if parece_banco_o_encabezado(texto):
+            return False
+
+        if len(texto) < 3 or len(texto) > 90:
             return False
 
         if re.search(r"\d{1,3}(?:\.\d{3})*,\d{2}", texto):
             return False
 
         total_digitos = sum(1 for c in texto if c.isdigit())
-        if total_digitos >= 3:
+        if total_digitos >= 4:
             return False
 
         letras = sum(1 for c in texto if c.isalpha())
@@ -607,107 +620,42 @@ def inferir_nombre_empresa(documentos, ledger):
         if len(palabras) > 8:
             return False
 
-        if len(palabras) >= 3:
-            corporativas = [
-                "sl", "s.l", "slu", "s.l.u", "sa", "s.a", "slne", "sc",
-                "company", "co", "corp", "corporation", "inc", "llc",
-                "group", "holding", "industrial", "equipamiento",
-                "artesania", "floral", "solutions", "services", "systems"
-            ]
-            t_tokens = [p.lower().strip(".,;:-") for p in palabras]
-            if not any(tok in corporativas for tok in t_tokens):
-                if sum(1 for p in palabras if p[:1].isupper()) >= 3:
-                    return False
-
-        if letras / max(len(texto), 1) < 0.45:
-            return False
-
         return True
+
+    def score_nombre_empresa(texto):
+        texto = limpiar(texto)
+        t = texto.lower()
+        score = 0
+
+        if not es_nombre_valido(texto):
+            return -999
+
+        marcadores_corporativos = [
+            "c.a.", "ca", "c.a", "s.a.", "s.a", "sa", "s.l.", "s.l", "sl",
+            "slu", "llc", "inc", "corp", "corporation", "company", "group",
+            "holding", "asociacion", "asociación", "fundacion", "fundación",
+            "cooperativa"
+        ]
+
+        if any(m in t for m in marcadores_corporativos):
+            score += 6
+
+        if texto.upper() == texto:
+            score += 3
+
+        palabras = texto.split()
+        if 1 <= len(palabras) <= 5:
+            score += 2
+
+        if len(palabras) >= 2:
+            score += 1
+
+        return score
 
     def primeras_lineas_utiles(texto, max_lineas=40):
         return [limpiar(x) for x in (texto or "").splitlines()[:max_lineas] if limpiar(x)]
 
-    # =====================================================
-    # 1) PRIORIDAD ABSOLUTA: FACTURAS DE VENTA
-    # Empresa analizada = EMISOR de la factura
-    # =====================================================
-    for item in documentos:
-        if item.get("tipo") != "factura_venta":
-            continue
-
-        texto = item.get("texto") or ""
-        lineas = primeras_lineas_utiles(texto, max_lineas=40)
-
-        idx_cliente = None
-        for i, linea in enumerate(lineas):
-            if re.search(r"^\s*cliente\s*[:\-]?\s*$", linea, flags=re.IGNORECASE) or "cliente:" in linea.lower():
-                idx_cliente = i
-                break
-
-        if idx_cliente is not None:
-            candidatas = lineas[:idx_cliente]
-
-            for linea in candidatas:
-                candidato = limpiar(linea)
-                if es_nombre_valido(candidato) and candidato.upper() == candidato:
-                    return candidato
-
-            for linea in candidatas:
-                candidato = limpiar(linea)
-                if es_nombre_valido(candidato):
-                    return candidato
-
-        for linea in lineas[:12]:
-            candidato = limpiar(linea)
-            if es_nombre_valido(candidato) and candidato.upper() == candidato:
-                return candidato
-
-        for linea in lineas[:12]:
-            candidato = limpiar(linea)
-            if es_nombre_valido(candidato):
-                return candidato
-
-    # =====================================================
-    # 2) SEGUNDA PRIORIDAD: FACTURAS DE COMPRA
-    # Empresa analizada = CLIENTE / DESTINATARIO
-    # =====================================================
-    for item in documentos:
-        if item.get("tipo") != "factura_compra":
-            continue
-
-        texto = item.get("texto") or ""
-        lineas = primeras_lineas_utiles(texto, max_lineas=60)
-
-        patrones_cliente = [
-            r"^\s*cliente\s*[:\-]?\s*(.+?)\s*$",
-            r"^\s*destinatario\s*[:\-]?\s*(.+?)\s*$",
-            r"^\s*bill to\s*[:\-]?\s*(.+?)\s*$",
-            r"^\s*sold to\s*[:\-]?\s*(.+?)\s*$",
-        ]
-
-        for i, linea in enumerate(lineas):
-            for patron in patrones_cliente:
-                m = re.search(patron, linea, flags=re.IGNORECASE)
-                if m:
-                    candidato = limpiar(m.group(1))
-                    if es_nombre_valido(candidato):
-                        return candidato
-
-            # Caso bloque: "Cliente" en una línea y nombre en la siguiente
-            if re.fullmatch(r"\s*cliente\s*[:\-]?\s*", linea, flags=re.IGNORECASE) \
-               or re.fullmatch(r"\s*destinatario\s*[:\-]?\s*", linea, flags=re.IGNORECASE) \
-               or re.fullmatch(r"\s*bill to\s*[:\-]?\s*", linea, flags=re.IGNORECASE) \
-               or re.fullmatch(r"\s*sold to\s*[:\-]?\s*", linea, flags=re.IGNORECASE):
-
-                if i + 1 < len(lineas):
-                    candidato = limpiar(lineas[i + 1])
-                    if es_nombre_valido(candidato):
-                        return candidato
-
-    # =====================================================
-    # 3) ÚLTIMO RECURSO: EXTRACTOS
-    # Solo si no hubo nada usable en facturas
-    # =====================================================
+    # 1) PRIORIDAD ABSOLUTA: EXTRACTO BANCARIO
     for item in documentos:
         if item.get("tipo") != "extracto_bancario":
             continue
@@ -717,11 +665,11 @@ def inferir_nombre_empresa(documentos, ledger):
             continue
 
         patrones = [
-            r"(?im)^\s*raz[oó]n social\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*raz[oó]n\s+social\s*[:\-]\s*(.+?)\s*$",
             r"(?im)^\s*nombre\s+del\s+titular\s*[:\-]\s*(.+?)\s*$",
             r"(?im)^\s*titular\s*[:\-]\s*(.+?)\s*$",
-            r"(?im)^\s*account holder\s*[:\-]\s*(.+?)\s*$",
-            r"(?im)^\s*business name\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*account\s+holder\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*business\s+name\s*[:\-]\s*(.+?)\s*$",
             r"(?im)^\s*empresa\s*[:\-]\s*(.+?)\s*$",
         ]
 
@@ -732,7 +680,74 @@ def inferir_nombre_empresa(documentos, ledger):
                 if es_nombre_valido(candidato):
                     return candidato
 
-    return "la empresa"
+        lineas = primeras_lineas_utiles(texto, max_lineas=25)
+        candidatas = [x for x in lineas[:12] if es_nombre_valido(x)]
+
+        if candidatas:
+            candidatas = sorted(candidatas, key=score_nombre_empresa, reverse=True)
+            mejor = candidatas[0]
+            if score_nombre_empresa(mejor) >= 2:
+                return mejor
+
+    # 2) FACTURA DE COMPRA: cliente / destinatario
+    for item in documentos:
+        if item.get("tipo") != "factura_compra":
+            continue
+
+        texto = item.get("texto") or ""
+        lineas = primeras_lineas_utiles(texto, max_lineas=60)
+
+        patrones_inline = [
+            r"^\s*cliente\s*[:\-]?\s*(.+?)\s*$",
+            r"^\s*destinatario\s*[:\-]?\s*(.+?)\s*$",
+            r"^\s*bill to\s*[:\-]?\s*(.+?)\s*$",
+            r"^\s*sold to\s*[:\-]?\s*(.+?)\s*$",
+        ]
+
+        patrones_bloque = [
+            r"^\s*cliente\s*[:\-]?\s*$",
+            r"^\s*destinatario\s*[:\-]?\s*$",
+            r"^\s*bill to\s*[:\-]?\s*$",
+            r"^\s*sold to\s*[:\-]?\s*$",
+        ]
+
+        for i, linea in enumerate(lineas):
+            for patron in patrones_inline:
+                m = re.search(patron, linea, flags=re.IGNORECASE)
+                if m:
+                    candidato = limpiar(m.group(1))
+                    if es_nombre_valido(candidato):
+                        return candidato
+
+            for patron in patrones_bloque:
+                if re.search(patron, linea, flags=re.IGNORECASE):
+                    if i + 1 < len(lineas):
+                        candidato = limpiar(lineas[i + 1])
+                        if es_nombre_valido(candidato):
+                            return candidato
+
+    # 3) FACTURA DE VENTA: emisor
+    for item in documentos:
+        if item.get("tipo") != "factura_venta":
+            continue
+
+        texto = item.get("texto") or ""
+        lineas = primeras_lineas_utiles(texto, max_lineas=40)
+
+        idx_cliente = None
+        for i, linea in enumerate(lineas):
+            if re.fullmatch(r"cliente[:\-]?", linea, flags=re.IGNORECASE) or "cliente:" in linea.lower():
+                idx_cliente = i
+                break
+
+        candidatas = lineas[:idx_cliente] if idx_cliente is not None else lineas[:12]
+        candidatas_validas = [x for x in candidatas if es_nombre_valido(x)]
+
+        if candidatas_validas:
+            candidatas_validas = sorted(candidatas_validas, key=score_nombre_empresa, reverse=True)
+            return candidatas_validas[0]
+
+    return None
     
 def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     saldo_inicial = flujo["saldo_inicial"]
