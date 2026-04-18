@@ -560,6 +560,10 @@ def inferir_nombre_empresa(documentos, ledger):
 
     def limpiar(texto):
         texto = (texto or "").strip()
+
+        # quedarse solo con la primera línea útil
+        texto = texto.splitlines()[0] if texto else ""
+
         texto = re.sub(r"\([^)]*\)", "", texto)
         texto = re.sub(r"\s+", " ", texto).strip(" .,:;_-")
         return texto
@@ -625,7 +629,8 @@ def inferir_nombre_empresa(documentos, ledger):
         texto = item.get("texto") or ""
         lineas = primeras_lineas_utiles(texto, max_lineas=40)
 
-        # Caso ideal: bloque izquierdo superior antes de "CLIENTE:"
+        # Caso ideal: en factura de venta, tomar la PRIMERA línea corporativa
+        # antes del bloque CLIENTE. Nunca concatenar varias líneas.
         idx_cliente = None
         for i, linea in enumerate(lineas):
             if re.search(r"^\s*cliente\s*[:\-]?\s*$", linea, flags=re.IGNORECASE) or "cliente:" in linea.lower():
@@ -633,17 +638,30 @@ def inferir_nombre_empresa(documentos, ledger):
                 break
 
         if idx_cliente is not None:
-            for linea in lineas[:idx_cliente]:
+            candidatas = lineas[:idx_cliente]
+
+            # priorizar líneas en mayúsculas corporativas
+            for linea in candidatas:
+                candidato = limpiar(linea)
+                if es_nombre_valido(candidato) and candidato.upper() == candidato:
+                    return candidato
+
+            # si no hay una totalmente en mayúsculas, tomar la primera válida
+            for linea in candidatas:
                 candidato = limpiar(linea)
                 if es_nombre_valido(candidato):
                     return candidato
 
-        # Fallback: primera línea corporativa útil del documento
+        # Fallback: solo primeras líneas, una por una, no concatenadas
+        for linea in lineas[:12]:
+            candidato = limpiar(linea)
+            if es_nombre_valido(candidato) and candidato.upper() == candidato:
+                return candidato
+
         for linea in lineas[:12]:
             candidato = limpiar(linea)
             if es_nombre_valido(candidato):
                 return candidato
-
     # =====================================================
     # 2) SEGUNDA PRIORIDAD: FACTURAS DE COMPRA
     # Empresa analizada = CLIENTE / DESTINATARIO
