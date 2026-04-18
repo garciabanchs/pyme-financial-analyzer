@@ -607,6 +607,21 @@ def inferir_nombre_empresa(documentos, ledger):
             return False
 
         palabras = [p for p in re.split(r"\s+", texto) if p]
+
+        # evitar nombres personales simples tipo nombre + apellidos
+        if len(palabras) >= 3:
+            corporativas = [
+                "sl", "s.l", "slu", "s.l.u", "sa", "s.a", "slne", "sc",
+                "company", "co", "corp", "corporation", "inc", "llc",
+                "group", "holding", "industrial", "equipamiento",
+                "artesania", "floral", "solutions", "services", "systems"
+            ]
+            t_tokens = [p.lower().strip(".,;:-") for p in palabras]
+            if not any(tok in corporativas for tok in t_tokens):
+                # si parece persona natural, descartarlo
+                if sum(1 for p in palabras if p[:1].isupper()) >= 3:
+                    return False
+
         if len(palabras) > 8:
             return False
 
@@ -652,7 +667,7 @@ def inferir_nombre_empresa(documentos, ledger):
                 if es_nombre_valido(candidato):
                     return candidato
 
-        # Fallback: solo primeras líneas, una por una, no concatenadas
+        # fallback: solo primeras líneas, una por una, no concatenadas
         for linea in lineas[:12]:
             candidato = limpiar(linea)
             if es_nombre_valido(candidato) and candidato.upper() == candidato:
@@ -662,6 +677,7 @@ def inferir_nombre_empresa(documentos, ledger):
             candidato = limpiar(linea)
             if es_nombre_valido(candidato):
                 return candidato
+
     # =====================================================
     # 2) SEGUNDA PRIORIDAD: FACTURAS DE COMPRA
     # Empresa analizada = CLIENTE / DESTINATARIO
