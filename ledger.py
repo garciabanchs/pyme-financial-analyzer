@@ -500,6 +500,170 @@ def _normalizar_categoria_agrupada(categoria, valor):
     return "otros_pagos"
 
 
+def _linea_candidata_movimiento(linea):
+    if not linea:
+        return False
+
+    linea_lower = linea.lower()
+
+    if es_linea_ruido(linea_lower):
+        return False
+
+    importes = PATRON_IMPORTE.findall(linea)
+    if not importes:
+        return False
+
+    # Si la línea tiene demasiados importes, probablemente es resumen/tabulación agregada
+    if len(importes) >= 4:
+        return False
+
+    # Si tiene fecha + importe, casi seguro es movimiento
+    if PATRON_FECHA.search(linea):
+        return True
+
+    # Si tiene importe y huella transaccional, también
+    if tiene_huella_transaccional(linea_lower):
+        return True
+
+    # Fallback más permisivo para bancos distintos de PayPal:
+    # línea con importe y suficiente texto
+    palabras = [p for p in linea.split() if p]
+    if len(importes) >= 1 and len(palabras) >= 3:
+        return True
+
+    return False
+
+
+def _extraer_movimientos_extracto_por_linea(texto, archivo, fecha_doc, banco=None):
+    movimientos = []
+    vistos = set()
+    contador = 1
+
+    otros_cobros_total = 0.0
+    otros_pagos_total = 0.0
+    otros_cobros_cantidad = 0
+    otros_pagos_cantidad = 0
+
+    for raw in (texto or "").splitlines():
+        linea = limpiar_descripcion(raw)
+        if not linea:
+            continue
+
+        if not _linea_candidata_movimiento(linea):
+            continue
+
+        linea_lower = linea.lower()
+        importes = PATRON_IMPORTE.findall(linea)
+        if not importes:
+            continue
+
+        # Tomamos el importe de mayor valor absoluto de la línea
+        candidatos = []
+        for imp in importes:
+            valor = normalizar_importe(imp)
+            if valor is not None:
+                candidatos.append(valor)
+
+        if not candidatos:
+            continue
+
+        valor = max(candidatos, key=lambda x: abs(x))
+
+        if abs(valor) < 0.01 or abs(valor) > 100000:
+            continue
+
+        categoria = clasificar_movimiento_bancario(linea_lower, valor)
+        fecha = extraer_fecha_de_bloque([linea], fecha_doc)
+        moneda = detectar_moneda(linea)
+
+        naturaleza = inferir_naturaleza_bloque(linea_lower, valor)
+        if naturaleza == "desconocido":
+            naturaleza = "entrada" if valor > 0 else "salida"
+
+        if not es_movimiento_relevante(valor, categoria):
+            if valor > 0:
+                otros_cobros_total += abs(valor)
+                otros_cobros_cantidad += 1
+            else:
+                otros_pagos_total += abs(valor)
+                otros_pagos_cantidad += 1
+            continue
+
+        descripcion = linea[:250]
+
+        clave = (
+            archivo,
+            fecha or "sin_fecha",
+            round(valor, 2),
+            descripcion[:180],
+            categoria,
+        )
+        if clave in vistos:
+            continue
+
+        movimientos.append({
+            "id": f"bank_fallback_{contador}",
+            "archivo": archivo,
+            "tipo": "extracto_bancario",
+            "fecha": fecha or "No detectada",
+            "periodo": obtener_periodo(fecha or "No detectada"),
+            "importe": f"{abs(valor):.2f}".replace(".", ","),
+            "importe_num": abs(valor),
+            "importe_firmado_num": valor,
+            "naturaleza": naturaleza,
+            "categoria": categoria,
+            "descripcion": descripcion,
+            "moneda": moneda,
+            "banco": banco,
+            "soporte": False,
+            "estado_conciliacion": "pendiente",
+        })
+
+        vistos.add(clave)
+        contador += 1
+
+    if otros_cobros_cantidad > 0:
+        movimientos.append({
+            "id": f"bank_fallback_{contador}",
+            "archivo": archivo,
+            "tipo": "extracto_bancario",
+            "fecha": fecha_doc or "No detectada",
+            "periodo": obtener_periodo(fecha_doc or "No detectada"),
+            "importe": f"{otros_cobros_total:.2f}".replace(".", ","),
+            "importe_num": otros_cobros_total,
+            "importe_firmado_num": otros_cobros_total,
+            "naturaleza": "entrada",
+            "categoria": "otros_cobros",
+            "descripcion": f"{otros_cobros_cantidad} movimientos menores agrupados",
+            "moneda": detectar_moneda(texto),
+            "banco": banco,
+            "soporte": False,
+            "estado_conciliacion": "agrupado",
+        })
+        contador += 1
+
+    if otros_pagos_cantidad > 0:
+        movimientos.append({
+            "id": f"bank_fallback_{contador}",
+            "archivo": archivo,
+            "tipo": "extracto_bancario",
+            "fecha": fecha_doc or "No detectada",
+            "periodo": obtener_periodo(fecha_doc or "No detectada"),
+            "importe": f"{otros_pagos_total:.2f}".replace(".", ","),
+            "importe_num": otros_pagos_total,
+            "importe_firmado_num": -otros_pagos_total,
+            "naturaleza": "salida",
+            "categoria": "otros_pagos",
+            "descripcion": f"{otros_pagos_cantidad} movimientos menores agrupados",
+            "moneda": detectar_moneda(texto),
+            "banco": banco,
+            "soporte": False,
+            "estado_conciliacion": "agrupado",
+        })
+
+    return movimientos
+
+
 def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
     movimientos = []
     if not texto:
@@ -544,16 +708,12 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
             naturaleza = "entrada" if valor > 0 else "salida"
 
         if not es_movimiento_relevante(valor, categoria):
-            categoria_agrupada = _normalizar_categoria_agrupada(categoria, valor)
-
             if valor > 0:
                 otros_cobros_total += abs(valor)
                 otros_cobros_cantidad += 1
             else:
                 otros_pagos_total += abs(valor)
                 otros_pagos_cantidad += 1
-
-            _ = categoria_agrupada
             continue
 
         clave = (
@@ -625,6 +785,27 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
             "soporte": False,
             "estado_conciliacion": "agrupado",
         })
+
+    # =========================================================
+    # FALLBACK SEGURO:
+    # si el parser principal no generó movimientos individuales,
+    # intentar rescatar líneas una por una.
+    # Esto ataca justo el caso N26 sin romper PayPal.
+    # =========================================================
+    movimientos_individuales = [
+        m for m in movimientos
+        if m.get("categoria") not in ["otros_cobros", "otros_pagos"]
+    ]
+
+    if not movimientos_individuales:
+        fallback = _extraer_movimientos_extracto_por_linea(
+            texto=texto,
+            archivo=archivo,
+            fecha_doc=fecha_doc,
+            banco=banco,
+        )
+        if fallback:
+            return fallback
 
     return movimientos
 
