@@ -468,22 +468,9 @@ def _normalizar_categoria_agrupada(categoria, valor):
     categoria = (categoria or "").lower()
 
     if valor > 0:
-        if categoria in ["cobro_cliente"]:
-            return "otros_cobros"
         return "otros_cobros"
 
     if valor < 0:
-        if categoria in [
-            "pago_proveedor",
-            "retiro_propio",
-            "gasto_operativo",
-            "transferencia_interna",
-            "comision",
-            "retencion",
-            "impuesto",
-            "ajuste",
-        ]:
-            return "otros_pagos"
         return "otros_pagos"
 
     return "otros_pagos"
@@ -628,7 +615,7 @@ def construir_ledger(documentos):
         periodo = obtener_periodo(fecha)
         archivo = doc.get("archivo", f"doc_{idx}")
         importes = doc.get("importes", [])
-        resumen_extracto = doc.get("resumen_extracto", {})
+        resumen_extracto = doc.get("resumen_extracto", {}) or {}
         moneda_doc = detectar_moneda(texto)
 
         if tipo_doc in ["factura_venta", "factura_compra"]:
@@ -656,6 +643,8 @@ def construir_ledger(documentos):
                 })
 
         elif tipo_doc == "extracto_bancario":
+            banco_doc = resumen_extracto.get("banco")
+
             if resumen_extracto:
                 ledger.append({
                     "id": f"extract_summary_{idx}",
@@ -670,7 +659,7 @@ def construir_ledger(documentos):
                     "categoria": "resumen_extracto",
                     "descripcion": archivo,
                     "moneda": moneda_doc,
-                    "banco": resumen_extracto.get("banco"),
+                    "banco": banco_doc,
                     "soporte": True,
                     "resumen_extracto": resumen_extracto,
                     "estado_conciliacion": "no_aplica",
@@ -680,7 +669,7 @@ def construir_ledger(documentos):
                 texto=texto,
                 archivo=archivo,
                 fecha_doc=fecha,
-                banco=resumen_extracto.get("banco"),
+                banco=banco_doc,
             )
 
             for n, movimiento in enumerate(movimientos, start=1):
