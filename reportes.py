@@ -3890,29 +3890,29 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <p class="section-sub">Vista sintética del flujo, la calidad del cierre y los principales puntos de atención para la gestión del negocio.</p>
                         </div>
                     </div>
-
+                
                     {tarjetas_resumen_bancos_html()}
-
+                
                     <div class="alerts-grid">
                         <article class="alert-card green">
                             <div class="alert-tag">Bien</div>
                             <h4>Base contable ya organizada</h4>
                             <p>La documentación cargada ya se transformó en una estructura útil para lectura gerencial y revisión financiera.</p>
                         </article>
-
+                
                         <article class="alert-card {alerta_pendientes_color}">
                             <div class="alert-tag">{alerta_pendientes_tag}</div>
                             <h4>{alerta_pendientes_titulo}</h4>
                             <p>{alerta_pendientes_texto}</p>
                         </article>
-
+                
                         <article class="alert-card {alerta_soporte_color}">
                             <div class="alert-tag">{alerta_soporte_tag}</div>
                             <h4>{alerta_soporte_titulo}</h4>
                             <p>{alerta_soporte_texto}</p>
                         </article>
                     </div>
-                        
+                
                     {bloque_como_leer}
                 </section>
 
