@@ -220,7 +220,7 @@ def _extraer_total_desde_base_iva_total(texto):
                 importes_validos.append((imp, valor))
 
         if len(importes_validos) >= 2:
-            # 🔥 CLAVE: el mayor valor en ese bloque suele ser el TOTAL
+            # el mayor valor en ese bloque suele ser el TOTAL
             return max(importes_validos, key=lambda x: x[1])[0]
 
     return None
@@ -257,43 +257,35 @@ def extraer_importe_principal(texto, tipo_documento, importes):
         return None
 
     if tipo_documento == "factura_venta":
-        # 1) Primero: bloque base + IVA + total
         total_base_iva = _extraer_total_desde_base_iva_total(texto)
         if total_base_iva:
             return total_base_iva
 
-        # 2) Segundo: último total explícito del documento
         ultimo_total = _extraer_ultimo_total_documento(texto)
         if ultimo_total:
             return ultimo_total
 
-        # 3) Tercero: líneas que contengan total
         candidatos_linea = _extraer_totales_por_linea(texto)
         if candidatos_linea:
             candidatos_linea.sort(key=lambda x: x[1])
             return candidatos_linea[-1][0]
 
-        # 4) Fallback: mayor importe detectado
         return max(importes_numericos, key=lambda x: x[1])[0]
 
     if tipo_documento == "factura_compra":
-        # 1) Primero: bloque base + IVA + total
         total_base_iva = _extraer_total_desde_base_iva_total(texto)
         if total_base_iva:
             return total_base_iva
 
-        # 2) Segundo: último total explícito del documento
         ultimo_total = _extraer_ultimo_total_documento(texto)
         if ultimo_total:
             return ultimo_total
 
-        # 3) Tercero: líneas que contengan total
         candidatos_linea = _extraer_totales_por_linea(texto)
         if candidatos_linea:
             candidatos_linea.sort(key=lambda x: x[1])
             return candidatos_linea[-1][0]
 
-        # 4) Fallback: mayor importe detectado
         return max(importes_numericos, key=lambda x: x[1])[0]
 
     return None
@@ -321,7 +313,6 @@ def inferir_banco_desde_texto(texto):
         if clave in texto:
             return nombre
 
-    # Señales típicas del resumen de PayPal aunque no diga PayPal explícitamente
     claves_paypal = [
         "saldo inicial disponible",
         "saldo final disponible",
@@ -337,7 +328,6 @@ def inferir_banco_desde_texto(texto):
     if any(k in texto for k in claves_paypal):
         return "PayPal"
 
-    # Señales típicas del resumen de N26
     claves_n26 = [
         "saldo previo",
         "transacciones salientes",
@@ -348,6 +338,7 @@ def inferir_banco_desde_texto(texto):
         return "N26"
 
     return None
+
 
 def extraer_resumen_extracto(texto):
     texto = texto or ""
@@ -367,7 +358,6 @@ def extraer_resumen_extracto(texto):
         "retenido": None,
     }
 
-    # ===== FORMATO PAYPAL =====
     patrones_paypal = {
         "saldo_inicial_disponible": [
             r"saldo inicial disponible\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
@@ -410,7 +400,6 @@ def extraer_resumen_extracto(texto):
         if encontrado is not None:
             campos[campo] = normalizar_importe(encontrado)
 
-    # Si encontró señales claras de PayPal, ya quedó normalizado
     hay_paypal = any(
         campos[k] is not None
         for k in [
@@ -431,7 +420,6 @@ def extraer_resumen_extracto(texto):
             campos["banco"] = "PayPal"
         return campos
 
-    # ===== FORMATO N26 / RESUMEN SIMPLE =====
     patrones_n26 = {
         "saldo_previo": [
             r"saldo previo\s*[:\-]?\s*€?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})",
@@ -456,8 +444,8 @@ def extraer_resumen_extracto(texto):
         campos["banco"] = campos["banco"] or "N26"
         campos["saldo_inicial_disponible"] = normalizar_importe(saldo_previo) if saldo_previo else None
         campos["saldo_final_disponible"] = normalizar_importe(tu_nuevo_saldo) if tu_nuevo_saldo else None
-        campos["depositos_y_creditos"] = normalizar_importe(transacciones_entrantes) if transacciones_entrantes else None
-        campos["retiradas_y_cargos"] = normalizar_importe(transacciones_salientes) if transacciones_salientes else None
+        campos["depositos_y_creditos"] = normalizar_importe(transacciones_entrantes) if transacciones_entrantes else 0.0
+        campos["retiradas_y_cargos"] = normalizar_importe(transacciones_salientes) if transacciones_salientes else 0.0
         campos["pagos_recibidos"] = 0.0
         campos["pagos_enviados"] = 0.0
         campos["tarifas"] = 0.0
