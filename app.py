@@ -125,10 +125,13 @@ def home():
 @app.route("/upload", methods=["POST"])
 def upload():
     file = request.files.get("file")
+
     if not file:
         return "No se subió ningún archivo"
+
     if file.filename == "":
         return "No se seleccionó ningún archivo"
+
     if not file.filename.lower().endswith(".zip"):
         return "Solo se permiten archivos ZIP"
 
@@ -191,18 +194,18 @@ def upload():
                 "fecha": fecha,
                 "importes": importes,
                 "texto": texto,
-                "resumen_extracto": resumen_extracto
+                "resumen_extracto": resumen_extracto,
             })
 
             if filename.lower().endswith(".pdf"):
                 importes_detectados.append({
                     "archivo": ruta_relativa,
-                    "importes": importes
+                    "importes": importes,
                 })
 
     ledger = construir_ledger(documentos)
 
-    print("\n========== DEBUG LEDGER BANCOS ==========")
+    print("\n========== DEBUG LEDGER BANCOS ==========", flush=True)
     for item in ledger:
         if item.get("tipo") in ["extracto_resumen", "extracto_bancario"]:
             print({
@@ -212,8 +215,8 @@ def upload():
                 "descripcion": item.get("descripcion"),
                 "importe": item.get("importe"),
                 "importe_firmado_num": item.get("importe_firmado_num"),
-            })
-    print("========== FIN DEBUG LEDGER BANCOS ==========\n")
+            }, flush=True)
+    print("========== FIN DEBUG LEDGER BANCOS ==========\n", flush=True)
 
     conciliacion = detectar_inconsistencias(ledger)
 
@@ -223,7 +226,7 @@ def upload():
         importes=importes_detectados,
         documentos=documentos,
         ledger=ledger,
-        conciliacion=conciliacion
+        conciliacion=conciliacion,
     )
 
     nombre_base = os.path.splitext(file.filename)[0]
@@ -262,4 +265,3 @@ def descargar_output(filename):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
