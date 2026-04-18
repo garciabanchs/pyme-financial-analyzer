@@ -200,6 +200,21 @@ def construir_resumen_flujo_por_banco(ledger):
     def inferir_nombre_banco(item, resumen=None):
         resumen = resumen or {}
 
+        # 1) Si el resumen tiene estructura típica de PayPal, forzar PayPal
+        claves_paypal = [
+            "pagos_recibidos",
+            "pagos_enviados",
+            "retenido",
+            "liberaciones",
+            "depositos_y_creditos",
+            "retiradas_y_cargos",
+            "tarifas",
+            "saldo_inicial_disponible",
+            "saldo_final_disponible",
+        ]
+        if any(k in resumen for k in claves_paypal):
+            return "PayPal"
+
         candidatos = [
             item.get("banco"),
             resumen.get("banco"),
@@ -256,14 +271,13 @@ def construir_resumen_flujo_por_banco(ledger):
 
         return bancos[nombre]
 
-    # 1) Prioridad: extracto_resumen
+    # 1) Primero: extracto_resumen
     for item in ledger:
         if item.get("tipo") != "extracto_resumen":
             continue
 
         resumen = item.get("resumen_extracto", {}) or {}
         banco = inferir_nombre_banco(item, resumen)
-        fila = asegurar_banco(banco)
 
         saldo_inicial = resumen.get("saldo_inicial_disponible") or 0.0
         saldo_final = resumen.get("saldo_final_disponible") or 0.0
@@ -282,6 +296,17 @@ def construir_resumen_flujo_por_banco(ledger):
 
         variacion = saldo_final - saldo_inicial
 
+        # No crear banco si absolutamente todo está vacío
+        if (
+            saldo_inicial == 0.0 and
+            saldo_final == 0.0 and
+            entradas == 0.0 and
+            salidas == 0.0 and
+            retenido == 0.0
+        ):
+            continue
+
+        fila = asegurar_banco(banco)
         fila["saldo_inicial"] = saldo_inicial
         fila["entradas"] = entradas
         fila["salidas"] = salidas
@@ -293,15 +318,9 @@ def construir_resumen_flujo_por_banco(ledger):
         fila["revisar"] = 0.0
         fila["tiene_resumen"] = True
 
-    # 2) Fallback: construir desde movimientos bancarios
+    # 2) Después: movimientos bancarios
     for item in ledger:
         if item.get("tipo") != "extracto_bancario":
-            continue
-
-        banco = inferir_nombre_banco(item)
-        fila = asegurar_banco(banco)
-
-        if fila["tiene_resumen"]:
             continue
 
         valor_firmado = item.get("importe_firmado_num")
@@ -314,7 +333,15 @@ def construir_resumen_flujo_por_banco(ledger):
             elif naturaleza == "entrada":
                 valor_firmado = abs(valor_firmado)
 
-        if valor_firmado is None:
+        # No crear banco desde filas vacías o neutras
+        if valor_firmado is None or valor_firmado == 0:
+            continue
+
+        banco = inferir_nombre_banco(item)
+        fila = asegurar_banco(banco)
+
+        if fila["tiene_resumen"]:
+            # Si ya existe resumen para ese banco, no dupliques desde detalle
             continue
 
         if valor_firmado > 0:
@@ -322,7 +349,7 @@ def construir_resumen_flujo_por_banco(ledger):
         elif valor_firmado < 0:
             fila["salidas"] += abs(valor_firmado)
 
-    # 3) Cierre de métricas para bancos sin resumen
+    # 3) Cerrar métricas para bancos sin resumen
     for _, fila in bancos.items():
         if not fila["tiene_resumen"]:
             fila["saldo_final"] = fila["saldo_inicial"] + fila["entradas"] - fila["salidas"]
@@ -330,8 +357,22 @@ def construir_resumen_flujo_por_banco(ledger):
             fila["balance"] = fila["variacion"]
             fila["movimientos"] = fila["entradas"] + fila["salidas"]
 
+    # 4) Eliminar bancos fantasma totalmente vacíos
+    bancos_filtrados = []
+    for fila in bancos.values():
+        if (
+            fila.get("saldo_inicial", 0.0) == 0.0 and
+            fila.get("entradas", 0.0) == 0.0 and
+            fila.get("salidas", 0.0) == 0.0 and
+            fila.get("saldo_final", 0.0) == 0.0 and
+            fila.get("variacion", 0.0) == 0.0 and
+            fila.get("retenido", 0.0) == 0.0
+        ):
+            continue
+        bancos_filtrados.append(fila)
+
     bancos_ordenados = sorted(
-        bancos.values(),
+        bancos_filtrados,
         key=lambda x: (-(x.get("movimientos", 0.0)), (x.get("banco") or "").lower())
     )
 
