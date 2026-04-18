@@ -3530,7 +3530,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </main>
         </div>
 
-        <script>
+                <script>
             (function() {{
                 function scrollToTarget(targetId) {{
                     const target = document.getElementById(targetId);
@@ -3568,6 +3568,42 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     scrollToTarget(targetId);
                 }}
 
+                function parseFlexibleDate(value) {{
+                    if (!value) return null;
+
+                    const raw = String(value).trim();
+
+                    if (/^(n\.a\.|no detectada|-)$|^$/i.test(raw)) {{
+                        return null;
+                    }}
+
+                    const match = raw.match(/^(\d{{1,2}})[\/\-](\d{{1,2}})[\/\-](\d{{2}}|\d{{4}})$/);
+                    if (!match) return null;
+
+                    let [, d, m, y] = match;
+
+                    d = d.padStart(2, "0");
+                    m = m.padStart(2, "0");
+
+                    if (y.length === 2) {{
+                        y = "20" + y;
+                    }}
+
+                    return `${{d}}/${{m}}/${{y}}`;
+                }}
+
+                function normalizeDates(containerSelector) {{
+                    const container = document.querySelector(containerSelector);
+                    if (!container) return;
+
+                    container.querySelectorAll(".mono").forEach(el => {{
+                        const formatted = parseFlexibleDate(el.textContent);
+                        if (formatted) {{
+                            el.textContent = formatted;
+                        }}
+                    }});
+                }}
+
                 function bindAccordions() {{
                     document.querySelectorAll(".accordion-toggle").forEach(btn => {{
                         btn.addEventListener("click", function() {{
@@ -3599,15 +3635,18 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 bindAccordions();
                 applyFilter("all", "movimientos-section");
                 applyFilter("all", "conciliacion-section");
+
+                normalizeDates("#movimientos-section");
+                normalizeDates("#conciliacion-section");
             }})();
 
-if ('scrollRestoration' in history) {{
-    history.scrollRestoration = 'manual';
-}}
+            if ('scrollRestoration' in history) {{
+                history.scrollRestoration = 'manual';
+            }}
 
-window.addEventListener("load", function () {{
-    setTimeout(() => window.scrollTo(0, 0), 0);
-}});
+            window.addEventListener("load", function () {{
+                setTimeout(() => window.scrollTo(0, 0), 0);
+            }});
         </script>
     </body>
     </html>
