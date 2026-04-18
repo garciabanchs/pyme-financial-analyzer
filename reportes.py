@@ -3603,11 +3603,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
                     const raw = String(value).trim();
 
-                    if (/^(n\.a\.|no detectada|-)$|^$/i.test(raw)) {{
+                    if (/^(n\\.a\\.|no detectada|-)$|^$/i.test(raw)) {{
                         return null;
                     }}
 
-                    const match = raw.match(/^(\d{{1,2}})[\/\-](\d{{1,2}})[\/\-](\d{{2}}|\d{{4}})$/);
+                    const match = raw.match(/^(\\d{{1,2}})[/\\-](\\d{{1,2}})[/\\-](\\d{{2}}|\\d{{4}})$/);
                     if (!match) return null;
 
                     let [, d, m, y] = match;
