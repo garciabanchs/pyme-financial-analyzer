@@ -192,115 +192,73 @@ def construir_resumen_documentos(clasificados):
     }
 
 
-def construir_resumenes_flujo_por_banco(ledger):
+def construir_resumen_flujo(ledger):
     ledger = ledger or []
 
-    resumenes = []
-
     for item in ledger:
-        if item.get("tipo") != "extracto_resumen":
-            continue
+        if item.get("tipo") == "extracto_resumen":
+            resumen = item.get("resumen_extracto", {}) or {}
 
-        resumen = item.get("resumen_extracto", {}) or {}
+            saldo_inicial = resumen.get("saldo_inicial_disponible") or 0.0
+            saldo_final = resumen.get("saldo_final_disponible") or 0.0
+            retenido = abs(resumen.get("retenido") or 0.0)
 
-        saldo_inicial = resumen.get("saldo_inicial_disponible") or 0.0
-        saldo_final = resumen.get("saldo_final_disponible") or 0.0
-        retenido = abs(resumen.get("retenido") or 0.0)
+            entradas = 0.0
+            entradas += abs(resumen.get("pagos_recibidos") or 0.0)
+            entradas += abs(resumen.get("depositos_y_creditos") or 0.0)
+            entradas += abs(resumen.get("liberaciones") or 0.0)
 
-        entradas = 0.0
-        entradas += abs(resumen.get("pagos_recibidos") or 0.0)
-        entradas += abs(resumen.get("depositos_y_creditos") or 0.0)
-        entradas += abs(resumen.get("liberaciones") or 0.0)
+            salidas = 0.0
+            salidas += abs(resumen.get("pagos_enviados") or 0.0)
+            salidas += abs(resumen.get("retiradas_y_cargos") or 0.0)
+            salidas += abs(resumen.get("tarifas") or 0.0)
+            salidas += abs(resumen.get("retenido") or 0.0)
 
-        salidas = 0.0
-        salidas += abs(resumen.get("pagos_enviados") or 0.0)
-        salidas += abs(resumen.get("retiradas_y_cargos") or 0.0)
-        salidas += abs(resumen.get("tarifas") or 0.0)
-        salidas += abs(resumen.get("retenido") or 0.0)
+            variacion = saldo_final - saldo_inicial
 
-        variacion = saldo_final - saldo_inicial
-
-        banco = (
-            item.get("banco")
-            or resumen.get("banco")
-            or item.get("archivo")
-            or "Banco"
-        )
-
-        resumenes.append({
-            "banco": banco,
-            "saldo_inicial": saldo_inicial,
-            "entradas": entradas,
-            "salidas": salidas,
-            "saldo_final": saldo_final,
-            "variacion": variacion,
-            "retenido": retenido,
-            "balance": variacion,
-            "movimientos": entradas + salidas,
-            "revisar": 0.0,
-        })
-
-    if resumenes:
-        return resumenes
-
-    agrupado = {}
+            return {
+                "saldo_inicial": saldo_inicial,
+                "entradas": entradas,
+                "salidas": salidas,
+                "saldo_final": saldo_final,
+                "variacion": variacion,
+                "retenido": retenido,
+                "balance": variacion,
+                "movimientos": entradas + salidas,
+                "revisar": 0.0,
+            }
+    saldo_inicial = 0.0
+    entradas = 0.0
+    salidas = 0.0
 
     for item in ledger:
         if item.get("tipo") != "extracto_bancario":
             continue
-
-        banco = item.get("banco") or item.get("archivo") or "Banco"
-
-        if banco not in agrupado:
-            agrupado[banco] = {
-                "banco": banco,
-                "saldo_inicial": 0.0,
-                "entradas": 0.0,
-                "salidas": 0.0,
-                "saldo_final": 0.0,
-                "variacion": 0.0,
-                "retenido": 0.0,
-                "balance": 0.0,
-                "movimientos": 0.0,
-                "revisar": 0.0,
-            }
 
         valor_firmado = item.get("importe_firmado_num")
         if valor_firmado is None:
             continue
 
         if valor_firmado > 0:
-            agrupado[banco]["entradas"] += valor_firmado
+            entradas += valor_firmado
         elif valor_firmado < 0:
-            agrupado[banco]["salidas"] += abs(valor_firmado)
+            salidas += abs(valor_firmado)
 
-    for banco, data in agrupado.items():
-        data["saldo_final"] = data["saldo_inicial"] + data["entradas"] - data["salidas"]
-        data["variacion"] = data["saldo_final"] - data["saldo_inicial"]
-        data["balance"] = data["variacion"]
-        data["movimientos"] = data["entradas"] + data["salidas"]
-
-    return list(agrupado.values())
-
-
-def construir_resumen_flujo(ledger):
-    resumenes = construir_resumenes_flujo_por_banco(ledger)
-
-    if resumenes:
-        return resumenes[0]
+    saldo_final = saldo_inicial + entradas - salidas
+    variacion = saldo_final - saldo_inicial
 
     return {
-        "banco": "Banco",
-        "saldo_inicial": 0.0,
-        "entradas": 0.0,
-        "salidas": 0.0,
-        "saldo_final": 0.0,
-        "variacion": 0.0,
+        "saldo_inicial": saldo_inicial,
+        "entradas": entradas,
+        "salidas": salidas,
+        "saldo_final": saldo_final,
+        "variacion": variacion,
         "retenido": 0.0,
-        "balance": 0.0,
-        "movimientos": 0.0,
+        "balance": variacion,
+        "movimientos": entradas + salidas,
         "revisar": 0.0,
     }
+
 
 def construir_resumen_conciliacion(conciliacion):
     conciliacion = conciliacion or []
@@ -921,9 +879,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
 
     def resumen_flujo():
         return construir_resumen_flujo(ledger)
-
-    def resumenes_flujo_por_banco():
-        return construir_resumenes_flujo_por_banco(ledger)
 
     def resumen_conciliacion():
         return construir_resumen_conciliacion(conciliacion)
@@ -1624,142 +1579,18 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         if nivel == "medio":
             return "Cierre preliminar medio"
         return "Cierre preliminar bajo"
-   
+
     docs = contar_docs()
-    flujos_por_banco = resumenes_flujo_por_banco()
     flujo = resumen_flujo()
     conc = resumen_conciliacion()
     nombre_empresa = inferir_nombre_empresa(documentos, ledger)
     nombre_empresa_titulo = nombre_empresa if nombre_empresa and nombre_empresa != "la empresa" else "la empresa analizada"
+    titular_ejecutivo, narrativa_ejecutiva = texto_lectura_ejecutiva(flujo, conc, docs)
     score_financiero = calcular_score_financiero(flujo, conc)
     etiqueta_score = texto_score_financiero(score_financiero)
     diagnosticos = generar_diagnostico_financiero(flujo, conc)
     recomendaciones = generar_recomendaciones_financieras(flujo, conc)
     insight_ejecutivo = generar_insight_ejecutivo(flujo, conc)
-
-    heroes_html = ""
-
-    for flujo_banco in flujos_por_banco:
-        titular_banco, narrativa_banco = texto_lectura_ejecutiva(flujo_banco, conc, docs)
-        nombre_banco = flujo_banco.get("banco", "Banco")
-
-        heroes_html += f"""
-                <section class="hero">
-                    <div class="hero-copy">
-                        <div>
-                            <div class="hero-kicker">Lectura ejecutiva del período ({nombre_banco})</div>
-                            <h2>{titular_banco}</h2>
-                        </div>
-                        <p>{narrativa_banco}</p>
-                    </div>
-
-                    <div class="hero-side">
-                        <article class="metric-card metric-primary">
-                            <div>
-                                <div class="metric-label">Saldo inicial</div>
-                                <div class="metric-value">€ {fmt(flujo_banco["saldo_inicial"])}</div>
-                            </div>
-                            <div class="metric-delta">
-                                <span>Inicio del período</span>
-                                <span>{nombre_banco}</span>
-                            </div>
-                        </article>
-
-                        <article class="metric-card metric-in">
-                            <div>
-                                <div class="metric-label">Entradas</div>
-                                <div class="metric-value">€ {fmt(flujo_banco["entradas"])}</div>
-                            </div>
-                            <div class="metric-delta">
-                                <span>Dinero que entró</span>
-                                <span>{nombre_banco}</span>
-                            </div>
-                        </article>
-
-                        <article class="metric-card metric-out">
-                            <div>
-                                <div class="metric-label">Salidas</div>
-                                <div class="metric-value">€ {fmt(flujo_banco["salidas"])}</div>
-                            </div>
-                            <div class="metric-delta">
-                                <span>Dinero que salió</span>
-                                <span>{nombre_banco}</span>
-                            </div>
-                        </article>
-
-                        <article class="metric-card metric-end">
-                            <div>
-                                <div class="metric-label">Saldo final</div>
-                                <div class="metric-value">€ {fmt(flujo_banco["saldo_final"])}</div>
-                            </div>
-                            <div class="metric-delta">
-                                <span>Variación: € {fmt(flujo_banco["variacion"])}</span>
-                                <span>{nombre_banco}</span>
-                            </div>
-                        </article>
-                    </div>
-                </section>
-        """
-
-    if not heroes_html:
-        titular_ejecutivo, narrativa_ejecutiva = texto_lectura_ejecutiva(flujo, conc, docs)
-        heroes_html = f"""
-                <section class="hero">
-                    <div class="hero-copy">
-                        <div>
-                            <div class="hero-kicker">Lectura ejecutiva del período</div>
-                            <h2>{titular_ejecutivo}</h2>
-                        </div>
-                        <p>{narrativa_ejecutiva}</p>
-                    </div>
-
-                    <div class="hero-side">
-                        <article class="metric-card metric-primary">
-                            <div>
-                                <div class="metric-label">Saldo inicial</div>
-                                <div class="metric-value">€ {fmt(flujo["saldo_inicial"])}</div>
-                            </div>
-                            <div class="metric-delta">
-                                <span>Inicio del período</span>
-                                <span>{nombre_empresa_titulo}</span>
-                            </div>
-                        </article>
-
-                        <article class="metric-card metric-in">
-                            <div>
-                                <div class="metric-label">Entradas</div>
-                                <div class="metric-value">€ {fmt(flujo["entradas"])}</div>
-                            </div>
-                            <div class="metric-delta">
-                                <span>Dinero que entró</span>
-                                <span>Período</span>
-                            </div>
-                        </article>
-
-                        <article class="metric-card metric-out">
-                            <div>
-                                <div class="metric-label">Salidas</div>
-                                <div class="metric-value">€ {fmt(flujo["salidas"])}</div>
-                            </div>
-                            <div class="metric-delta">
-                                <span>Dinero que salió</span>
-                                <span>Período</span>
-                            </div>
-                        </article>
-
-                        <article class="metric-card metric-end">
-                            <div>
-                                <div class="metric-label">Saldo final</div>
-                                <div class="metric-value">€ {fmt(flujo["saldo_final"])}</div>
-                            </div>
-                            <div class="metric-delta">
-                                <span>Variación: € {fmt(flujo["variacion"])}</span>
-                                <span>Cierre</span>
-                            </div>
-                        </article>
-                    </div>
-                </section>
-        """
 
     total_docs_clasificados = docs["factura_venta"] + docs["factura_compra"] + docs["extracto_bancario"] + docs["otros"]
 
@@ -3475,8 +3306,61 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </div>
 
             <main>
+                <section class="hero">
+                    <div class="hero-copy">
+                        <div>
+                            <div class="hero-kicker">Lectura ejecutiva del período</div>
+                            <h2>{titular_ejecutivo}</h2>
+                        </div>
+                        <p>{narrativa_ejecutiva}</p>
+                    </div>
 
-                {heroes_html}
+                    <div class="hero-side">
+                        <article class="metric-card metric-primary">
+                            <div>
+                                <div class="metric-label">Saldo inicial</div>
+                                <div class="metric-value">€ {fmt(flujo["saldo_inicial"])}</div>
+                            </div>
+                            <div class="metric-delta">
+                                <span>Inicio del período</span>
+                                <span>{nombre_empresa_titulo}</span>
+                            </div>
+                        </article>
+
+                        <article class="metric-card metric-in">
+                            <div>
+                                <div class="metric-label">Entradas</div>
+                                <div class="metric-value">€ {fmt(flujo["entradas"])}</div>
+                            </div>
+                            <div class="metric-delta">
+                                <span>Dinero que entró</span>
+                                <span>Período</span>
+                            </div>
+                        </article>
+
+                        <article class="metric-card metric-out">
+                            <div>
+                                <div class="metric-label">Salidas</div>
+                                <div class="metric-value">€ {fmt(flujo["salidas"])}</div>
+                            </div>
+                            <div class="metric-delta">
+                                <span>Dinero que salió</span>
+                                <span>Período</span>
+                            </div>
+                        </article>
+
+                        <article class="metric-card metric-end">
+                            <div>
+                                <div class="metric-label">Saldo final</div>
+                                <div class="metric-value">€ {fmt(flujo["saldo_final"])}</div>
+                            </div>
+                            <div class="metric-delta">
+                                <span>Variación: € {fmt(flujo["variacion"])}</span>
+                                <span>Cierre</span>
+                            </div>
+                        </article>
+                    </div>
+                </section>
 
                 <section class="section" id="diagnostico-section">
                     <div class="section-head">
