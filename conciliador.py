@@ -434,7 +434,6 @@ def _detectar_duplicados(movimientos_banco, usados_banco):
 
     return duplicados
 
-
 def detectar_inconsistencias(ledger):
     conciliacion = []
 
@@ -458,13 +457,22 @@ def detectar_inconsistencias(ledger):
         if match is None:
             match = _buscar_match_multi(factura, movimientos_banco, usados_banco, max_componentes=3)
 
-        # 1D. resultado factura
+        cliente_proveedor_factura = (factura.get("cliente_proveedor") or "").strip() or "No aplica"
+
         if match is not None:
             for idx in match["indices"]:
                 usados_banco.add(idx)
 
             estado = match["estado"]
             riesgo = "bajo" if "exacto" in estado else "medio"
+
+            bancos_match = []
+            for idx in match["indices"]:
+                banco_mov = (movimientos_banco[idx].get("banco") or "").strip()
+                if banco_mov and banco_mov not in bancos_match:
+                    bancos_match.append(banco_mov)
+
+            banco_resuelto = " | ".join(bancos_match) if bancos_match else "No aplica"
 
             conciliacion.append({
                 "id": factura["id"],
@@ -479,6 +487,8 @@ def detectar_inconsistencias(ledger):
                 "categoria": factura.get("categoria"),
                 "moneda": factura.get("moneda"),
                 "riesgo": riesgo,
+                "banco": banco_resuelto,
+                "cliente_proveedor": cliente_proveedor_factura,
             })
 
         else:
@@ -497,6 +507,8 @@ def detectar_inconsistencias(ledger):
                 "categoria": factura.get("categoria"),
                 "moneda": factura.get("moneda"),
                 "riesgo": "alto",
+                "banco": "No aplica",
+                "cliente_proveedor": cliente_proveedor_factura,
             })
 
     # =========================================
@@ -519,19 +531,33 @@ def detectar_inconsistencias(ledger):
             "categoria": mov.get("categoria"),
             "moneda": mov.get("moneda"),
             "riesgo": "medio",
+            "banco": (mov.get("banco") or "").strip() or "No aplica",
+            "cliente_proveedor": "No aplica",
         })
 
     # =========================================
     # 3. MOVIMIENTOS BANCO SUELTOS
     # =========================================
     for i, mov in enumerate(movimientos_banco):
-        if i in usados_banco:
+        if i in usados_banco or i in indices_duplicados:
             continue
 
-        if i in indices_duplicados:
-            continue
+        categoria = (mov.get("categoria") or "").lower()
 
-        estado, riesgo = _clasificar_movimiento_suelto(mov)
+        if categoria in ["otros_cobros", "otros_pagos"]:
+            estado = "movimiento agrupado"
+        elif _es_categoria_operativa_no_facturable(categoria):
+            estado = "movimiento interno"
+        elif _es_categoria_comercial_facturable(categoria):
+            importe_abs = round(abs(mov.get("importe_abs", 0.0)), 2)
+            estado = "sin soporte" if importe_abs >= 50.0 else "sin soporte menor"
+        else:
+            importe_abs = round(abs(mov.get("importe_abs", 0.0)), 2)
+            estado = "movimiento bancario no conciliable" if importe_abs >= 50.0 else "movimiento bancario no conciliable menor"
+
+        cliente_proveedor = "No aplica"
+        if categoria not in ["retiro_propio", "transferencia_interna", "traspaso", "otros_cobros", "otros_pagos"]:
+            cliente_proveedor = "No aplica"
 
         conciliacion.append({
             "id": mov["id"],
@@ -545,7 +571,9 @@ def detectar_inconsistencias(ledger):
             "diferencia": None,
             "categoria": mov.get("categoria"),
             "moneda": mov.get("moneda"),
-            "riesgo": riesgo,
+            "riesgo": "medio" if estado in ["sin soporte", "movimiento bancario no conciliable"] else "bajo",
+            "banco": (mov.get("banco") or "").strip() or "No aplica",
+            "cliente_proveedor": cliente_proveedor,
         })
 
     return conciliacion
