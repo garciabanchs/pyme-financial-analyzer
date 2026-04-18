@@ -560,10 +560,7 @@ def inferir_nombre_empresa(documentos, ledger):
 
     def limpiar(texto):
         texto = (texto or "").strip()
-
-        # quedarse solo con la primera línea útil
         texto = texto.splitlines()[0] if texto else ""
-
         texto = re.sub(r"\([^)]*\)", "", texto)
         texto = re.sub(r"\s+", " ", texto).strip(" .,:;_-")
         return texto
@@ -607,8 +604,9 @@ def inferir_nombre_empresa(documentos, ledger):
             return False
 
         palabras = [p for p in re.split(r"\s+", texto) if p]
+        if len(palabras) > 8:
+            return False
 
-        # evitar nombres personales simples tipo nombre + apellidos
         if len(palabras) >= 3:
             corporativas = [
                 "sl", "s.l", "slu", "s.l.u", "sa", "s.a", "slne", "sc",
@@ -618,12 +616,8 @@ def inferir_nombre_empresa(documentos, ledger):
             ]
             t_tokens = [p.lower().strip(".,;:-") for p in palabras]
             if not any(tok in corporativas for tok in t_tokens):
-                # si parece persona natural, descartarlo
                 if sum(1 for p in palabras if p[:1].isupper()) >= 3:
                     return False
-
-        if len(palabras) > 8:
-            return False
 
         if letras / max(len(texto), 1) < 0.45:
             return False
@@ -644,8 +638,6 @@ def inferir_nombre_empresa(documentos, ledger):
         texto = item.get("texto") or ""
         lineas = primeras_lineas_utiles(texto, max_lineas=40)
 
-        # Caso ideal: en factura de venta, tomar la PRIMERA línea corporativa
-        # antes del bloque CLIENTE. Nunca concatenar varias líneas.
         idx_cliente = None
         for i, linea in enumerate(lineas):
             if re.search(r"^\s*cliente\s*[:\-]?\s*$", linea, flags=re.IGNORECASE) or "cliente:" in linea.lower():
@@ -655,19 +647,16 @@ def inferir_nombre_empresa(documentos, ledger):
         if idx_cliente is not None:
             candidatas = lineas[:idx_cliente]
 
-            # priorizar líneas en mayúsculas corporativas
             for linea in candidatas:
                 candidato = limpiar(linea)
                 if es_nombre_valido(candidato) and candidato.upper() == candidato:
                     return candidato
 
-            # si no hay una totalmente en mayúsculas, tomar la primera válida
             for linea in candidatas:
                 candidato = limpiar(linea)
                 if es_nombre_valido(candidato):
                     return candidato
 
-        # fallback: solo primeras líneas, una por una, no concatenadas
         for linea in lineas[:12]:
             candidato = limpiar(linea)
             if es_nombre_valido(candidato) and candidato.upper() == candidato:
@@ -732,7 +721,7 @@ def inferir_nombre_empresa(documentos, ledger):
                 if es_nombre_valido(candidato):
                     return candidato
 
-    return None
+    return "la empresa"
     
 def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     saldo_inicial = flujo["saldo_inicial"]
