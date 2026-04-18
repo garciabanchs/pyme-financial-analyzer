@@ -499,6 +499,61 @@ def _normalizar_categoria_agrupada(categoria, valor):
 
     return "otros_pagos"
 
+def _es_linea_resumen_bancario(linea):
+    linea_lower = (linea or "").strip().lower()
+
+    patrones_resumen = [
+        # resúmenes clásicos
+        "saldo inicial",
+        "saldo final",
+        "saldo previo",
+        "tu nuevo saldo",
+        "nuevo saldo",
+        "balance",
+        "summary",
+        "resumen",
+        "overview",
+        "activity summary",
+        "subtotal",
+        "totales",
+        "total",
+        # paypal
+        "pagos recibidos",
+        "pagos enviados",
+        "retiradas y cargos",
+        "depósitos y créditos",
+        "depositos y creditos",
+        "tarifas",
+        "liberaciones",
+        "retenido",
+        # n26 / otros bancos
+        "transacciones entrantes",
+        "transacciones salientes",
+        "incoming transactions",
+        "outgoing transactions",
+        "incoming",
+        "outgoing",
+        "credits total",
+        "debits total",
+        "account summary",
+        "statement summary",
+    ]
+
+    if any(p in linea_lower for p in patrones_resumen):
+        return True
+
+    # Si la línea es extremadamente corta y parece puro resumen con 1 importe
+    importes = PATRON_IMPORTE.findall(linea or "")
+    if len(importes) == 1:
+        tokens = [t for t in linea_lower.split() if t]
+        if len(tokens) <= 6 and any(
+            p in linea_lower for p in [
+                "saldo", "entrantes", "salientes", "summary", "resumen", "balance"
+            ]
+        ):
+            return True
+
+    return False
 
 def _linea_candidata_movimiento(linea):
     if not linea:
@@ -507,6 +562,10 @@ def _linea_candidata_movimiento(linea):
     linea_lower = linea.lower()
 
     if es_linea_ruido(linea_lower):
+        return False
+
+    # NUEVO: cortar de raíz los resúmenes del banco
+    if _es_linea_resumen_bancario(linea):
         return False
 
     importes = PATRON_IMPORTE.findall(linea)
@@ -547,6 +606,9 @@ def _extraer_movimientos_extracto_por_linea(texto, archivo, fecha_doc, banco=Non
     for raw in (texto or "").splitlines():
         linea = limpiar_descripcion(raw)
         if not linea:
+            continue
+
+        if _es_linea_resumen_bancario(linea):
             continue
 
         if not _linea_candidata_movimiento(linea):
