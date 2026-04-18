@@ -568,6 +568,10 @@ def inferir_nombre_empresa(documentos, ledger):
         if not texto:
             return False
 
+        texto = limpiar(texto)
+        if not texto:
+            return False
+
         t = texto.lower().strip()
 
         bloqueados = [
@@ -575,7 +579,9 @@ def inferir_nombre_empresa(documentos, ledger):
             "fecha", "periodo", "período", "movimiento", "movimientos",
             "documento", "documentos", "cliente", "proveedor", "concepto",
             "descripcion", "descripción", "iban", "swift", "bic", "cuenta",
-            "payment", "transfer", "transferencia"
+            "payment", "transfer", "transferencia", "eur", "usd", "€", "$",
+            "saldo inicial", "saldo final", "pagos recibidos", "pagos enviados",
+            "retiradas y cargos", "depositos y creditos", "depósitos y créditos"
         ]
         if any(b in t for b in bloqueados):
             return False
@@ -583,10 +589,27 @@ def inferir_nombre_empresa(documentos, ledger):
         if len(texto) < 3 or len(texto) > 80:
             return False
 
-        if re.search(r"\d{4,}", texto):
+        # si parece una línea de importes, fuera
+        if re.search(r"\d{1,3}(?:\.\d{3})*,\d{2}", texto):
             return False
 
-        if not re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", texto):
+        # demasiados dígitos en total = probablemente no es empresa
+        total_digitos = sum(1 for c in texto if c.isdigit())
+        if total_digitos >= 3:
+            return False
+
+        # debe tener letras suficientes
+        letras = sum(1 for c in texto if c.isalpha())
+        if letras < 4:
+            return False
+
+        # debe tener al menos una palabra razonable
+        palabras = [p for p in re.split(r"\s+", texto) if p]
+        if len(palabras) > 8:
+            return False
+
+        # si tiene muy pocas letras respecto al total, no es nombre
+        if letras / max(len(texto), 1) < 0.45:
             return False
 
         return True
@@ -620,8 +643,11 @@ def inferir_nombre_empresa(documentos, ledger):
         for linea in texto.splitlines()[:25]:
             linea = limpiar(linea)
             if es_nombre_valido(linea) and linea.upper() == linea:
-                return linea[:1].upper() + linea[1:]
-
+                # Debe parecer nombre corporativo, no una línea financiera
+                palabras = [p for p in re.split(r"\s+", linea) if p]
+                if len(palabras) >= 2:
+                    return linea[:1].upper() + linea[1:]
+                    
     # 2) Si no está claro en el extracto, no inventar
     return None
     
@@ -1813,7 +1839,15 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     flujo = resumen_flujo()
     conc = resumen_conciliacion()
     nombre_empresa = inferir_nombre_empresa(documentos, ledger)
-    nombre_empresa_titulo = nombre_empresa if nombre_empresa and nombre_empresa != "la empresa" else "la empresa analizada"
+
+    if nombre_empresa and re.search(r"\d{1,3}(?:\.\d{3})*,\d{2}", str(nombre_empresa)):
+        nombre_empresa = None
+
+    nombre_empresa_titulo = (
+        nombre_empresa
+        if nombre_empresa and nombre_empresa != "la empresa"
+        else "la empresa analizada"
+    )    
     titular_ejecutivo, narrativa_ejecutiva = texto_lectura_ejecutiva(flujo, conc, docs)
     score_financiero = calcular_score_financiero(flujo, conc)
     etiqueta_score = texto_score_financiero(score_financiero)
