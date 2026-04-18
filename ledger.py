@@ -162,15 +162,6 @@ def clasificar_movimiento_bancario(texto, valor):
     if any(x in t for x in ["ajuste", "adjustment", "corrección", "correccion"]):
         return "ajuste"
 
-    # =========================================================
-    # REFINAMIENTO DE INTELIGENCIA BANCARIA
-    # Orden importante:
-    # 1) retiro propio
-    # 2) transferencia interna
-    # 3) gasto operativo
-    # 4) pago proveedor
-    # 5) cobro cliente
-    # =========================================================
     if valor < 0 and _es_texto_retiro_propio(t):
         return "retiro_propio"
 
@@ -178,8 +169,6 @@ def clasificar_movimiento_bancario(texto, valor):
         if "internal transfer" in t or "transferencia interna" in t or "traspaso" in t:
             return "transferencia_interna"
 
-        # Evitar que toda transferencia se coma operaciones comerciales.
-        # Solo se clasifica como interna si no parece cobro/compra operativa.
         if not _es_texto_gasto_operativo(t) and not _es_texto_cobro_cliente(t) and not _es_texto_pago_proveedor(t):
             return "transferencia_interna"
 
@@ -456,10 +445,6 @@ def bloque_es_agregado_o_resumen(bloque):
 
 
 def es_movimiento_relevante(valor, categoria):
-    """
-    Filtro fuerte de relevancia financiera.
-    Lo que no pase este filtro no se pierde: se agrupa.
-    """
     if valor is None:
         return False
 
@@ -482,7 +467,6 @@ def es_movimiento_relevante(valor, categoria):
 def _normalizar_categoria_agrupada(categoria, valor):
     categoria = (categoria or "").lower()
 
-    # Conservamos categorías agrupadas ya existentes para no romper reportes actuales.
     if valor > 0:
         if categoria in ["cobro_cliente"]:
             return "otros_cobros"
@@ -548,7 +532,6 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
         if naturaleza == "desconocido":
             naturaleza = "entrada" if valor > 0 else "salida"
 
-        # Si no es relevante, se agrupa y NO se pierde
         if not es_movimiento_relevante(valor, categoria):
             categoria_agrupada = _normalizar_categoria_agrupada(categoria, valor)
 
@@ -559,8 +542,6 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
                 otros_pagos_total += abs(valor)
                 otros_pagos_cantidad += 1
 
-            # Se mantiene categoria_agrupada calculada para evolución futura,
-            # aunque por ahora los agrupados siguen saliendo como otros_cobros / otros_pagos.
             _ = categoria_agrupada
             continue
 
@@ -578,23 +559,23 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
             "id": f"bank_{contador}",
             "archivo": archivo,
             "tipo": "extracto_bancario",
-            "fecha": fecha_doc or "No detectada",
-            "periodo": obtener_periodo(fecha_doc or "No detectada"),
-            "importe": f"{otros_cobros_total:.2f}".replace(".", ","),
-            "importe_num": otros_cobros_total,
-            "importe_firmado_num": otros_cobros_total,
-            "naturaleza": "entrada",
-            "categoria": "otros_cobros",
-            "descripcion": f"{otros_cobros_cantidad} movimientos menores agrupados",
-            "moneda": detectar_moneda(texto),
+            "fecha": fecha or "No detectada",
+            "periodo": obtener_periodo(fecha or "No detectada"),
+            "importe": f"{abs(valor):.2f}".replace(".", ","),
+            "importe_num": abs(valor),
+            "importe_firmado_num": valor,
+            "naturaleza": naturaleza,
+            "categoria": categoria,
+            "descripcion": descripcion,
+            "moneda": moneda,
             "banco": banco,
             "soporte": False,
-            "estado_conciliacion": "agrupado",
+            "estado_conciliacion": "pendiente",
         })
+
         vistos.add(clave)
         contador += 1
 
-    # Añadir agrupados al ledger
     if otros_cobros_cantidad > 0:
         movimientos.append({
             "id": f"bank_{contador}",
@@ -609,6 +590,7 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
             "categoria": "otros_cobros",
             "descripcion": f"{otros_cobros_cantidad} movimientos menores agrupados",
             "moneda": detectar_moneda(texto),
+            "banco": banco,
             "soporte": False,
             "estado_conciliacion": "agrupado",
         })
@@ -628,6 +610,7 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
             "categoria": "otros_pagos",
             "descripcion": f"{otros_pagos_cantidad} movimientos menores agrupados",
             "moneda": detectar_moneda(texto),
+            "banco": banco,
             "soporte": False,
             "estado_conciliacion": "agrupado",
         })
@@ -656,22 +639,20 @@ def construir_ledger(documentos):
                 importe_num = normalizar_importe(importe_principal) or 0.0
 
                 ledger.append({
-                    "id": f"extract_summary_{idx}",
+                    "id": f"doc_{idx}",
                     "archivo": archivo,
-                    "tipo": "extracto_resumen",
+                    "tipo": tipo_doc,
                     "fecha": fecha,
                     "periodo": periodo,
-                    "importe": "0,00",
-                    "importe_num": 0.0,
-                    "importe_firmado_num": 0.0,
-                    "naturaleza": "resumen",
-                    "categoria": "resumen_extracto",
+                    "importe": importe_principal,
+                    "importe_num": importe_num,
+                    "importe_firmado_num": importe_num if naturaleza == "entrada" else -importe_num,
+                    "naturaleza": naturaleza,
+                    "categoria": tipo_doc,
                     "descripcion": archivo,
                     "moneda": moneda_doc,
-                    "banco": resumen_extracto.get("banco"),
                     "soporte": True,
-                    "resumen_extracto": resumen_extracto,
-                    "estado_conciliacion": "no_aplica",
+                    "estado_conciliacion": "pendiente",
                 })
 
         elif tipo_doc == "extracto_bancario":
@@ -689,6 +670,7 @@ def construir_ledger(documentos):
                     "categoria": "resumen_extracto",
                     "descripcion": archivo,
                     "moneda": moneda_doc,
+                    "banco": resumen_extracto.get("banco"),
                     "soporte": True,
                     "resumen_extracto": resumen_extracto,
                     "estado_conciliacion": "no_aplica",
