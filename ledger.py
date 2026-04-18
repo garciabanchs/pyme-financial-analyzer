@@ -586,8 +586,7 @@ def _linea_candidata_movimiento(linea):
 
 
 def _debug_append(texto):
-    with open(DEBUG_FILE, "a", encoding="utf-8") as f:
-        f.write(texto + "\n")
+    print(texto)
 
 
 def _debug_lineas_extracto(texto, archivo="", banco=""):
