@@ -17,10 +17,12 @@ UMBRAL_MOVIMIENTO_RELEVANTE = 100.0
 
 # =========================================================
 # DEBUG CONTROLADO
-# Cambia a True solo si quieres inspeccionar N26 en logs.
+# Déjalo en False normalmente.
+# Ponlo en True solo para diagnosticar N26.
 # =========================================================
 DEBUG_EXTRACTOS = False
 DEBUG_SOLO_BANCOS = {"N26"}
+DEBUG_FILE = "debug_extractos_n26.txt"
 
 
 def limpiar_descripcion(linea):
@@ -578,11 +580,14 @@ def _linea_candidata_movimiento(linea):
     if tiene_huella_transaccional(linea_lower):
         return True
 
-    palabras = [p for p in linea.split() if p]
-    if len(importes) >= 1 and len(palabras) >= 3:
-        return True
-
+    # Dejamos este fallback muy conservador.
+    # No inventa movimientos si no hay fecha ni huella real.
     return False
+
+
+def _debug_append(texto):
+    with open(DEBUG_FILE, "a", encoding="utf-8") as f:
+        f.write(texto + "\n")
 
 
 def _debug_lineas_extracto(texto, archivo="", banco=""):
@@ -592,9 +597,9 @@ def _debug_lineas_extracto(texto, archivo="", banco=""):
     if DEBUG_SOLO_BANCOS and banco not in DEBUG_SOLO_BANCOS:
         return
 
-    print("\n" + "=" * 90)
-    print(f"DEBUG EXTRACTO | banco={banco} | archivo={archivo}")
-    print("=" * 90)
+    _debug_append("\n" + "=" * 90)
+    _debug_append(f"DEBUG EXTRACTO | banco={banco} | archivo={archivo}")
+    _debug_append("=" * 90)
 
     for i, raw in enumerate((texto or "").splitlines(), start=1):
         linea = limpiar_descripcion(raw)
@@ -608,7 +613,7 @@ def _debug_lineas_extracto(texto, archivo="", banco=""):
         candidata = _linea_candidata_movimiento(linea)
 
         if importes or tiene_fecha or huella:
-            print(
+            _debug_append(
                 f"[{i:03}] fecha={tiene_fecha} huella={huella} resumen={resumen} "
                 f"candidata={candidata} importes={importes} :: {linea}"
             )
@@ -873,7 +878,6 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
         if m.get("categoria") not in ["otros_cobros", "otros_pagos"]
     ]
 
-    # Fallback solo si el parser principal no sacó movimientos individuales
     if not movimientos_individuales:
         fallback = _extraer_movimientos_extracto_por_linea(
             texto=texto,
@@ -882,8 +886,6 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
             banco=banco,
         )
 
-        # Blindaje extra: si el fallback solo produce agrupados o nada,
-        # preferimos devolver vacío antes que inventar movimientos falsos.
         fallback_individuales = [
             m for m in fallback
             if m.get("categoria") not in ["otros_cobros", "otros_pagos"]
@@ -897,6 +899,14 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
 
 def construir_ledger(documentos):
     ledger = []
+
+    # limpiar archivo debug al arrancar
+    if DEBUG_EXTRACTOS:
+        try:
+            with open(DEBUG_FILE, "w", encoding="utf-8") as f:
+                f.write("DEBUG DE EXTRACTOS\n")
+        except Exception:
+            pass
 
     for idx, doc in enumerate(documentos, start=1):
         texto = doc.get("texto", "")
