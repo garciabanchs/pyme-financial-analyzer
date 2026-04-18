@@ -555,25 +555,32 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
     entradas_relevantes = []
     salidas_relevantes = []
 
-    entradas_resumen = None
-    salidas_resumen = None
+    entradas_resumen_total = 0.0
+    salidas_resumen_total = 0.0
+    hay_resumenes = False
 
+    # =========================================================
+    # 1) SUMAR TODOS LOS RESÚMENES BANCARIOS (NO SOLO EL PRIMERO)
+    # =========================================================
     for item in ledger:
-        if item.get("tipo") == "extracto_resumen":
-            resumen = item.get("resumen_extracto", {}) or {}
+        if item.get("tipo") != "extracto_resumen":
+            continue
 
-            entradas_resumen = 0.0
-            entradas_resumen += abs(resumen.get("pagos_recibidos") or 0.0)
-            entradas_resumen += abs(resumen.get("depositos_y_creditos") or 0.0)
-            entradas_resumen += abs(resumen.get("liberaciones") or 0.0)
+        resumen = item.get("resumen_extracto", {}) or {}
+        hay_resumenes = True
 
-            salidas_resumen = 0.0
-            salidas_resumen += abs(resumen.get("pagos_enviados") or 0.0)
-            salidas_resumen += abs(resumen.get("retiradas_y_cargos") or 0.0)
-            salidas_resumen += abs(resumen.get("tarifas") or 0.0)
-            salidas_resumen += abs(resumen.get("retenido") or 0.0)
-            break
+        entradas_resumen_total += abs(resumen.get("pagos_recibidos") or 0.0)
+        entradas_resumen_total += abs(resumen.get("depositos_y_creditos") or 0.0)
+        entradas_resumen_total += abs(resumen.get("liberaciones") or 0.0)
 
+        salidas_resumen_total += abs(resumen.get("pagos_enviados") or 0.0)
+        salidas_resumen_total += abs(resumen.get("retiradas_y_cargos") or 0.0)
+        salidas_resumen_total += abs(resumen.get("tarifas") or 0.0)
+        salidas_resumen_total += abs(resumen.get("retenido") or 0.0)
+
+    # =========================================================
+    # 2) LEER TODOS LOS MOVIMIENTOS BANCARIOS DETALLADOS
+    # =========================================================
     entradas_identificadas = 0.0
     salidas_identificadas = 0.0
     otros_cobros_cantidad_real = 0
@@ -588,11 +595,16 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
 
         if valor is None:
             valor = normalizar_importe_reporte(item.get("importe", 0))
-            if item.get("naturaleza") == "salida":
+            naturaleza = (item.get("naturaleza") or "").strip().lower()
+            if naturaleza == "salida":
                 valor = -abs(valor)
+            elif naturaleza == "entrada":
+                valor = abs(valor)
 
-        if valor is None:
+        if valor is None or abs(valor) < 0.0001:
             continue
+
+        banco = (item.get("banco") or "").strip() or "Banco no identificado"
 
         fila = {
             "archivo": item.get("archivo", "-"),
@@ -602,7 +614,7 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "naturaleza": item.get("naturaleza", "-"),
             "naturaleza_humana": humanizar_naturaleza(item.get("naturaleza", "-")),
             "descripcion": item.get("descripcion", "-"),
-            "banco": item.get("banco", "-") or "-",
+            "banco": banco,
             "categoria": categoria,
             "categoria_humana": humanizar_categoria(categoria),
             "moneda": item.get("moneda", "") or "",
@@ -611,6 +623,9 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
 
         es_agrupado = categoria in ["otros_cobros", "otros_pagos"]
 
+        # Los agrupados ya existen en ledger por archivo/banco.
+        # Aquí no los metemos como filas separadas para evitar duplicación visual.
+        # Solo usamos su cantidad como apoyo estadístico.
         if es_agrupado:
             desc = item.get("descripcion", "")
             try:
@@ -638,40 +653,49 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             else:
                 otros_pagos_cantidad_real += 1
 
-    if entradas_resumen is not None:
-        otros_cobros_total = max(0.0, round(entradas_resumen - entradas_identificadas, 2))
+    # =========================================================
+    # 3) CALCULAR "OTROS" SOBRE TODOS LOS BANCOS CONSOLIDADOS
+    # =========================================================
+    if hay_resumenes:
+        otros_cobros_total = max(0.0, round(entradas_resumen_total - entradas_identificadas, 2))
+        otros_pagos_total = max(0.0, round(salidas_resumen_total - salidas_identificadas, 2))
     else:
         otros_cobros_total = 0.0
+        otros_pagos_total = 0.0
+
         for item in ledger:
             if item.get("tipo") != "extracto_bancario":
                 continue
+
+            categoria = (item.get("categoria") or "").strip().lower()
             valor = item.get("importe_firmado_num")
+
             if valor is None:
                 valor = normalizar_importe_reporte(item.get("importe", 0))
-                if item.get("naturaleza") == "salida":
+                naturaleza = (item.get("naturaleza") or "").strip().lower()
+                if naturaleza == "salida":
                     valor = -abs(valor)
-            if valor is None:
+                elif naturaleza == "entrada":
+                    valor = abs(valor)
+
+            if valor is None or abs(valor) < 0.0001:
                 continue
+
+            if categoria in ["otros_cobros", "otros_pagos"]:
+                if valor > 0:
+                    otros_cobros_total += abs(valor)
+                elif valor < 0:
+                    otros_pagos_total += abs(valor)
+                continue
+
             if valor > 0 and abs(valor) < umbral_relevante:
                 otros_cobros_total += abs(valor)
-
-    if salidas_resumen is not None:
-        otros_pagos_total = max(0.0, round(salidas_resumen - salidas_identificadas, 2))
-    else:
-        otros_pagos_total = 0.0
-        for item in ledger:
-            if item.get("tipo") != "extracto_bancario":
-                continue
-            valor = item.get("importe_firmado_num")
-            if valor is None:
-                valor = normalizar_importe_reporte(item.get("importe", 0))
-                if item.get("naturaleza") == "salida":
-                    valor = -abs(valor)
-            if valor is None:
-                continue
-            if valor < 0 and abs(valor) < umbral_relevante:
+            elif valor < 0 and abs(valor) < umbral_relevante:
                 otros_pagos_total += abs(valor)
 
+    # =========================================================
+    # 4) INSERTAR FILAS CONSOLIDADAS DE MENORES
+    # =========================================================
     if otros_cobros_total > 0:
         entradas_relevantes.insert(0, {
             "archivo": "-",
@@ -680,8 +704,8 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "importe_fmt": fmt_importe_reporte(otros_cobros_total),
             "naturaleza": "entrada",
             "naturaleza_humana": "Entrada",
-            "descripcion": f"movimientos menores agrupados",
-            "banco": "-",
+            "descripcion": "movimientos menores agrupados",
+            "banco": "Consolidado",
             "categoria": "otros_cobros",
             "categoria_humana": "Otros ingresos",
             "moneda": "",
@@ -696,16 +720,23 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "importe_fmt": fmt_importe_reporte(otros_pagos_total),
             "naturaleza": "salida",
             "naturaleza_humana": "Salida",
-            "descripcion": f"movimientos menores agrupados",
-            "banco": "-",
+            "descripcion": "movimientos menores agrupados",
+            "banco": "Consolidado",
             "categoria": "otros_pagos",
             "categoria_humana": "Otros pagos",
             "moneda": "",
             "clase_fila": "row-salida",
         })
 
-    entradas_relevantes.sort(key=lambda x: ("0000-00-00" if x["fecha"] == "n.a." else x["fecha"], -x["importe_abs"]))
-    salidas_relevantes.sort(key=lambda x: ("0000-00-00" if x["fecha"] == "n.a." else x["fecha"], -x["importe_abs"]))
+    # =========================================================
+    # 5) ORDEN: AGRUPADOS PRIMERO, LUEGO POR IMPORTE DESC
+    # =========================================================
+    def _clave_orden_mov(row):
+        es_agrupado = 0 if row.get("categoria") in ["otros_cobros", "otros_pagos"] else 1
+        return (es_agrupado, -row.get("importe_abs", 0.0), str(row.get("fecha") or ""))
+
+    entradas_relevantes.sort(key=_clave_orden_mov)
+    salidas_relevantes.sort(key=_clave_orden_mov)
 
     return {
         "entradas_relevantes": entradas_relevantes,
@@ -715,7 +746,7 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
         "otros_pagos_cantidad": otros_pagos_cantidad_real,
         "otros_pagos_total": otros_pagos_total,
     }
-    
+        
 def inferir_nombre_empresa(documentos, ledger):
     documentos = documentos or []
     ledger = ledger or []
