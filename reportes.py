@@ -11,54 +11,58 @@ def fmt_importe_reporte(numero):
     except Exception:
         return "0,00"
 
+
 def normalizar_importe_reporte(valor):
     try:
         if isinstance(valor, (int, float)):
             return float(valor)
-
-        valor = str(valor).strip().replace("€", "").replace("$", "").replace(" ", "")
-
-        if "," in valor and "." in valor:
-            if valor.rfind(",") > valor.rfind("."):
-                # Formato europeo: 1.234,56
-                valor = valor.replace(".", "").replace(",", ".")
-            else:
-                # Formato anglosajón: 1,234.56
-                valor = valor.replace(",", "")
-        elif "," in valor:
-            # Formato europeo simple: 1234,56
-            valor = valor.replace(",", ".")
-
-        return float(valor)
+        return float(str(valor).replace(".", "").replace(",", "."))
     except Exception:
         return 0.0
+
 
 def normalizar_estado_conciliacion(estado):
     estado = (estado or "").strip().lower().replace("-", "_").replace(" ", "_")
 
     mapa = {
         "conciliado_exacto": "conciliado_exacto",
+        "conciliado exacto": "conciliado_exacto",
         "conciliado_exacto_multi": "conciliado_exacto_multi",
+        "conciliado exacto multi": "conciliado_exacto_multi",
         "conciliado_probable": "conciliado_probable",
         "probablemente_conciliado": "conciliado_probable",
+        "conciliado probable": "conciliado_probable",
         "conciliado_probable_multi": "conciliado_probable_multi",
+        "conciliado probable multi": "conciliado_probable_multi",
         "probablemente_conciliado_multi": "conciliado_probable_multi",
         "pendiente": "pendiente",
         "pendiente_cobro": "pendiente_cobro",
+        "pendiente cobro": "pendiente_cobro",
         "pendiente_pago": "pendiente_pago",
+        "pendiente pago": "pendiente_pago",
         "sin_soporte": "sin_soporte",
+        "sin soporte": "sin_soporte",
         "sin_soporte_menor": "sin_soporte_menor",
+        "sin soporte menor": "sin_soporte_menor",
         "no_conciliable": "no_conciliable",
+        "no conciliable": "no_conciliable",
         "duplicado_potencial": "duplicado_potencial",
+        "duplicado potencial": "duplicado_potencial",
         "duplicado_o_conflictivo": "duplicado_potencial",
+        "duplicado o conflictivo": "duplicado_potencial",
         "movimiento_interno": "movimiento_interno",
+        "movimiento interno": "movimiento_interno",
         "movimiento_bancario_no_conciliable": "movimiento_bancario_no_conciliable",
+        "movimiento bancario no conciliable": "movimiento_bancario_no_conciliable",
         "movimiento_bancario_no_conciliable_menor": "movimiento_bancario_no_conciliable_menor",
+        "movimiento bancario no conciliable menor": "movimiento_bancario_no_conciliable_menor",
         "movimiento_agrupado": "movimiento_agrupado",
+        "movimiento agrupado": "movimiento_agrupado",
         "agrupado": "agrupado",
     }
 
     return mapa.get(estado, estado)
+
 
 def humanizar_estado_conciliacion(estado):
     estado_norm = normalizar_estado_conciliacion(estado)
@@ -211,7 +215,6 @@ def construir_resumen_flujo(ledger):
             salidas += abs(resumen.get("retenido") or 0.0)
 
             variacion = saldo_final - saldo_inicial
-            descuadre = abs((saldo_inicial + entradas - salidas) - saldo_final)
 
             return {
                 "saldo_inicial": saldo_inicial,
@@ -219,7 +222,6 @@ def construir_resumen_flujo(ledger):
                 "salidas": salidas,
                 "saldo_final": saldo_final,
                 "variacion": variacion,
-                "descuadre": descuadre,
                 "retenido": retenido,
                 "balance": variacion,
                 "movimientos": entradas + salidas,
@@ -245,15 +247,12 @@ def construir_resumen_flujo(ledger):
     saldo_final = saldo_inicial + entradas - salidas
     variacion = saldo_final - saldo_inicial
 
-    descuadre = abs((saldo_inicial + entradas - salidas) - saldo_final)
-
     return {
         "saldo_inicial": saldo_inicial,
         "entradas": entradas,
         "salidas": salidas,
         "saldo_final": saldo_final,
         "variacion": variacion,
-        "descuadre": descuadre,
         "retenido": 0.0,
         "balance": variacion,
         "movimientos": entradas + salidas,
@@ -432,10 +431,6 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "naturaleza": item.get("naturaleza", "-"),
             "naturaleza_humana": humanizar_naturaleza(item.get("naturaleza", "-")),
             "descripcion": item.get("descripcion", "-"),
-            "banco": item.get("banco", "No detectado") or "No detectado",
-            "entidad_financiera": item.get("entidad_financiera"),
-            "cuenta": item.get("cuenta"),
-            "cliente_proveedor": item.get("cliente_proveedor"),         
             "categoria": categoria,
             "categoria_humana": humanizar_categoria(categoria),
             "moneda": item.get("moneda", "") or "",
@@ -514,10 +509,6 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "naturaleza": "entrada",
             "naturaleza_humana": "Entrada",
             "descripcion": f"movimientos menores agrupados",
-            "banco": "-",
-            "entidad_financiera": None,
-            "cuenta": None,
-            "cliente_proveedor": None,          
             "categoria": "otros_cobros",
             "categoria_humana": "Otros ingresos",
             "moneda": "",
@@ -533,10 +524,6 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
             "naturaleza": "salida",
             "naturaleza_humana": "Salida",
             "descripcion": f"movimientos menores agrupados",
-            "banco": "-",
-            "entidad_financiera": None,
-            "cuenta": None,
-            "cliente_proveedor": None,
             "categoria": "otros_pagos",
             "categoria_humana": "Otros pagos",
             "moneda": "",
@@ -554,96 +541,6 @@ def analizar_movimientos_bancarios_ledger(ledger, umbral_relevante=UMBRAL_RELEVA
         "otros_pagos_cantidad": otros_pagos_cantidad_real,
         "otros_pagos_total": otros_pagos_total,
     }
-
-
-def construir_resumen_por_banco(ledger):
-    ledger = ledger or []
-
-    resumen = {}
-
-    def normalizar_nombre_banco(item):
-        candidatos = [
-            item.get("banco"),
-            item.get("entidad_financiera"),
-        ]
-
-        for c in candidatos:
-            c = (str(c).strip() if c is not None else "")
-            if c and c.lower() not in {"no detectado", "none", "null", "-"}:
-                return c
-
-        archivo = (item.get("archivo") or "").lower()
-        descripcion = (item.get("descripcion") or "").lower()
-
-        if "paypal" in archivo or "paypal" in descripcion:
-            return "PayPal"
-        if "n26" in archivo or "n26" in descripcion:
-            return "N26"
-
-        return "No detectado"
-
-    def asegurar_banco(nombre):
-        if nombre not in resumen:
-            resumen[nombre] = {
-                "banco": nombre,
-                "entradas": 0.0,
-                "salidas": 0.0,
-                "movimientos": 0.0,
-                "cantidad": 0,
-                "saldo_neto": 0.0,
-            }
-
-    for item in ledger:
-        if item.get("tipo") != "extracto_bancario":
-            continue
-
-        banco = normalizar_nombre_banco(item)
-        asegurar_banco(banco)
-
-        valor = item.get("importe_firmado_num")
-        if valor is None:
-            valor = normalizar_importe_reporte(item.get("importe", 0))
-            if (item.get("naturaleza") or "").lower() == "salida":
-                valor = -abs(valor)
-
-        if valor is None:
-            continue
-
-        resumen[banco]["cantidad"] += 1
-        resumen[banco]["movimientos"] += abs(valor)
-        resumen[banco]["saldo_neto"] += valor
-
-        if valor >= 0:
-            resumen[banco]["entradas"] += abs(valor)
-        else:
-            resumen[banco]["salidas"] += abs(valor)
-
-    bancos = list(resumen.values())
-    bancos.sort(key=lambda x: x["banco"].lower())
-
-    total = {
-        "banco": "Total",
-        "entradas": sum(x["entradas"] for x in bancos),
-        "salidas": sum(x["salidas"] for x in bancos),
-        "movimientos": sum(x["movimientos"] for x in bancos),
-        "cantidad": sum(x["cantidad"] for x in bancos),
-        "saldo_neto": sum(x["saldo_neto"] for x in bancos),
-    }
-
-    return [total] + bancos
-
-def clase_tarjeta_banco(nombre_banco):
-    nombre = (nombre_banco or "").strip().lower()
-
-    if nombre == "total":
-        return "bank-card bank-card-total"
-    if nombre == "paypal":
-        return "bank-card bank-card-wallet"
-    if nombre == "n26":
-        return "bank-card bank-card-bank"
-
-    return "bank-card bank-card-generic"
-
 def inferir_nombre_empresa(documentos, ledger):
     documentos = documentos or []
 
@@ -653,98 +550,34 @@ def inferir_nombre_empresa(documentos, ledger):
         texto = re.sub(r"\s+", " ", texto).strip(" .,:;_-")
         return texto
 
-    def parece_banco_o_encabezado(texto):
-        t = (texto or "").lower()
-
-        patrones_banco = [
-            "banco", "bank", "banc", "financial", "finance", "credito", "crédito",
-            "cuenta corriente", "cuenta ahorro", "account statement", "bank statement",
-            "extracto bancario", "estado de cuenta", "resumen de cuenta",
-            "customer service", "atención al cliente", "iban", "swift", "bic"
-        ]
-        return any(p in t for p in patrones_banco)
-
     def es_nombre_valido(texto):
         if not texto:
             return False
 
-        texto = limpiar(texto)
-        if not texto:
-            return False
-
-        t = texto.lower()
+        t = texto.lower().strip()
 
         bloqueados = [
             "extracto", "statement", "factura", "invoice", "resumen", "saldo",
             "fecha", "periodo", "período", "movimiento", "movimientos",
             "documento", "documentos", "cliente", "proveedor", "concepto",
             "descripcion", "descripción", "iban", "swift", "bic", "cuenta",
-            "payment", "transfer", "transferencia", "eur", "usd",
-            "saldo inicial", "saldo final", "pagos recibidos", "pagos enviados",
-            "retiradas y cargos", "depositos y creditos", "depósitos y créditos",
-            "nif", "cif", "rif", "dni", "ruc", "nit",
-            "dirección", "direccion", "avenida", "av.", "calle", "urb.", "local", "cp"
+            "payment", "transfer", "transferencia"
         ]
         if any(b in t for b in bloqueados):
             return False
 
-        if parece_banco_o_encabezado(texto):
+        if len(texto) < 3 or len(texto) > 80:
             return False
 
-        if len(texto) < 3 or len(texto) > 90:
+        if re.search(r"\d{4,}", texto):
             return False
 
-        if re.search(r"\d{1,3}(?:\.\d{3})*,\d{2}", texto):
-            return False
-
-        total_digitos = sum(1 for c in texto if c.isdigit())
-        if total_digitos >= 4:
-            return False
-
-        letras = sum(1 for c in texto if c.isalpha())
-        if letras < 4:
-            return False
-
-        palabras = [p for p in re.split(r"\s+", texto) if p]
-        if len(palabras) > 8:
+        if not re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", texto):
             return False
 
         return True
 
-    def score_nombre_empresa(texto):
-        texto = limpiar(texto)
-        t = texto.lower()
-        score = 0
-
-        if not es_nombre_valido(texto):
-            return -999
-
-        marcadores_corporativos = [
-            "c.a.", "ca", "c.a", "s.a.", "s.a", "sa", "s.l.", "s.l", "sl",
-            "slu", "llc", "inc", "corp", "corporation", "company", "group",
-            "holding", "asociacion", "asociación", "fundacion", "fundación",
-            "cooperativa"
-        ]
-
-        if any(m in t for m in marcadores_corporativos):
-            score += 6
-
-        if texto.upper() == texto:
-            score += 3
-
-        palabras = texto.split()
-        if 1 <= len(palabras) <= 5:
-            score += 2
-
-        if len(palabras) >= 2:
-            score += 1
-
-        return score
-
-    def primeras_lineas_utiles(texto, max_lineas=40):
-        return [limpiar(x) for x in (texto or "").splitlines()[:max_lineas] if limpiar(x)]
-
-    # 1) PRIORIDAD ABSOLUTA: EXTRACTO BANCARIO
+    # 1) PRIORIDAD ABSOLUTA: extracto bancario
     for item in documentos:
         if item.get("tipo") != "extracto_bancario":
             continue
@@ -754,11 +587,11 @@ def inferir_nombre_empresa(documentos, ledger):
             continue
 
         patrones = [
-            r"(?im)^\s*raz[oó]n\s+social\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*raz[oó]n social\s*[:\-]\s*(.+?)\s*$",
             r"(?im)^\s*nombre\s+del\s+titular\s*[:\-]\s*(.+?)\s*$",
             r"(?im)^\s*titular\s*[:\-]\s*(.+?)\s*$",
-            r"(?im)^\s*account\s+holder\s*[:\-]\s*(.+?)\s*$",
-            r"(?im)^\s*business\s+name\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*account holder\s*[:\-]\s*(.+?)\s*$",
+            r"(?im)^\s*business name\s*[:\-]\s*(.+?)\s*$",
             r"(?im)^\s*empresa\s*[:\-]\s*(.+?)\s*$",
         ]
 
@@ -767,76 +600,16 @@ def inferir_nombre_empresa(documentos, ledger):
             if m:
                 candidato = limpiar(m.group(1))
                 if es_nombre_valido(candidato):
-                    return candidato
+                    return candidato[:1].upper() + candidato[1:]
 
-        lineas = primeras_lineas_utiles(texto, max_lineas=25)
-        candidatas = [x for x in lineas[:12] if es_nombre_valido(x)]
+        # fallback: primeras líneas útiles del extracto
+        for linea in texto.splitlines()[:25]:
+            linea = limpiar(linea)
+            if es_nombre_valido(linea):
+                return linea[:1].upper() + linea[1:]
 
-        if candidatas:
-            candidatas = sorted(candidatas, key=score_nombre_empresa, reverse=True)
-            mejor = candidatas[0]
-            if score_nombre_empresa(mejor) >= 2:
-                return mejor
-
-    # 2) FACTURA DE COMPRA: cliente / destinatario
-    for item in documentos:
-        if item.get("tipo") != "factura_compra":
-            continue
-
-        texto = item.get("texto") or ""
-        lineas = primeras_lineas_utiles(texto, max_lineas=60)
-
-        patrones_inline = [
-            r"^\s*cliente\s*[:\-]?\s*(.+?)\s*$",
-            r"^\s*destinatario\s*[:\-]?\s*(.+?)\s*$",
-            r"^\s*bill to\s*[:\-]?\s*(.+?)\s*$",
-            r"^\s*sold to\s*[:\-]?\s*(.+?)\s*$",
-        ]
-
-        patrones_bloque = [
-            r"^\s*cliente\s*[:\-]?\s*$",
-            r"^\s*destinatario\s*[:\-]?\s*$",
-            r"^\s*bill to\s*[:\-]?\s*$",
-            r"^\s*sold to\s*[:\-]?\s*$",
-        ]
-
-        for i, linea in enumerate(lineas):
-            for patron in patrones_inline:
-                m = re.search(patron, linea, flags=re.IGNORECASE)
-                if m:
-                    candidato = limpiar(m.group(1))
-                    if es_nombre_valido(candidato):
-                        return candidato
-
-            for patron in patrones_bloque:
-                if re.search(patron, linea, flags=re.IGNORECASE):
-                    if i + 1 < len(lineas):
-                        candidato = limpiar(lineas[i + 1])
-                        if es_nombre_valido(candidato):
-                            return candidato
-
-    # 3) FACTURA DE VENTA: emisor
-    for item in documentos:
-        if item.get("tipo") != "factura_venta":
-            continue
-
-        texto = item.get("texto") or ""
-        lineas = primeras_lineas_utiles(texto, max_lineas=40)
-
-        idx_cliente = None
-        for i, linea in enumerate(lineas):
-            if re.fullmatch(r"cliente[:\-]?", linea, flags=re.IGNORECASE) or "cliente:" in linea.lower():
-                idx_cliente = i
-                break
-
-        candidatas = lineas[:idx_cliente] if idx_cliente is not None else lineas[:12]
-        candidatas_validas = [x for x in candidatas if es_nombre_valido(x)]
-
-        if candidatas_validas:
-            candidatas_validas = sorted(candidatas_validas, key=score_nombre_empresa, reverse=True)
-            return candidatas_validas[0]
-
-    return None
+    # 2) Si no está claro en el extracto, no inventar
+    return "la empresa"
     
 def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     saldo_inicial = flujo["saldo_inicial"]
@@ -844,9 +617,7 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     salidas = flujo["salidas"]
     saldo_final = flujo["saldo_final"]
     variacion = flujo["variacion"]
-
     pendientes = conc["pendientes"]
-    importe_pendiente = conc.get("importe_pendiente", 0)
     probables = conc["parciales"]
     probables_multi = conc.get("probables_multi", 0)
     exactas_multi = conc.get("conciliadas_multi", 0)
@@ -857,31 +628,26 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     nivel_cierre = conc.get("nivel_cierre", "medio")
 
     if variacion > 0:
-        titular = "La caja del período cerró con mejora."
+        titular = "La caja del período cerró mejor que como empezó."
     elif variacion < 0:
-        titular = "La caja del período cerró con deterioro."
+        titular = "La caja del período cerró peor que como empezó."
     else:
-        titular = "La caja del período cerró estable."
+        titular = "La caja del período cerró prácticamente igual que como empezó."
 
     bloque_flujo = (
-        f"El período abrió con € {fmt_importe_reporte(saldo_inicial)}, "
-        f"registró entradas por € {fmt_importe_reporte(entradas)} y salidas por € {fmt_importe_reporte(salidas)}, "
-        f"por lo que cerró con € {fmt_importe_reporte(saldo_final)} "
-        f"y una variación neta de € {fmt_importe_reporte(variacion)}."
+        f"El saldo inicial fue de € {fmt_importe_reporte(saldo_inicial)}, "
+        f"entraron € {fmt_importe_reporte(entradas)}, "
+        f"salieron € {fmt_importe_reporte(salidas)} "
+        f"y el saldo final se ubicó en € {fmt_importe_reporte(saldo_final)}, "
+        f"con una variación neta de € {fmt_importe_reporte(variacion)}."
     )
 
     if nivel_cierre == "bajo":
         partes = []
-
         if pendientes > 0:
-            partes.append(
-                f"{pendientes} {pluralizar(pendientes, 'factura pendiente', 'facturas pendientes')} "
-                f"por € {fmt_importe_reporte(importe_pendiente)}"
-            )
+            partes.append(f"{pendientes} {pluralizar(pendientes, 'factura pendiente', 'facturas pendientes')}")
         if probables > 0:
-            partes.append(
-                f"{probables} {pluralizar(probables, 'conciliación probable', 'conciliaciones probables')}"
-            )
+            partes.append(f"{probables} {pluralizar(probables, 'conciliación probable', 'conciliaciones probables')}")
         if probables_multi > 0:
             partes.append(
                 f"{probables_multi} {pluralizar(probables_multi, 'conciliación probable múltiple', 'conciliaciones probables múltiples')}"
@@ -891,22 +657,16 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
                 f"{sin_soporte} {pluralizar(sin_soporte, 'movimiento relevante sin soporte', 'movimientos relevantes sin soporte')}"
             )
         if duplicados > 0:
-            partes.append(
-                f"{duplicados} {pluralizar(duplicados, 'duplicado potencial', 'duplicados potenciales')}"
-            )
+            partes.append(f"{duplicados} {pluralizar(duplicados, 'duplicado potencial', 'duplicados potenciales')}")
         if movimientos_internos > 0:
             partes.append(
                 f"{movimientos_internos} {pluralizar(movimientos_internos, 'movimiento interno', 'movimientos internos')}"
             )
 
-        detalle = ", ".join(partes) if partes else "elementos todavía pendientes de validación"
-        bloque_cierre = (
-            f" El cierre preliminar es débil: persisten {detalle}, por lo que todavía no conviene tratar este período como definitivamente cerrado."
-        )
-
+        detalle = ", ".join(partes) if partes else "elementos que todavía requieren validación"
+        bloque_cierre = f" El cierre todavía no puede considerarse definitivo: persisten {detalle}."
     elif nivel_cierre == "medio":
         partes = []
-
         if exactas_multi > 0:
             partes.append(
                 f"{exactas_multi} {pluralizar(exactas_multi, 'conciliación exacta múltiple', 'conciliaciones exactas múltiples')}"
@@ -916,42 +676,33 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
                 f"{probables_multi} {pluralizar(probables_multi, 'conciliación probable múltiple', 'conciliaciones probables múltiples')}"
             )
         if duplicados > 0:
-            partes.append(
-                f"{duplicados} {pluralizar(duplicados, 'duplicado potencial', 'duplicados potenciales')}"
-            )
+            partes.append(f"{duplicados} {pluralizar(duplicados, 'duplicado potencial', 'duplicados potenciales')}")
         if movimientos_internos > 0:
             partes.append(
                 f"{movimientos_internos} {pluralizar(movimientos_internos, 'movimiento interno', 'movimientos internos')}"
             )
 
-        detalle = ", ".join(partes) if partes else "algunas validaciones adicionales"
-        bloque_cierre = (
-            f" El cierre preliminar es usable, pero todavía requiere validación adicional: se observan {detalle}."
-        )
-
+        detalle = ", ".join(partes) if partes else "validaciones adicionales"
+        bloque_cierre = f" La lectura es útil, pero todavía requiere validación adicional: se observan {detalle}."
     elif sin_soporte > 0:
         bloque_cierre = (
-            f" El cierre preliminar es razonablemente ordenado, aunque persisten "
+            f" No se observan pendientes fuertes de conciliación, pero existen "
             f"{sin_soporte} {pluralizar(sin_soporte, 'movimiento relevante sin soporte documental', 'movimientos relevantes sin soporte documental')}."
         )
-
     elif sin_soporte_menor > 0:
         bloque_cierre = (
-            f" El cierre preliminar es razonablemente limpio, aunque existen "
+            f" No se observan pendientes relevantes, aunque existen "
             f"{sin_soporte_menor} {pluralizar(sin_soporte_menor, 'movimiento menor sin soporte directo', 'movimientos menores sin soporte directo')}."
         )
-
     else:
-        bloque_cierre = (
-            " El cierre preliminar luce limpio y no muestra pendientes relevantes de conciliación en la estructura analizada."
-        )
+        bloque_cierre = " No se observan pendientes relevantes de conciliación en la estructura analizada."
 
     resumen_docs = (
-        f"Se procesaron {total} {pluralizar(total, 'archivo')}: "
+        f"Durante el análisis se procesaron {total} {pluralizar(total, 'archivo')}: "
         f"{docs['factura_venta']} {pluralizar(docs['factura_venta'], 'factura de venta')}, "
         f"{docs['factura_compra']} {pluralizar(docs['factura_compra'], 'factura de compra')}, "
         f"{docs['extracto_bancario']} {pluralizar(docs['extracto_bancario'], 'extracto bancario')} "
-        f"y {docs['otros']} {pluralizar(docs['otros'], 'documento', 'documentos')} adicionales."
+        f"y {docs['otros']} {pluralizar(docs['otros'], 'documento', 'documentos')} adicional(es)."
     )
 
     narrativa = f"{bloque_flujo}{bloque_cierre} {resumen_docs}"
@@ -960,22 +711,21 @@ def construir_narrativa_ejecutiva(total, docs, flujo, conc):
 
 
 def calcular_score_financiero(flujo, conc):
-    import math
-
     score = 100
 
-    score -= min(40, math.log1p(conc.get("pendientes", 0)) * 10)
-    score -= min(30, math.log1p(conc.get("sin_soporte", 0)) * 8)
-    score -= min(20, math.log1p(conc.get("duplicados", 0)) * 6)
-    score -= min(25, math.log1p(conc.get("parciales", 0)) * 7)
-    score -= min(25, math.log1p(conc.get("probables_multi", 0)) * 8)
-    score -= min(15, math.log1p(conc.get("movimientos_bancarios_no_conciliables", 0)) * 5)
-    score -= min(8, math.log1p(conc.get("movimientos_internos", 0)) * 3)
+    score -= conc.get("pendientes", 0) * 12
+    score -= conc.get("sin_soporte", 0) * 8
+    score -= conc.get("duplicados", 0) * 6
+    score -= conc.get("parciales", 0) * 5
+    score -= conc.get("probables_multi", 0) * 7
+    score -= conc.get("movimientos_bancarios_no_conciliables", 0) * 3
+    score -= conc.get("movimientos_internos", 0) * 1
 
     if flujo.get("variacion", 0) < 0:
         score -= 8
 
-    return max(min(round(score), 100), 0)
+    return max(min(score, 100), 0)
+
 
 def texto_score_financiero(score):
     if score >= 85:
@@ -992,154 +742,99 @@ def texto_score_financiero(score):
 def generar_diagnostico_financiero(flujo, conc):
     diagnosticos = []
 
-    variacion = flujo.get("variacion", 0)
-    pendientes = conc.get("pendientes", 0)
-    importe_pendiente = conc.get("importe_pendiente", 0)
-    sin_soporte = conc.get("sin_soporte", 0)
-    duplicados = conc.get("duplicados", 0)
-    probables = conc.get("parciales", 0)
-    probables_multi = conc.get("probables_multi", 0)
-    movimientos_internos = conc.get("movimientos_internos", 0)
-
-    if variacion > 0:
+    if flujo.get("variacion", 0) > 0:
         diagnosticos.append(
-            f"La caja mejoró en el período, con una variación positiva de € {fmt_importe_reporte(variacion)}."
+            f"La caja mejoró en el período, con una variación positiva de € {fmt_importe_reporte(flujo.get('variacion', 0))}."
         )
-    elif variacion < 0:
+    elif flujo.get("variacion", 0) < 0:
         diagnosticos.append(
-            f"La caja se deterioró en el período, con una variación negativa de € {fmt_importe_reporte(abs(variacion))}."
+            f"La caja se deterioró en el período, con una variación negativa de € {fmt_importe_reporte(abs(flujo.get('variacion', 0)))}."
         )
     else:
+        diagnosticos.append("La caja cerró prácticamente al mismo nivel con el que empezó el período.")
+
+    if conc.get("pendientes", 0) > 0:
         diagnosticos.append(
-            "La caja cerró prácticamente al mismo nivel con el que empezó el período."
+            f"Persisten {conc.get('pendientes', 0)} {pluralizar(conc.get('pendientes', 0), 'factura pendiente', 'facturas pendientes')}, "
+            f"con € {fmt_importe_reporte(conc.get('importe_pendiente', 0))} todavía por validar o cerrar."
         )
 
-    if pendientes > 0:
+    if conc.get("sin_soporte", 0) > 0:
         diagnosticos.append(
-            f"Persisten {pendientes} {pluralizar(pendientes, 'factura pendiente', 'facturas pendientes')}, con € {fmt_importe_reporte(importe_pendiente)} todavía por validar o cerrar."
+            f"Se identificaron {conc.get('sin_soporte', 0)} {pluralizar(conc.get('sin_soporte', 0), 'movimiento relevante sin soporte', 'movimientos relevantes sin soporte')}, "
+            "lo que reduce la confiabilidad del cierre."
         )
 
-    if sin_soporte > 0:
+    if conc.get("movimientos_internos", 0) > 0:
         diagnosticos.append(
-            f"Se identificaron {sin_soporte} {pluralizar(sin_soporte, 'movimiento relevante sin soporte', 'movimientos relevantes sin soporte')}, lo que reduce la confiabilidad del cierre."
+            f"Hay {conc.get('movimientos_internos', 0)} {pluralizar(conc.get('movimientos_internos', 0), 'movimiento interno', 'movimientos internos')} "
+            "que no deben confundirse con gasto comercial."
         )
 
-    if duplicados > 0:
-        diagnosticos.append(
-            f"Se detectaron {duplicados} {pluralizar(duplicados, 'duplicado potencial', 'duplicados potenciales')}, que conviene revisar antes de considerar el período como cerrado."
-        )
-
-    if probables > 0 or probables_multi > 0:
-        total_probables = probables + probables_multi
-        diagnosticos.append(
-            f"Existen {total_probables} conciliaciones no exactas que todavía requieren validación adicional."
-        )
-
-    if movimientos_internos > 0:
-        diagnosticos.append(
-            f"Hay {movimientos_internos} {pluralizar(movimientos_internos, 'movimiento interno', 'movimientos internos')} que no deben confundirse con gasto comercial."
-        )
-
-    if (
-        pendientes == 0
-        and sin_soporte == 0
-        and duplicados == 0
-        and probables == 0
-        and probables_multi == 0
-        and movimientos_internos == 0
-    ):
-        diagnosticos.append(
-            "No se detectan alertas relevantes de conciliación o soporte documental en el período."
-        )
+    if not diagnosticos:
+        diagnosticos.append("No se detectan alertas materiales en la lectura preliminar del período.")
 
     return diagnosticos[:5]
+
 
 def generar_recomendaciones_financieras(flujo, conc):
     recomendaciones = []
 
-    pendiente_cobro = conc.get("pendiente_cobro", 0)
-    pendiente_pago = conc.get("pendiente_pago", 0)
-    sin_soporte = conc.get("sin_soporte", 0)
-    movimientos_internos = conc.get("movimientos_internos", 0)
-    duplicados = conc.get("duplicados", 0)
-    variacion = flujo.get("variacion", 0)
-
-    if sin_soporte > 0 and conc.get("pendientes", 0) > 0:
+    if conc.get("pendiente_cobro", 0) > 0:
         recomendaciones.append(
-            "Cerrar primero las facturas pendientes y conseguir soporte documental de los movimientos bancarios relevantes antes de dar por válido el cierre."
+            f"Priorizar el cobro de facturas pendientes por € {fmt_importe_reporte(conc.get('pendiente_cobro', 0))}."
         )
 
-    if pendiente_cobro > 0:
+    if conc.get("pendiente_pago", 0) > 0:
         recomendaciones.append(
-            f"Priorizar el cobro de facturas pendientes por € {fmt_importe_reporte(pendiente_cobro)}."
+            f"Verificar el calendario de pago de compras pendientes por € {fmt_importe_reporte(conc.get('pendiente_pago', 0))}."
         )
 
-    if pendiente_pago > 0:
-        recomendaciones.append(
-            f"Verificar el calendario de pago de compras pendientes por € {fmt_importe_reporte(pendiente_pago)}."
-        )
-
-    if sin_soporte > 0:
+    if conc.get("sin_soporte", 0) > 0:
         recomendaciones.append(
             "Solicitar o localizar soporte documental de los movimientos relevantes detectados en banco."
         )
 
-    if duplicados > 0:
-        recomendaciones.append(
-            "Revisar inmediatamente los posibles duplicados antes de cerrar el período."
-        )
-
-    if movimientos_internos > 0:
+    if conc.get("movimientos_internos", 0) > 0:
         recomendaciones.append(
             "Separar formalmente los retiros propios y movimientos internos del gasto operativo del negocio."
         )
 
-    if variacion < 0:
+    if flujo.get("variacion", 0) < 0:
         recomendaciones.append(
             "Revisar el ritmo de salidas frente a entradas para evitar presión adicional sobre la liquidez."
         )
 
-    if not recomendaciones:
+    if conc.get("duplicados", 0) > 0:
         recomendaciones.append(
-            "Mantener el control documental y repetir este cierre con periodicidad mensual."
+            "Revisar inmediatamente los posibles duplicados antes de cerrar el período."
         )
 
-    # eliminar duplicadas conservando orden
-    recomendaciones_unicas = []
-    vistas = set()
-    for r in recomendaciones:
-        if r not in vistas:
-            vistas.add(r)
-            recomendaciones_unicas.append(r)
+    if not recomendaciones:
+        recomendaciones.append("Mantener el control documental y repetir este cierre con periodicidad mensual.")
 
-    return recomendaciones_unicas[:5]
+    return recomendaciones[:5]
 
 
 def generar_insight_ejecutivo(flujo, conc):
     pendientes = conc.get("pendientes", 0)
     sin_soporte = conc.get("sin_soporte", 0)
-    duplicados = conc.get("duplicados", 0)
     movimientos_internos = conc.get("movimientos_internos", 0)
     variacion = flujo.get("variacion", 0)
 
     if sin_soporte > 0 and pendientes > 0:
         return (
-            "El principal problema del período no parece ser la liquidez, sino que el cierre sigue siendo poco confiable por la combinación de facturas pendientes y movimientos sin soporte."
-        )
-
-    if variacion < 0 and (sin_soporte > 0 or pendientes > 0):
-        return (
-            "La caída de caja coincide con validaciones todavía abiertas, lo que eleva el riesgo del cierre y exige revisión prioritaria."
-        )
-
-    if duplicados > 0:
-        return (
-            "El período ya permite una lectura útil, pero los duplicados potenciales pueden distorsionar el cierre si no se revisan antes de consolidarlo."
+            "La principal debilidad del período no parece ser la liquidez, sino la falta de respaldo suficiente para dar el cierre por confiable."
         )
 
     if movimientos_internos > 0 and sin_soporte == 0 and pendientes == 0:
         return (
             "La operación luce relativamente ordenada, pero conviene separar mejor los movimientos internos para no confundirlos con gasto real del negocio."
+        )
+
+    if variacion < 0 and sin_soporte > 0:
+        return (
+            "La combinación de caída de caja y movimientos sin respaldo sugiere una señal de riesgo que conviene corregir antes del próximo cierre."
         )
 
     if variacion > 0 and pendientes == 0 and sin_soporte == 0:
@@ -1150,6 +845,7 @@ def generar_insight_ejecutivo(flujo, conc):
     return (
         "El período ya permite una lectura útil para decidir, pero todavía no alcanza el nivel de orden documental ideal para cerrar con plena confianza."
     )
+
 
 def generar_html_resultado(total, clasificados, importes, documentos, ledger=None, conciliacion=None):
     assert BRANDING["modo"] in BRANDING, f"Modo inválido en BRANDING: {BRANDING.get('modo')}"
@@ -1189,26 +885,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     def texto_lectura_ejecutiva(flujo, conc, docs):
         return construir_narrativa_ejecutiva(total, docs, flujo, conc)
 
-    def resolver_banco_visible(item):
-        partes = []
-        ignorar = {"", "-", "No detectado", "No detectada", "None", "null"}
-
-        for valor in [item.get("banco"), item.get("entidad_financiera"), item.get("cuenta")]:
-            valor = str(valor).strip() if valor is not None else ""
-            if valor and valor not in ignorar and valor not in partes:
-                partes.append(valor)
-
-        return " | ".join(partes) if partes else "No detectado"
-
-    def resolver_cliente_proveedor_visible(item):
-        valor = item.get("cliente_proveedor")
-        valor = str(valor).strip() if valor is not None else ""
-
-        if not valor or valor in {"-", "No detectado", "None", "null"}:
-            return "No detectado"
-
-        return valor
-
     def clase_badge_categoria(categoria):
         categoria = (categoria or "").lower()
 
@@ -1225,77 +901,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             return "badge-yellow"
 
         return "badge-gray"
-
-    def slug_filtro(valor, prefijo="f"):
-        valor = str(valor or "").strip().lower()
-        valor = re.sub(r"\s*\|\s*", " ", valor)
-        valor = re.sub(r"[^a-z0-9áéíóúüñ]+", "-", valor, flags=re.IGNORECASE)
-        valor = valor.strip("-")
-        return f"{prefijo}-{valor}" if valor else f"{prefijo}-no-detectado"
-
-    def extraer_opciones_filtro_movimientos():
-        analisis = analizar_movimientos_bancarios()
-        movimientos = analisis["entradas_relevantes"] + analisis["salidas_relevantes"]
-
-        bancos = []
-        bancos_vistos = set()
-        contrapartes = []
-        contrapartes_vistas = set()
-
-        for item in movimientos:
-            banco = resolver_banco_visible(item)
-            cp = resolver_cliente_proveedor_visible(item)
-
-            if banco not in bancos_vistos:
-                bancos_vistos.add(banco)
-                bancos.append(banco)
-
-            if cp not in contrapartes_vistas:
-                contrapartes_vistas.add(cp)
-                contrapartes.append(cp)
-
-        return {
-            "bancos": sorted(bancos, key=lambda x: (x == "No detectado", x.lower())),
-            "contrapartes": sorted(contrapartes, key=lambda x: (x == "No detectado", x.lower())),
-        }
-
-    def extraer_opciones_filtro_conciliacion():
-        bancos = []
-        bancos_vistos = set()
-        contrapartes = []
-        contrapartes_vistas = set()
-
-        for item in conciliacion or []:
-            banco = resolver_banco_visible(item)
-            cp = resolver_cliente_proveedor_visible(item)
-
-            if banco not in bancos_vistos:
-                bancos_vistos.add(banco)
-                bancos.append(banco)
-
-            if cp not in contrapartes_vistas:
-                contrapartes_vistas.add(cp)
-                contrapartes.append(cp)
-
-        return {
-            "bancos": sorted(bancos, key=lambda x: (x == "No detectado", x.lower())),
-            "contrapartes": sorted(contrapartes, key=lambda x: (x == "No detectado", x.lower())),
-        }
-
-    def construir_select_filtro(label, filtro_tipo, opciones, target_id):
-        opciones_html = ['<option value="all">Todos</option>']
-        for op in opciones:
-            slug = slug_filtro(op, filtro_tipo)
-            opciones_html.append(f'<option value="{slug}">{op}</option>')
-
-        return f"""
-        <div class="smart-filter">
-            <label>{label}</label>
-            <select class="smart-filter-select" data-filter-type="{filtro_tipo}" data-target="{target_id}">
-                {''.join(opciones_html)}
-            </select>
-        </div>
-        """
 
     def construir_botones_movimientos(section_target):
         botones = [
@@ -1314,23 +919,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 f'<button class="{clase}" type="button" '
                 f'data-filter="{valor}" data-target="{section_target}">{etiqueta}</button>'
             )
-
-        opciones = extraer_opciones_filtro_movimientos()
-
-        html += construir_select_filtro(
-            "Banco",
-            "bank",
-            opciones["bancos"],
-            section_target,
-        )
-
-        html += construir_select_filtro(
-            "Cliente / Proveedor",
-            "cp",
-            opciones["contrapartes"],
-            section_target,
-        )
-
         return html
 
     def construir_botones_conciliacion(section_target):
@@ -1351,25 +939,8 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 f'<button class="{clase}" type="button" '
                 f'data-filter="{valor}" data-target="{section_target}">{etiqueta}</button>'
             )
-
-        opciones = extraer_opciones_filtro_conciliacion()
-
-        html += construir_select_filtro(
-            "Banco",
-            "bank",
-            opciones["bancos"],
-            section_target,
-        )
-
-        html += construir_select_filtro(
-            "Cliente / Proveedor",
-            "cp",
-            opciones["contrapartes"],
-            section_target,
-        )
-
         return html
-        
+
     def construir_bloque_colapsable(titulo, cuerpo_html, subtitulo="", abierto=False, extra_class=""):
         clase_activa = "active" if abierto else ""
         estado_inicial = "block" if abierto else "none"
@@ -1394,18 +965,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
-    def clase_tarjeta_banco(nombre_banco):
-        nombre = (nombre_banco or "").strip().lower()
-
-        if nombre == "total":
-            return "bank-card bank-card-total"
-        if nombre == "paypal":
-            return "bank-card bank-card-wallet"
-        if nombre == "n26":
-            return "bank-card bank-card-bank"
-
-        return "bank-card bank-card-generic"
-    
     def tabla_ledger_html():
         if not ledger:
             return """
@@ -1467,15 +1026,11 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 tags.append("salidas")
                 if item["categoria"] in ["pago_proveedor", "gasto_operativo", "otros_pagos"]:
                     tags.append("pagos")
-                if item["categoria"] in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
+                if item["categoria"] in ["retiro_propio", "transferencia_interna", "traspaso"]:
                     tags.append("internos")
 
             cards += f"""
-            <article class="mobile-movement-card {clase}"
-                data-kind="{' '.join(sorted(set(tags)))}"
-                data-bank="{slug_filtro(resolver_banco_visible(item), 'bank')}"
-                data-cp="{slug_filtro(resolver_cliente_proveedor_visible(item), 'cp')}"
-                data-target-section="{section_target}">
+            <article class="mobile-movement-card {clase}" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="{section_target}">
                 <div class="mobile-movement-head">
                     <span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span>
                     <span class="mobile-amount">€ {item['importe_fmt']}</span>
@@ -1483,14 +1038,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 <div class="mobile-meta-row">
                     <span class="mobile-label">Fecha</span>
                     <span class="mono">{item['fecha']}</span>
-                </div>
-                    <div class="mobile-meta-row">
-                    <span class="mobile-label">Banco</span>
-                    <span>{resolver_banco_visible(item)}</span>
-                </div>
-                <div class="mobile-meta-row">
-                    <span class="mobile-label">Cliente / Proveedor</span>
-                    <span>{resolver_cliente_proveedor_visible(item)}</span>
                 </div>
                 <div class="mobile-meta-row">
                     <span class="mobile-label">Naturaleza</span>
@@ -1555,13 +1102,9 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             <tr class="{clase} mov-row"
                 data-kind="{' '.join(sorted(set(tags)))}"
                 data-category="{item['categoria']}"
-                data-bank="{slug_filtro(resolver_banco_visible(item), 'bank')}"
-                data-cp="{slug_filtro(resolver_cliente_proveedor_visible(item), 'cp')}"
                 data-target-section="movimientos-section">
                 <td class="mono">{item['fecha']}</td>
                 <td>{item['descripcion']}</td>
-                <td>{resolver_banco_visible(item)}</td>
-                <td>{resolver_cliente_proveedor_visible(item)}</td>
                 <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
                 <td class="mono">€ {item['importe_fmt']}</td>
             </tr>
@@ -1593,8 +1136,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         <tr>
                             <th>Fecha</th>
                             <th>Descripción</th>
-                            <th>Banco</th>
-                            <th>Cliente / Proveedor</th>
                             <th>Categoría</th>
                             <th>Importe</th>
                         </tr>
@@ -1674,28 +1215,18 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 tags.append("internos")
 
             filas += f"""
-            <tr class="conc-row"
-                data-kind="{' '.join(sorted(set(tags)))}"
-                data-bank="{slug_filtro(resolver_banco_visible(item), 'bank')}"
-                data-cp="{slug_filtro(resolver_cliente_proveedor_visible(item), 'cp')}"
-                data-target-section="conciliacion-section">
+            <tr class="conc-row" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="conciliacion-section">
                 <td>{item.get('archivo', '-')}</td>
                 <td class="mono">{item.get('fecha', '-')}</td>
-                <td>{resolver_banco_visible(item)}</td>
-                <td>{resolver_cliente_proveedor_visible(item)}</td>
                 <td class="mono">€ {importe}</td>
                 <td><span class="badge {badge_class}">{estado}</span></td>
                 <td class="mono">{diferencia if diferencia == '-' else '€ ' + diferencia}</td>
                 <td><span class="badge {clase_badge_categoria(item.get('categoria'))}">{humanizar_categoria(item.get('categoria'))}</span></td>
             </tr>
             """
-            
+
             cards += f"""
-            <article class="mobile-conc-card"
-                data-kind="{' '.join(sorted(set(tags)))}"
-                data-bank="{slug_filtro(resolver_banco_visible(item), 'bank')}"
-                data-cp="{slug_filtro(resolver_cliente_proveedor_visible(item), 'cp')}"
-                data-target-section="conciliacion-section">
+            <article class="mobile-conc-card" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="conciliacion-section">
                 <div class="mobile-conc-head">
                     <span class="badge {badge_class}">{estado}</span>
                     <span class="mobile-amount">€ {importe}</span>
@@ -1709,14 +1240,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     <span class="mono">{item.get('fecha', '-')}</span>
                 </div>
                 <div class="mobile-meta-row">
-                    <span class="mobile-label">Banco</span>
-                    <span>{resolver_banco_visible(item)}</span>
-                </div>
-                <div class="mobile-meta-row">
-                    <span class="mobile-label">Cliente / Proveedor</span>
-                    <span>{resolver_cliente_proveedor_visible(item)}</span>
-                </div>
-                <div class="mobile-meta-row">
                     <span class="mobile-label">Diferencia</span>
                     <span class="mono">{diferencia if diferencia == '-' else '€ ' + diferencia}</span>
                 </div>
@@ -1726,7 +1249,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 </div>
             </article>
             """
-            
+
         return f"""
         <div class="table-shell compact-shell">
             <div class="filter-toolbar">
@@ -1738,8 +1261,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                         <tr>
                             <th>Archivo</th>
                             <th>Fecha</th>
-                            <th>Banco</th>
-                            <th>Cliente / Proveedor</th>
                             <th>Importe</th>
                             <th>Estado</th>
                             <th>Diferencia</th>
@@ -1813,58 +1334,6 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         </div>
         """
 
-    def tarjetas_resumen_bancos_html():
-        tarjetas = construir_resumen_por_banco(ledger)
-
-        if not tarjetas:
-            return """
-            <div class="empty-state">
-                <p>No hay bancos detectados para resumir.</p>
-            </div>
-            """
-
-        html = ""
-        for item in tarjetas:
-            banco = item["banco"]
-            entradas = item["entradas"]
-            salidas = item["salidas"]
-            movimientos = item["movimientos"]
-            cantidad = item["cantidad"]
-            saldo_neto = item["saldo_neto"]
-
-            if saldo_neto > 0:
-                tendencia = "trend up"
-                tendencia_texto = f"Neto: +€ {fmt(saldo_neto)}"
-            elif saldo_neto < 0:
-                tendencia = "trend down"
-                tendencia_texto = f"Neto: -€ {fmt(abs(saldo_neto))}"
-            else:
-                tendencia = "trend gray"
-                tendencia_texto = "Neto: € 0,00"
-
-            html += f"""
-            <article class="{clase_tarjeta_banco(banco)}">
-                <div class="label">{banco}</div>
-                <div class="amount">€ {fmt(movimientos)}</div>
-                <div class="meta-block">
-                    <div class="meta-line"><span>Entradas</span><strong>€ {fmt(entradas)}</strong></div>
-                    <div class="meta-line"><span>Salidas</span><strong>€ {fmt(salidas)}</strong></div>
-                    <div class="meta-line"><span>Movimientos</span><strong>{cantidad}</strong></div>
-                </div>
-                <div class="meta">
-                    <span class="{tendencia}">{tendencia_texto}</span>
-                    <span>Banco</span>
-                </div>
-            </article>
-            """
-
-        return f"""
-        <div class="bank-cards-grid">
-            {html}
-        </div>
-        """
-    
-    
     def _seleccionar_importes_presentables(importes_lista, max_visibles=200):
         if not importes_lista:
             return []
@@ -2090,49 +1559,13 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     flujo = resumen_flujo()
     conc = resumen_conciliacion()
     nombre_empresa = inferir_nombre_empresa(documentos, ledger)
-
-    if nombre_empresa and re.search(r"\d{1,3}(?:\.\d{3})*,\d{2}", str(nombre_empresa)):
-        nombre_empresa = None
-
-    nombre_empresa_titulo = (
-        nombre_empresa
-        if nombre_empresa and nombre_empresa != "la empresa"
-        else "la empresa analizada"
-    )    
+    nombre_empresa_titulo = nombre_empresa if nombre_empresa and nombre_empresa != "la empresa" else "la empresa analizada"
     titular_ejecutivo, narrativa_ejecutiva = texto_lectura_ejecutiva(flujo, conc, docs)
     score_financiero = calcular_score_financiero(flujo, conc)
     etiqueta_score = texto_score_financiero(score_financiero)
     diagnosticos = generar_diagnostico_financiero(flujo, conc)
     recomendaciones = generar_recomendaciones_financieras(flujo, conc)
     insight_ejecutivo = generar_insight_ejecutivo(flujo, conc)
-
-    # === ALERTAS DINÁMICAS ===
-    alerta_pendientes_color = "yellow" if conc["pendientes"] > 0 else "green"
-    alerta_pendientes_tag = "Revisar" if conc["pendientes"] > 0 else "Bien"
-    alerta_pendientes_titulo = (
-        "El cierre todavía requiere seguimiento"
-        if conc["pendientes"] > 0
-        else "No se observan pendientes documentales relevantes"
-    )
-    alerta_pendientes_texto = (
-        f"Persisten {conc['pendientes']} {pluralizar(conc['pendientes'], 'factura pendiente', 'facturas pendientes')} y € {fmt(conc['importe_pendiente'])} todavía por cerrar o validar antes de considerar el período razonablemente completo."
-        if conc["pendientes"] > 0
-        else "No se observan facturas pendientes relevantes en la estructura analizada."
-    )
-
-    hay_alerta_soporte = conc.get("sin_soporte", 0) > 0 or conc.get("sin_soporte_menor", 0) > 0
-    alerta_soporte_color = "red" if hay_alerta_soporte else "green"
-    alerta_soporte_tag = "Atención" if hay_alerta_soporte else "Bien"
-    alerta_soporte_titulo = (
-        "Movimientos sin soporte detectados"
-        if hay_alerta_soporte
-        else "Soporte documental sin alertas relevantes"
-    )
-    alerta_soporte_texto = (
-        f"Se detectan {conc.get('sin_soporte', 0)} {pluralizar(conc.get('sin_soporte', 0), 'movimiento relevante sin soporte documental', 'movimientos relevantes sin soporte documental')} y {conc.get('sin_soporte_menor', 0)} {pluralizar(conc.get('sin_soporte_menor', 0), 'movimiento menor sin soporte directo', 'movimientos menores sin soporte directo')}."
-        if hay_alerta_soporte
-        else "No se detectan alertas relevantes de soporte documental en los movimientos revisados."
-    )
 
     total_docs_clasificados = docs["factura_venta"] + docs["factura_compra"] + docs["extracto_bancario"] + docs["otros"]
 
@@ -3779,7 +3212,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     }}
 }}        
 
-</style>
+        </style>
     </head>
     <body>
         <div class="wrap">
@@ -3890,29 +3323,59 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                             <p class="section-sub">Vista sintética del flujo, la calidad del cierre y los principales puntos de atención para la gestión del negocio.</p>
                         </div>
                     </div>
-                
-                    {tarjetas_resumen_bancos_html()}
-                
-                    <div class="alerts-grid">
+
+                    <div class="metrics-grid">
+                        <article class="kpi">
+                            <div class="label">Volumen total movido (entradas + salidas)</div>
+                            <div class="amount">€ {fmt(flujo["movimientos"])}</div>
+                            <div class="meta"><span class="trend up">Actividad</span><span>Caja</span></div>
+                        </article>
+
+                        <article class="kpi">
+                            <div class="label">Retenido</div>
+                            <div class="amount">€ {fmt(flujo["retenido"])}</div>
+                            <div class="meta"><span class="trend warn">Liquidez</span><span>Bloqueada</span></div>
+                        </article>
+
+                        <article class="kpi">
+                            <div class="label">Facturas conciliadas</div>
+                            <div class="amount">{conc["conciliadas"]}</div>
+                            <div class="meta"><span class="trend up">Correcto</span><span>Exactas</span></div>
+                        </article>
+
+                        <article class="kpi">
+                            <div class="label">Facturas pendientes</div>
+                            <div class="amount">{conc["pendientes"]}</div>
+                            <div class="meta"><span class="trend down">Seguimiento</span><span>Documental</span></div>
+                        </article>
+
+                        <article class="kpi">
+                            <div class="label">Movimientos sin soporte</div>
+                            <div class="amount">{conc.get("sin_soporte", 0)}</div>
+                            <div class="meta"><span class="trend down">Banco</span><span>Revisar</span></div>
+                        </article>
+                    </div>
+
+                    <section class="alerts-grid">
                         <article class="alert-card green">
                             <div class="alert-tag">Bien</div>
                             <h4>Base contable ya organizada</h4>
                             <p>La documentación cargada ya se transformó en una estructura útil para lectura gerencial y revisión financiera.</p>
                         </article>
-                
-                        <article class="alert-card {alerta_pendientes_color}">
-                            <div class="alert-tag">{alerta_pendientes_tag}</div>
-                            <h4>{alerta_pendientes_titulo}</h4>
-                            <p>{alerta_pendientes_texto}</p>
+
+                        <article class="alert-card yellow">
+                            <div class="alert-tag">Revisar</div>
+                            <h4>El cierre todavía requiere seguimiento</h4>
+                            <p>Persisten {conc["pendientes"]} {pluralizar(conc["pendientes"], "factura pendiente", "facturas pendientes")} y € {fmt(conc["importe_pendiente"])} todavía por cerrar o validar antes de considerar el período razonablemente completo.</p>
                         </article>
-                
-                        <article class="alert-card {alerta_soporte_color}">
-                            <div class="alert-tag">{alerta_soporte_tag}</div>
-                            <h4>{alerta_soporte_titulo}</h4>
-                            <p>{alerta_soporte_texto}</p>
+
+                        <article class="alert-card red">
+                            <div class="alert-tag">Atención</div>
+                            <h4>Movimientos sin soporte detectados</h4>
+                            <p>Se detectan {conc.get("sin_soporte", 0)} {pluralizar(conc.get("sin_soporte", 0), "movimiento relevante sin soporte documental", "movimientos relevantes sin soporte documental")} y {conc.get("sin_soporte_menor", 0)} {pluralizar(conc.get("sin_soporte_menor", 0), "movimiento menor sin soporte directo", "movimientos menores sin soporte directo")}.</p>
                         </article>
-                    </div>
-                
+                    </section>
+
                     {bloque_como_leer}
                 </section>
 
@@ -4067,119 +3530,88 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </main>
         </div>
 
-<script>
-    (function() {{
-        function scrollToTarget(targetId) {{
-            const target = document.getElementById(targetId);
-            if (target) {{
-                target.scrollIntoView({{ behavior: "smooth", block: "start" }});
-            }}
-        }}
-
-        function getActiveButtonFilter(targetId) {{
-            const activeBtn = document.querySelector('.filter-btn.active[data-target="' + targetId + '"]');
-            return activeBtn ? activeBtn.getAttribute("data-filter") || "all" : "all";
-        }}
-
-        function getActiveSelectFilter(targetId, filterType) {{
-            const select = document.querySelector(
-                '.smart-filter-select[data-target="' + targetId + '"][data-filter-type="' + filterType + '"]'
-            );
-            return select ? (select.value || "all") : "all";
-        }}
-
-        function applyCombinedFilters(targetId, doScroll = true) {{
-            const allRows = document.querySelectorAll('[data-target-section="' + targetId + '"]');
-            const activeKind = getActiveButtonFilter(targetId);
-            const activeBank = getActiveSelectFilter(targetId, "bank");
-            const activeCp = getActiveSelectFilter(targetId, "cp");
-
-            allRows.forEach(el => {{
-                const kinds = (el.getAttribute("data-kind") || "").split(" ").filter(Boolean);
-                const bank = el.getAttribute("data-bank") || "all";
-                const cp = el.getAttribute("data-cp") || "all";
-
-                const matchesKind = activeKind === "all" || kinds.includes(activeKind);
-                const matchesBank = activeBank === "all" || bank === activeBank;
-                const matchesCp = activeCp === "all" || cp === activeCp;
-
-                if (matchesKind && matchesBank && matchesCp) {{
-                    el.classList.remove("is-hidden");
-                }} else {{
-                    el.classList.add("is-hidden");
-                }}
-            }});
-
-            if (doScroll) {{
-                scrollToTarget(targetId);
-            }}
-        }}
-
-        function applyFilter(value, targetId) {{
-            const buttons = document.querySelectorAll('.filter-btn[data-target="' + targetId + '"]');
-
-            buttons.forEach(btn => {{
-                if (btn.getAttribute("data-filter") === value) {{
-                    btn.classList.add("active");
-                }} else {{
-                    btn.classList.remove("active");
-                }}
-            }});
-
-            applyCombinedFilters(targetId, true);
-        }}
-
-        function bindAccordions() {{
-            document.querySelectorAll(".accordion-toggle").forEach(btn => {{
-                btn.addEventListener("click", function() {{
-                    const panel = this.nextElementSibling;
-                    const icon = this.querySelector(".accordion-icon");
-                    const isOpen = this.classList.contains("active");
-
-                    if (isOpen) {{
-                        this.classList.remove("active");
-                        panel.style.display = "none";
-                        if (icon) icon.textContent = "+";
-                    }} else {{
-                        this.classList.add("active");
-                        panel.style.display = "block";
-                        if (icon) icon.textContent = "−";
+        <script>
+            (function() {{
+                function scrollToTarget(targetId) {{
+                    const target = document.getElementById(targetId);
+                    if (target) {{
+                        target.scrollIntoView({{ behavior: "smooth", block: "start" }});
                     }}
+                }}
+
+                function applyFilter(value, targetId) {{
+                    const allRows = document.querySelectorAll("[data-kind]");
+                    const buttons = document.querySelectorAll('.filter-btn[data-target="' + targetId + '"]');
+
+                    buttons.forEach(btn => {{
+                        if (btn.getAttribute("data-filter") === value) {{
+                            btn.classList.add("active");
+                        }} else {{
+                            btn.classList.remove("active");
+                        }}
+                    }});
+
+                    allRows.forEach(el => {{
+                        const elementTarget = el.getAttribute("data-target-section");
+                        if (elementTarget && elementTarget !== targetId) {{
+                            return;
+                        }}
+
+                        const kinds = (el.getAttribute("data-kind") || "").split(" ").filter(Boolean);
+                        if (value === "all" || kinds.includes(value)) {{
+                            el.classList.remove("is-hidden");
+                        }} else {{
+                            el.classList.add("is-hidden");
+                        }}
+                    }});
+
+                    scrollToTarget(targetId);
+                }}
+
+                function bindAccordions() {{
+                    document.querySelectorAll(".accordion-toggle").forEach(btn => {{
+                        btn.addEventListener("click", function() {{
+                            const panel = this.nextElementSibling;
+                            const icon = this.querySelector(".accordion-icon");
+                            const isOpen = this.classList.contains("active");
+
+                            if (isOpen) {{
+                                this.classList.remove("active");
+                                panel.style.display = "none";
+                                if (icon) icon.textContent = "+";
+                            }} else {{
+                                this.classList.add("active");
+                                panel.style.display = "block";
+                                if (icon) icon.textContent = "−";
+                            }}
+                        }});
+                    }});
+                }}
+
+                document.querySelectorAll(".filter-btn").forEach(btn => {{
+                    btn.addEventListener("click", function() {{
+                        const value = this.getAttribute("data-filter") || "all";
+                        const targetId = this.getAttribute("data-target") || "movimientos-section";
+                        applyFilter(value, targetId);
+                    }});
                 }});
-            }});
-        }}
 
-        document.querySelectorAll(".filter-btn").forEach(btn => {{
-            btn.addEventListener("click", function() {{
-                const value = this.getAttribute("data-filter") || "all";
-                const targetId = this.getAttribute("data-target") || "movimientos-section";
-                applyFilter(value, targetId);
-            }});
-        }});
+                bindAccordions();
+                applyFilter("all", "movimientos-section");
+                applyFilter("all", "conciliacion-section");
+            }})();
 
-        document.querySelectorAll(".smart-filter-select").forEach(select => {{
-            select.addEventListener("change", function() {{
-                const targetId = this.getAttribute("data-target") || "movimientos-section";
-                applyCombinedFilters(targetId, true);
-            }});
-        }});
+if ('scrollRestoration' in history) {{
+    history.scrollRestoration = 'manual';
+}}
 
-        bindAccordions();
-        applyCombinedFilters("movimientos-section", false);
-        applyCombinedFilters("conciliacion-section", false);
-    }})();
-
-    if ('scrollRestoration' in history) {{
-        history.scrollRestoration = 'manual';
-    }}
-
-    window.addEventListener("load", function () {{
-        setTimeout(() => window.scrollTo(0, 0), 0);
-    }});
-</script>
-
+window.addEventListener("load", function () {{
+    setTimeout(() => window.scrollTo(0, 0), 0);
+}});
+        </script>
     </body>
     </html>
     """
 
     return html
+
