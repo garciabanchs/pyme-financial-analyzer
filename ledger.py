@@ -532,6 +532,76 @@ def _normalizar_cliente_proveedor_detectado(valor):
     if not _es_cliente_proveedor_aceptable(valor):
         return None
     return limpiar_descripcion(valor).strip(" -:|,.;")[:120]
+    
+
+def _parece_nombre_empresa_factura(linea):
+    if not linea:
+        return False
+
+    linea = limpiar_descripcion(linea).strip(" -:|,.;")
+    if not linea:
+        return False
+
+    linea_norm = _normalizar_texto_base(linea)
+
+    # demasiado corta o demasiado larga
+    if len(linea) < 5 or len(linea) > 120:
+        return False
+
+    # basura típica
+    basura = [
+        "factura",
+        "invoice",
+        "fecha",
+        "date",
+        "vencimiento",
+        "subtotal",
+        "total",
+        "base imponible",
+        "iva",
+        "cuota",
+        "importe",
+        "forma de pago",
+        "nro",
+        "numero",
+        "albaran",
+        "pedido",
+        "referencia",
+        "extracto",
+        "statement",
+        "resumen",
+        "pagina",
+        "page",
+        "cliente",
+        "proveedor",
+        "emisor",
+        "razon social",
+        "datos del cliente",
+    ]
+    if any(b in linea_norm for b in basura):
+        return False
+
+    # no debe parecer importe o fecha o identificador puro
+    if PATRON_IMPORTE.search(linea):
+        return False
+    if PATRON_FECHA.search(linea):
+        return False
+    if PATRON_IBAN.search(linea.upper()):
+        return False
+    if PATRON_SWIFT_BIC.search(linea.upper()):
+        return False
+
+    # debe tener letras
+    letras = sum(1 for c in linea if c.isalpha())
+    if letras < 4:
+        return False
+
+    # suele ser un nombre corporativo corto/medio
+    palabras = [p for p in re.split(r"\s+", linea) if p]
+    if len(palabras) > 8:
+        return False
+
+    return True
 
 
 def inferir_banco_desde_fuentes(archivo=None, texto=None, bloque_texto=None, resumen_extracto=None):
@@ -1098,12 +1168,19 @@ def _limpiar_cliente_proveedor(valor):
         return None
 
     valor = re.sub(
-        r"\b(?:invoice|factura|payment|pago|transferencia|transfer|sepa|wire|iban|swift|bic|date|fecha|importe|amount|statement|extracto|summary|overview|saldo|movimiento|transaction|merchant services)\b",
+        r"\b(?:invoice|factura|payment|pago|transferencia|transfer|sepa|wire|iban|swift|bic|date|fecha|importe|amount|statement|extracto|summary|overview|saldo|movimiento|transaction|merchant services|nro\.?\s*de\s*factura|fecha\s*de\s*factura|forma\s*de\s*pago|anticipo\s*cuenta)\b",
         " ",
         valor,
         flags=re.IGNORECASE,
     )
+
     valor = re.sub(r"\s+", " ", valor).strip(" -:|,.;")
+
+    if not valor:
+        return None
+
+    # corta si después del nombre aparece una línea OCR rara o demasiado larga
+    valor = valor.split("  ")[0].strip()
 
     return _normalizar_cliente_proveedor_detectado(valor)
 
@@ -1156,6 +1233,48 @@ def inferir_cliente_proveedor(texto=None, archivo=None, tipo_doc=None, categoria
     archivo = archivo or ""
     tipo_doc = tipo_doc or ""
     categoria = categoria or ""
+    # =====================================================
+    # PRIORIDAD ALTA: facturas
+    # Regla:
+    # - factura_venta  -> buscamos cliente
+    # - factura_compra -> buscamos proveedor / emisor
+    # =====================================================
+    lineas = [limpiar_descripcion(x) for x in texto.splitlines() if limpiar_descripcion(x)]
+
+    if tipo_doc == "factura_venta":
+        patrones_venta = [
+            r"\bcliente\s*[:\-]\s*(.+)",
+            r"\bdatos del cliente\s*[:\-]?\s*(.+)",
+            r"\bdestinatario\s*[:\-]?\s*(.+)",
+            r"\bseñor(?:es)?\s*[:\-]?\s*(.+)",
+        ]
+
+        for linea in lineas[:80]:
+            for patron in patrones_venta:
+                m = re.search(patron, linea, flags=re.IGNORECASE)
+                if m:
+                    candidato = _limpiar_cliente_proveedor(m.group(1))
+                    if candidato:
+                        return candidato
+
+    if tipo_doc == "factura_compra":
+        patrones_compra = [
+            r"\bproveedor\s*[:\-]\s*(.+)",
+            r"\bemisor\s*[:\-]?\s*(.+)",
+            r"\braz[oó]n social\s*[:\-]?\s*(.+)",
+            r"\bsupplier\s*[:\-]\s*(.+)",
+            r"\bvendor\s*[:\-]\s*(.+)",
+        ]
+
+        for linea in lineas[:80]:
+            for patron in patrones_compra:
+                m = re.search(patron, linea, flags=re.IGNORECASE)
+                if m:
+                    candidato = _limpiar_cliente_proveedor(m.group(1))
+                    if candidato:
+                        return candidato
+    
+    
 
     for patron in PATRONES_CLIENTE_PROVEEDOR:
         m = patron.search(texto)
@@ -1176,6 +1295,18 @@ def inferir_cliente_proveedor(texto=None, archivo=None, tipo_doc=None, categoria
             candidato = _limpiar_cliente_proveedor(m.group(1))
             if candidato:
                 return candidato
+
+    # =====================================================
+    # FALLBACK PARA FACTURAS:
+    # si no hubo etiqueta explícita, buscar nombre de empresa
+    # en las primeras líneas del documento
+    # =====================================================
+    if tipo_doc in ["factura_venta", "factura_compra"]:
+        for linea in lineas[:40]:
+            if _parece_nombre_empresa_factura(linea):
+                candidato = _limpiar_cliente_proveedor(linea)
+                if candidato:
+                    return candidato
 
     email = EMAIL_RE.search(texto)
     if email:
@@ -1199,7 +1330,6 @@ def inferir_cliente_proveedor(texto=None, archivo=None, tipo_doc=None, categoria
         return "No detectado"
 
     return None
-
 
 def extraer_movimientos_extracto(
     texto,
