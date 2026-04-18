@@ -726,17 +726,14 @@ def inferir_nombre_empresa(documentos, ledger):
         texto = re.sub(r"\s+", " ", texto).strip(" .,:;_-")
         return texto
 
-    def normalizar_clave(texto):
-        t = limpiar(texto).lower()
-        t = re.sub(r"[^a-záéíóúüñ0-9\s]", " ", t)
-        t = re.sub(r"\s+", " ", t).strip()
-        return t
+    def normalizar(texto):
+        texto = limpiar(texto).lower()
+        texto = re.sub(r"[^a-záéíóúüñ0-9\s]", " ", texto)
+        texto = re.sub(r"\s+", " ", texto).strip()
+        return texto
 
-    def es_nombre_valido(texto):
-        if not texto:
-            return False
-
-        t = normalizar_clave(texto)
+    def es_texto_basura(texto):
+        t = normalizar(texto)
 
         bloqueados = [
             "extracto", "statement", "factura", "invoice", "resumen", "saldo",
@@ -746,152 +743,134 @@ def inferir_nombre_empresa(documentos, ledger):
             "payment", "transfer", "transferencia", "transacciones",
             "saldo previo", "tu nuevo saldo", "pagos recibidos", "pagos enviados",
             "retiradas y cargos", "depositos y creditos", "depósitos y créditos",
-            "tarifas", "liberaciones", "retenido"
+            "tarifas", "liberaciones", "retenido",
+            "bizum", "recibido", "enviado", "pago en punto de venta",
+            "transaccion de la tarjeta", "transacción de la tarjeta",
+            "general de paypal", "retirada iniciada por el usuario",
+            "withdrawal", "purchase", "card", "debit", "credit"
         ]
 
-        if any(b in t for b in bloqueados):
+        return any(b in t for b in bloqueados)
+
+    def es_nombre_valido(texto):
+        texto = limpiar(texto)
+        if not texto:
             return False
 
-        if len(texto) < 3 or len(texto) > 100:
+        if len(texto) < 3 or len(texto) > 80:
             return False
 
-        if re.search(r"\d{4,}", texto):
+        if re.search(r"\d{3,}", texto):
             return False
 
         if not re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", texto):
             return False
 
-        return True
-
-    def parece_nombre_comercial(texto):
-        t = normalizar_clave(texto)
-
-        claves_comerciales = [
-            "artesania", "artesanía", "floral", "shop", "store", "studio", "atelier",
-            "boutique", "design", "creative", "creativo", "creativa", "manualidades",
-            "decoracion", "decoración", "flowers", "flower", "eventos", "detalles",
-            "regalos", "bakery", "cafe", "café", "market", "solutions", "group",
-            "empresa", "negocio", "services", "servicios", "brand", "marca"
-        ]
-
-        return any(k in t for k in claves_comerciales)
-
-    def parece_nombre_personal(texto):
-        t = limpiar(texto)
-
-        if not es_nombre_valido(t):
+        if es_texto_basura(texto):
             return False
 
-        palabras = [p for p in re.split(r"\s+", t) if p]
+        return True
+
+    def es_nombre_comercial(texto):
+        t = normalizar(texto)
+
+        pistas = [
+            "artesania", "artesanía", "floral", "studio", "atelier", "shop",
+            "store", "empresa", "servicios", "solutions", "group", "brand",
+            "marca", "center", "centro"
+        ]
+        return any(p in t for p in pistas)
+
+    def es_nombre_personal(texto):
+        texto = limpiar(texto)
+        if not es_nombre_valido(texto):
+            return False
+
+        palabras = [p for p in texto.split() if p]
         if len(palabras) < 2 or len(palabras) > 5:
             return False
 
-        if any(not re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", p) for p in palabras):
-            return False
-
-        if parece_nombre_comercial(t):
+        if es_nombre_comercial(texto):
             return False
 
         return True
 
-    comerciales = []
-    personales = []
+    candidatos_comerciales = []
+    candidatos_personales = []
     vistos = set()
 
-    def agregar_candidato(nombre, prioridad=0):
+    def agregar(nombre, prioridad=0):
         nombre = limpiar(nombre)
+        clave = normalizar(nombre)
+
         if not es_nombre_valido(nombre):
             return
-
-        clave = normalizar_clave(nombre)
         if not clave or clave in vistos:
             return
 
         vistos.add(clave)
-
         item = {
             "nombre": nombre[:1].upper() + nombre[1:],
-            "clave": clave,
             "prioridad": prioridad,
+            "largo": len(nombre),
         }
 
-        if parece_nombre_comercial(nombre):
-            comerciales.append(item)
-        elif parece_nombre_personal(nombre):
-            personales.append(item)
+        if es_nombre_comercial(nombre):
+            candidatos_comerciales.append(item)
+        elif es_nombre_personal(nombre):
+            candidatos_personales.append(item)
 
-    # 1) Buscar etiquetas explícitas en extractos
-    patrones_etiquetados = [
+    # =========================================================
+    # 1) SOLO leer campos explícitos del extracto
+    # =========================================================
+    patrones_explicitos = [
         r"(?im)^\s*raz[oó]n social\s*[:\-]\s*(.+?)\s*$",
         r"(?im)^\s*business name\s*[:\-]\s*(.+?)\s*$",
         r"(?im)^\s*empresa\s*[:\-]\s*(.+?)\s*$",
-        r"(?im)^\s*nombre\s+del\s+titular\s*[:\-]\s*(.+?)\s*$",
+        r"(?im)^\s*nombre del titular\s*[:\-]\s*(.+?)\s*$",
         r"(?im)^\s*titular\s*[:\-]\s*(.+?)\s*$",
         r"(?im)^\s*account holder\s*[:\-]\s*(.+?)\s*$",
     ]
 
-    for item in documentos:
-        if item.get("tipo") != "extracto_bancario":
+    for doc in documentos:
+        if doc.get("tipo") != "extracto_bancario":
             continue
 
-        texto = (item.get("texto") or "").strip()
+        texto = (doc.get("texto") or "").strip()
         if not texto:
             continue
 
-        for patron in patrones_etiquetados:
+        for patron in patrones_explicitos:
             for m in re.finditer(patron, texto):
-                agregar_candidato(m.group(1), prioridad=100)
+                agregar(m.group(1), prioridad=100)
 
-    # 2) Buscar nombre comercial en archivos / descripciones / ledger
-    fuentes = []
-
-    for item in documentos:
-        fuentes.extend([
-            item.get("archivo", ""),
-            item.get("texto", ""),
-        ])
-
-    for item in ledger:
-        fuentes.extend([
-            item.get("archivo", ""),
-            item.get("descripcion", ""),
-        ])
-
-    patrones_comerciales = [
-        r"(?i)\b([A-ZÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-ZÁÉÍÓÚÜÑa-záéíóúüñ]+){0,5}\s+Artesan[ií]a\s+Floral)\b",
-        r"(?i)\b([A-ZÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-ZÁÉÍÓÚÜÑa-záéíóúüñ]+){0,5}\s+Floral)\b",
-        r"(?i)\b([A-ZÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-ZÁÉÍÓÚÜÑa-záéíóúüñ]+){0,5}\s+Atelier)\b",
-        r"(?i)\b([A-ZÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-ZÁÉÍÓÚÜÑa-záéíóúüñ]+){0,5}\s+Studio)\b",
-        r"(?i)\b([A-ZÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-ZÁÉÍÓÚÜÑa-záéíóúüñ]+){0,5}\s+Shop)\b",
-        r"(?i)\b([A-ZÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:\s+[A-ZÁÉÍÓÚÜÑa-záéíóúüñ]+){0,5}\s+Store)\b",
-    ]
-
-    for fuente in fuentes:
-        fuente = str(fuente or "")
-        if not fuente:
+    # =========================================================
+    # 2) Como apoyo, solo usar NOMBRE DE ARCHIVO
+    #    Nunca descripción de movimientos ni ledger
+    # =========================================================
+    for doc in documentos:
+        archivo = limpiar(doc.get("archivo", ""))
+        if not archivo:
             continue
 
-        for patron in patrones_comerciales:
-            for m in re.finditer(patron, fuente):
-                agregar_candidato(m.group(1), prioridad=90)
+        archivo_sin_ext = re.sub(r"\.[A-Za-z0-9]+$", "", archivo)
+        if es_nombre_comercial(archivo_sin_ext) and es_nombre_valido(archivo_sin_ext):
+            agregar(archivo_sin_ext, prioridad=40)
 
-        # fallback por líneas
-        for linea in fuente.splitlines()[:40]:
-            linea = limpiar(linea)
-            if parece_nombre_comercial(linea):
-                agregar_candidato(linea, prioridad=70)
+    # =========================================================
+    # 3) Decisión:
+    #    comercial > personal
+    # =========================================================
+    if candidatos_comerciales:
+        candidatos_comerciales.sort(key=lambda x: (-x["prioridad"], -x["largo"]))
+        return candidatos_comerciales[0]["nombre"]
 
-    # 3) Elegir: primero comercial, luego personal
-    if comerciales:
-        comerciales.sort(key=lambda x: (-x["prioridad"], -len(x["nombre"])))
-        return comerciales[0]["nombre"]
+    if candidatos_personales:
+        candidatos_personales.sort(key=lambda x: (-x["prioridad"], -x["largo"]))
+        return candidatos_personales[0]["nombre"]
 
-    if personales:
-        personales.sort(key=lambda x: (-x["prioridad"], -len(x["nombre"])))
-        return personales[0]["nombre"]
-
-    return "la empresa"
-    
+    return "la empresa analizada"
+        
 def construir_narrativa_ejecutiva(total, docs, flujo, conc):
     saldo_inicial = flujo["saldo_inicial"]
     entradas = flujo["entradas"]
