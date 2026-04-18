@@ -201,12 +201,6 @@ def upload():
                 })
 
     ledger = construir_ledger(documentos)
-
-    print("\n===== FACTURAS DEL LEDGER =====")
-    for item in ledger:
-        if item.get("tipo") in ["factura_compra", "factura_venta"]:
-            print(item)
-
     conciliacion = detectar_inconsistencias(ledger)
 
     html_resultado = generar_html_resultado(
