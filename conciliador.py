@@ -221,19 +221,24 @@ def _preparar_facturas_y_banco(ledger):
     facturas = []
     movimientos_banco = []
 
-    for item in ledger:
-        importe = item.get("importe_num")
-
-        if importe is None:
-            importe = normalizar_importe(item.get("importe"))
-
-        if importe is None:
-            continue
-
+    for item in (ledger or []):
         tipo = item.get("tipo")
+        importe = normalizar_importe(item.get("importe", 0)) or 0.0
 
         if tipo in ["factura_venta", "factura_compra"]:
-            importe_firmado = item.get("importe_firmado_num", 0.0)
+            importe_firmado = item.get("importe_firmado_num")
+            if importe_firmado is None:
+                importe_firmado = importe if tipo == "factura_venta" else -importe
+
+            descripcion = item.get("descripcion") or item.get("archivo") or ""
+            cliente_proveedor = item.get("cliente_proveedor")
+
+            if not cliente_proveedor:
+                if tipo == "factura_venta":
+                    cliente_proveedor = item.get("cliente") or item.get("emisor") or item.get("receptor")
+                elif tipo == "factura_compra":
+                    cliente_proveedor = item.get("proveedor") or item.get("emisor") or item.get("receptor")
+
             facturas.append({
                 "id": item.get("id"),
                 "archivo": item.get("archivo"),
@@ -243,11 +248,23 @@ def _preparar_facturas_y_banco(ledger):
                 "importe_abs": round(abs(importe_firmado if importe_firmado is not None else importe), 2),
                 "moneda": item.get("moneda"),
                 "categoria": item.get("categoria"),
-                "descripcion": item.get("descripcion"),
+                "descripcion": descripcion,
+                "cliente_proveedor": (cliente_proveedor or "").strip() or "No aplica",
+                "banco": "No aplica",
             })
 
         elif tipo == "extracto_bancario":
-            importe_firmado = item.get("importe_firmado_num", 0.0)
+            importe_firmado = item.get("importe_firmado_num")
+            if importe_firmado is None:
+                importe_firmado = item.get("importe_num", 0.0)
+                naturaleza = (item.get("naturaleza") or "").strip().lower()
+                if naturaleza == "salida":
+                    importe_firmado = -abs(importe_firmado)
+                elif naturaleza == "entrada":
+                    importe_firmado = abs(importe_firmado)
+
+            banco = (item.get("banco") or "").strip() or "No aplica"
+
             movimientos_banco.append({
                 "id": item.get("id"),
                 "archivo": item.get("archivo"),
@@ -259,10 +276,11 @@ def _preparar_facturas_y_banco(ledger):
                 "categoria": item.get("categoria"),
                 "descripcion": item.get("descripcion"),
                 "moneda": item.get("moneda"),
+                "banco": banco,
+                "cliente_proveedor": "No aplica",
             })
 
     return facturas, movimientos_banco
-
 
 def _buscar_match_exacto(factura, movimientos_banco, usados_banco):
     importe_factura = factura.get("importe_firmado", 0.0)
