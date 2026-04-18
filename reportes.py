@@ -1816,7 +1816,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     flujo = resumen_flujo()
     flujo_bancos = resumen_flujo_bancos()
     conc = resumen_conciliacion()
-    nombre_empresa = inferir_nombre_empresa(documentos, ledger)
+        nombre_empresa = inferir_nombre_empresa(documentos, ledger)
     nombre_empresa_titulo = nombre_empresa if nombre_empresa and nombre_empresa != "la empresa" else "la empresa analizada"
     titular_ejecutivo, narrativa_ejecutiva = texto_lectura_ejecutiva(flujo, conc, docs)
     score_financiero = calcular_score_financiero(flujo, conc)
