@@ -1,12 +1,13 @@
 import os
 import re
+from datetime import datetime
 from parser_financiero import (
     normalizar_importe,
     extraer_importe_principal,
     obtener_periodo,
 )
 
-PATRON_FECHA = re.compile(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b")
+PATRON_FECHA = re.compile(r"\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b")
 PATRON_IMPORTE = re.compile(r"-?\d{1,3}(?:\.\d{3})*,\d{2}")
 PATRON_MONEDA = re.compile(
     r"\b(?:eur|usd|ves|cop|mxn|ars|clp|pen|gbp|brl|cad|chf|jpy|cny)\b|€|\$|us\$",
@@ -20,13 +21,48 @@ UMBRAL_MOVIMIENTO_RELEVANTE = 100.0
 # Déjalo en False normalmente.
 # Ponlo en True solo para diagnosticar N26.
 # =========================================================
-DEBUG_EXTRACTOS = True
+DEBUG_EXTRACTOS = False
 DEBUG_SOLO_BANCOS = {"N26"}
 DEBUG_FILE = "debug_extractos_n26.txt"
 
 
 def limpiar_descripcion(linea):
     return " ".join((linea or "").strip().split())
+
+
+def normalizar_fecha_texto(fecha_texto):
+    fecha_texto = (fecha_texto or "").strip()
+    if not fecha_texto or fecha_texto.lower() == "no detectada":
+        return "No detectada"
+
+    formatos_entrada = [
+        "%d/%m/%Y",
+        "%d/%m/%y",
+        "%d-%m-%Y",
+        "%d-%m-%y",
+        "%d.%m.%Y",
+        "%d.%m.%y",
+    ]
+
+    for fmt in formatos_entrada:
+        try:
+            dt = datetime.strptime(fecha_texto, fmt)
+            return dt.strftime("%d/%m/%Y")
+        except ValueError:
+            continue
+
+    return fecha_texto
+
+
+def fecha_ordenable(fecha_texto):
+    fecha_texto = normalizar_fecha_texto(fecha_texto)
+    if not fecha_texto or fecha_texto == "No detectada":
+        return None
+
+    try:
+        return datetime.strptime(fecha_texto, "%d/%m/%Y")
+    except ValueError:
+        return None
 
 
 def detectar_moneda(texto):
@@ -81,6 +117,11 @@ def _es_texto_transferencia_interna(texto):
         "transferencia interna",
         "transfer between",
         "movimiento entre cuentas",
+        "instant transfer",
+        "transferencias salientes",
+        "transferencias entrantes",
+        "incoming transfer",
+        "outgoing transfer",
     ]
     return _contiene_alguno(texto, patrones)
 
@@ -111,6 +152,16 @@ def _es_texto_gasto_operativo(texto):
         "travel",
         "uber",
         "taxi",
+        "mastercard",
+        "comida",
+        "bares y restaurantes",
+        "multimedia y tecnología",
+        "multimedia y tecnologia",
+        "cajeros automáticos",
+        "cajeros automaticos",
+        "ocio",
+        "transporte",
+        "compras",
     ]
     return _contiene_alguno(texto, patrones)
 
@@ -128,6 +179,7 @@ def _es_texto_pago_proveedor(texto):
         "factura proveedor",
         "pago proveedor",
         "al proveedor",
+        "bizum enviado",
     ]
     return _contiene_alguno(texto, patrones)
 
@@ -149,6 +201,9 @@ def _es_texto_cobro_cliente(texto):
         "pago en punto de venta",
         "customer payment",
         "client payment",
+        "bizum recibido",
+        "ingresos",
+        "received funds",
     ]
     return _contiene_alguno(texto, patrones)
 
@@ -175,7 +230,14 @@ def clasificar_movimiento_bancario(texto, valor):
         return "retiro_propio"
 
     if _es_texto_transferencia_interna(t):
-        if "internal transfer" in t or "transferencia interna" in t or "traspaso" in t:
+        if (
+            "internal transfer" in t
+            or "transferencia interna" in t
+            or "traspaso" in t
+            or "instant transfer" in t
+            or "transferencias salientes" in t
+            or "transferencias entrantes" in t
+        ):
             return "transferencia_interna"
 
         if not _es_texto_gasto_operativo(t) and not _es_texto_cobro_cliente(t) and not _es_texto_pago_proveedor(t):
@@ -316,6 +378,19 @@ def tiene_huella_transaccional(linea_lower):
         "transfer in",
         "incoming transfer",
         "outgoing transfer",
+        "instant transfer",
+        "ingresos",
+        "compras",
+        "comida",
+        "transporte",
+        "ocio",
+        "bares y restaurantes",
+        "multimedia y tecnología",
+        "multimedia y tecnologia",
+        "cajeros automáticos",
+        "cajeros automaticos",
+        "transferencias salientes",
+        "transferencias entrantes",
     ]
     return any(p in linea_lower for p in patrones)
 
@@ -361,8 +436,10 @@ def extraer_fecha_de_bloque(bloque, fecha_doc):
     for linea in bloque:
         m = PATRON_FECHA.search(linea)
         if m:
-            return m.group()
-    return fecha_doc if fecha_doc and fecha_doc != "No detectada" else "No detectada"
+            return normalizar_fecha_texto(m.group())
+
+    fecha_doc_normalizada = normalizar_fecha_texto(fecha_doc)
+    return fecha_doc_normalizada if fecha_doc_normalizada else "No detectada"
 
 
 def extraer_moneda_de_bloque(bloque):
@@ -428,6 +505,8 @@ def inferir_naturaleza_bloque(texto_lower, valor):
         "deposit",
         "depósito",
         "deposito",
+        "bizum recibido",
+        "ingresos",
     ]
     salidas = [
         "pago enviado",
@@ -440,6 +519,8 @@ def inferir_naturaleza_bloque(texto_lower, valor):
         "débito",
         "debito",
         "cargo",
+        "bizum enviado",
+        "transferencias salientes",
     ]
 
     if any(p in texto_lower for p in entradas):
@@ -574,14 +655,14 @@ def _linea_candidata_movimiento(linea):
     if len(importes) >= 4:
         return False
 
+    # Caso clave para N26: línea con fecha + importe
     if PATRON_FECHA.search(linea):
         return True
 
+    # Caso clásico: línea con importe y huella transaccional
     if tiene_huella_transaccional(linea_lower):
         return True
 
-    # Dejamos este fallback muy conservador.
-    # No inventa movimientos si no hay fecha ni huella real.
     return False
 
 
@@ -628,11 +709,10 @@ def _extraer_movimientos_extracto_por_linea(texto, archivo, fecha_doc, banco=Non
     otros_cobros_cantidad = 0
     otros_pagos_cantidad = 0
 
-    for raw in (texto or "").splitlines():
-        linea = limpiar_descripcion(raw)
-        if not linea:
-            continue
+    lineas = [limpiar_descripcion(raw) for raw in (texto or "").splitlines()]
+    lineas = [l for l in lineas if l]
 
+    for i, linea in enumerate(lineas):
         if _es_linea_resumen_bancario(linea):
             continue
 
@@ -658,11 +738,42 @@ def _extraer_movimientos_extracto_por_linea(texto, archivo, fecha_doc, banco=Non
         if abs(valor) < 0.01 or abs(valor) > 100000:
             continue
 
-        categoria = clasificar_movimiento_bancario(linea_lower, valor)
         fecha = extraer_fecha_de_bloque([linea], fecha_doc)
         moneda = detectar_moneda(linea)
 
-        naturaleza = inferir_naturaleza_bloque(linea_lower, valor)
+        # N26 suele venir en pares:
+        # línea descriptiva arriba + línea fecha/importe abajo.
+        descripcion_partes = []
+
+        j = i - 1
+        pasos = 0
+        while j >= 0 and pasos < 3:
+            previa = lineas[j]
+            previa_lower = previa.lower()
+
+            if _es_linea_resumen_bancario(previa):
+                break
+
+            if PATRON_IMPORTE.search(previa) and PATRON_FECHA.search(previa):
+                break
+
+            if not es_linea_ruido(previa_lower):
+                descripcion_partes.insert(0, previa)
+
+            if tiene_huella_transaccional(previa_lower):
+                break
+
+            j -= 1
+            pasos += 1
+
+        descripcion_partes.append(linea)
+
+        descripcion = " | ".join([p for p in descripcion_partes if p])[:250]
+        texto_clasificacion = " ".join(descripcion_partes).lower()
+
+        categoria = clasificar_movimiento_bancario(texto_clasificacion, valor)
+
+        naturaleza = inferir_naturaleza_bloque(texto_clasificacion, valor)
         if naturaleza == "desconocido":
             naturaleza = "entrada" if valor > 0 else "salida"
 
@@ -674,8 +785,6 @@ def _extraer_movimientos_extracto_por_linea(texto, archivo, fecha_doc, banco=Non
                 otros_pagos_total += abs(valor)
                 otros_pagos_cantidad += 1
             continue
-
-        descripcion = linea[:250]
 
         clave = (
             archivo,
@@ -699,7 +808,7 @@ def _extraer_movimientos_extracto_por_linea(texto, archivo, fecha_doc, banco=Non
             "naturaleza": naturaleza,
             "categoria": categoria,
             "descripcion": descripcion,
-            "moneda": moneda,
+            "moneda": moneda or detectar_moneda(descripcion),
             "banco": banco,
             "soporte": False,
             "estado_conciliacion": "pendiente",
@@ -713,8 +822,8 @@ def _extraer_movimientos_extracto_por_linea(texto, archivo, fecha_doc, banco=Non
             "id": f"bank_fallback_{contador}",
             "archivo": archivo,
             "tipo": "extracto_bancario",
-            "fecha": fecha_doc or "No detectada",
-            "periodo": obtener_periodo(fecha_doc or "No detectada"),
+            "fecha": normalizar_fecha_texto(fecha_doc),
+            "periodo": obtener_periodo(normalizar_fecha_texto(fecha_doc)),
             "importe": f"{otros_cobros_total:.2f}".replace(".", ","),
             "importe_num": otros_cobros_total,
             "importe_firmado_num": otros_cobros_total,
@@ -733,8 +842,8 @@ def _extraer_movimientos_extracto_por_linea(texto, archivo, fecha_doc, banco=Non
             "id": f"bank_fallback_{contador}",
             "archivo": archivo,
             "tipo": "extracto_bancario",
-            "fecha": fecha_doc or "No detectada",
-            "periodo": obtener_periodo(fecha_doc or "No detectada"),
+            "fecha": normalizar_fecha_texto(fecha_doc),
+            "periodo": obtener_periodo(normalizar_fecha_texto(fecha_doc)),
             "importe": f"{otros_pagos_total:.2f}".replace(".", ","),
             "importe_num": otros_pagos_total,
             "importe_firmado_num": -otros_pagos_total,
@@ -838,8 +947,8 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
             "id": f"bank_{contador}",
             "archivo": archivo,
             "tipo": "extracto_bancario",
-            "fecha": fecha_doc or "No detectada",
-            "periodo": obtener_periodo(fecha_doc or "No detectada"),
+            "fecha": normalizar_fecha_texto(fecha_doc),
+            "periodo": obtener_periodo(normalizar_fecha_texto(fecha_doc)),
             "importe": f"{otros_cobros_total:.2f}".replace(".", ","),
             "importe_num": otros_cobros_total,
             "importe_firmado_num": otros_cobros_total,
@@ -858,8 +967,8 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
             "id": f"bank_{contador}",
             "archivo": archivo,
             "tipo": "extracto_bancario",
-            "fecha": fecha_doc or "No detectada",
-            "periodo": obtener_periodo(fecha_doc or "No detectada"),
+            "fecha": normalizar_fecha_texto(fecha_doc),
+            "periodo": obtener_periodo(normalizar_fecha_texto(fecha_doc)),
             "importe": f"{otros_pagos_total:.2f}".replace(".", ","),
             "importe_num": otros_pagos_total,
             "importe_firmado_num": -otros_pagos_total,
@@ -911,7 +1020,7 @@ def construir_ledger(documentos):
     for idx, doc in enumerate(documentos, start=1):
         texto = doc.get("texto", "")
         tipo_doc = doc.get("tipo", "otros")
-        fecha = doc.get("fecha", "No detectada")
+        fecha = normalizar_fecha_texto(doc.get("fecha", "No detectada"))
         periodo = obtener_periodo(fecha)
         archivo = doc.get("archivo", f"doc_{idx}")
         importes = doc.get("importes", [])
