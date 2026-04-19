@@ -1266,6 +1266,7 @@ def construir_ledger(documentos):
             if importe_principal:
                 naturaleza = "entrada" if tipo_doc == "factura_venta" else "salida"
                 importe_num = normalizar_importe(importe_principal) or 0.0
+                cliente_proveedor = extraer_cliente_proveedor_desde_factura(texto, tipo_doc)
 
                 ledger.append({
                     "id": f"doc_{idx}",
@@ -1280,6 +1281,7 @@ def construir_ledger(documentos):
                     "categoria": tipo_doc,
                     "descripcion": archivo,
                     "moneda": moneda_doc,
+                    "cliente_proveedor": cliente_proveedor or "No aplica",
                     "soporte": True,
                     "estado_conciliacion": "pendiente",
                 })
