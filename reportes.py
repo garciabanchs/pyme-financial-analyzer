@@ -1591,12 +1591,12 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 elif categoria in ["transferencia_interna", "traspaso", "movimiento_interno"]:
                     naturaleza = (item.get("naturaleza") or "").strip().lower()
 
-                    if naturaleza == "entrada":
-                        clase = "row-entrada"
-                        tags = ["all", "entradas", "internos", banco_tag]
-                    else:
-                        clase = "row-salida"
-                        tags = ["all", "salidas", "internos", banco_tag]
+                        if naturaleza == "entrada":
+                            clase = "row-entrada"
+                            tags = ["all", "entradas", "internos", banco_tag]
+                        else:
+                            clase = "row-salida"
+                            tags = ["all", "salidas", "internos", banco_tag]
                 else:
                     clase = item.get("clase_fila", "row-salida")
                     tags = ["all", banco_tag]
