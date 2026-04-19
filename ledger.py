@@ -571,7 +571,6 @@ def extraer_cliente_proveedor_desde_factura(texto, tipo_doc):
     # FACTURA DE VENTA -> cliente/receptor
     # =====================================================
     if tipo_doc == "factura_venta":
-        # 1) intentar por etiquetas explícitas
         etiquetas_cliente = [
             r"\bcliente\b",
             r"\bcustomer\b",
@@ -584,57 +583,76 @@ def extraer_cliente_proveedor_desde_factura(texto, tipo_doc):
             r"\bdatos de facturación\b",
         ]
 
+        def _recortar_empresa_cliente(x):
+            x = (x or "").upper()
+            x = re.sub(r"\s+", " ", x).strip()
+
+            patrones_fuertes = [
+                r"\bHMY(?: [A-ZÁÉÍÓÚÜÑ0-9&.\-]+){0,4}\b",
+                r"\b[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]{2,40}\bEQUIPAMIENTO\b",
+                r"\b[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]{2,40}\bS\.L\.U\.\b",
+                r"\b[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]{2,40}\bS\.L\.\b",
+                r"\b[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]{2,40}\bSLU\b",
+                r"\b[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]{2,40}\bSL\b",
+                r"\b[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]{2,40}\bS\.A\.\b",
+                r"\b[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]{2,40}\bSA\b",
+            ]
+
+            for patron in patrones_fuertes:
+                m = re.search(patron, x)
+                if m:
+                    return _limpiar_resultado(m.group(0))
+
+            return None
+
+        # 1) Buscar por etiquetas
         for i, linea in enumerate(lineas):
             linea_norm = _normalizar_entidad(linea)
 
             for etiqueta in etiquetas_cliente:
                 if re.search(etiqueta, linea_norm, flags=re.IGNORECASE):
-                    # misma línea
                     partes = re.split(etiqueta, linea, flags=re.IGNORECASE)
                     if len(partes) > 1:
                         resto = _limpiar_resultado(partes[-1])
+                        empresa = _recortar_empresa_cliente(resto)
+                        if empresa and _es_valido(empresa):
+                            return empresa
                         if _es_valido(resto):
                             return resto
 
-                    # líneas siguientes
                     for j in range(i + 1, min(i + 5, len(lineas))):
                         cand = _limpiar_resultado(lineas[j])
-                        if not _es_valido(cand):
-                            continue
+                        empresa = _recortar_empresa_cliente(cand)
+                        if empresa and _es_valido(empresa):
+                            return empresa
+                        if _es_valido(cand):
+                            return cand
 
-                        # si viene pegado con nombre personal al final, cortar
-                        m_hmy = re.search(
-                            r"\b(HMY(?: [A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]+)?|[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]+ EQUIPAMIENTO)\b",
-                            cand.upper()
-                        )
-                        if m_hmy:
-                            return _limpiar_resultado(m_hmy.group(1))
+        # 2) Buscar empresa cliente fuerte en todo el texto
+        texto_upper = re.sub(r"\s+", " ", texto.upper())
 
-                        return cand
-
-        # 2) fallback específico para HMY / empresa cliente
         patrones_cliente_empresa = [
-            r"\b(HMY(?: [A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]+)?)\b",
-            r"\b([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]+ EQUIPAMIENTO)\b",
+            r"\bHMY(?: [A-ZÁÉÍÓÚÜÑ0-9&.\-]+){0,4}\b",
+            r"\b[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]{2,40}\bEQUIPAMIENTO\b",
         ]
 
-        texto_upper = texto.upper()
         for patron in patrones_cliente_empresa:
             m = re.search(patron, texto_upper)
             if m:
-                candidato = _limpiar_resultado(m.group(1))
+                candidato = _limpiar_resultado(m.group(0))
                 if _es_valido(candidato):
                     return candidato
 
-        # 3) fallback final: primera línea válida que no sea archivo/código
+        # 3) Fallback final
         for linea in lineas[:25]:
             cand = _limpiar_resultado(linea)
+            empresa = _recortar_empresa_cliente(cand)
+            if empresa and _es_valido(empresa):
+                return empresa
             if _es_valido(cand):
                 return cand
 
         return None
-
-    return None
 
 def _contiene_alguno(texto, patrones):
     t = (texto or "").lower()
