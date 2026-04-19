@@ -81,6 +81,234 @@ def detectar_moneda(texto):
     return valor
 
 
+def _limpiar_linea_entidad(linea):
+    linea = (linea or "").strip()
+    linea = re.sub(r"\s+", " ", linea)
+    linea = linea.strip(" -:;,.|_/\\")
+    return linea
+
+
+def _normalizar_entidad(linea):
+    linea = _limpiar_linea_entidad(linea).lower()
+    linea = re.sub(r"[^a-záéíóúüñ0-9&.\- /]", " ", linea)
+    linea = re.sub(r"\s+", " ", linea).strip()
+    return linea
+
+
+def _es_linea_basura_entidad(linea):
+    raw = _limpiar_linea_entidad(linea)
+    t = _normalizar_entidad(raw)
+
+    if not t:
+        return True
+
+    if len(raw) < 3 or len(raw) > 120:
+        return True
+
+    # Excluir importes, fechas, teléfonos, emails, webs, IBAN, CIF/NIF, etc.
+    patrones_ruido = [
+        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",
+        r"\b[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}\b",
+        r"\b(?:www\.|http://|https://)\S+\b",
+        r"\b[a-z]{2}\d{2}[a-z0-9]{8,}\b",   # IBAN aproximado
+        r"\b(?:cif|nif|nie|vat|iva|iban|swift|bic|ccc|pedido|albar[aá]n|orden|ref|referencia)\b",
+        r"\b(?:tel|tlf|telefono|phone|m[óo]vil|mobile|fax)\b",
+        r"\b\d{5}\b",                       # CP
+        r"\b\d{7,}\b",                      # números largos
+        r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b",   # importes ES
+        r"\b\d+\.\d{2}\b",                  # importes EN
+    ]
+    for patron in patrones_ruido:
+        if re.search(patron, t, flags=re.IGNORECASE):
+            return True
+
+    palabras_basura = [
+        "factura", "invoice", "fecha", "date", "vencimiento", "due date",
+        "total", "subtotal", "base imponible", "cuota", "iva", "irpf",
+        "descuento", "retencion", "cantidad", "precio", "concepto",
+        "descripcion", "articulo", "artículo", "importe", "saldo",
+        "cuenta", "bank", "banco", "payment", "transfer", "transferencia",
+        "cliente", "proveedor", "emisor", "receptor", "billing",
+        "bill to", "sold to", "ship to", "domicilio", "direccion",
+        "dirección", "calle", "avenida", "avda", "postal", "ciudad",
+        "country", "pais", "país", "euros", "eur"
+    ]
+    if any(p in t for p in palabras_basura):
+        return True
+
+    # Demasiados números
+    if sum(ch.isdigit() for ch in raw) >= 5:
+        return True
+
+    # Debe tener letras
+    if not re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", raw):
+        return True
+
+    return False
+
+
+def _limpiar_nombre_entidad(linea):
+    linea = _limpiar_linea_entidad(linea)
+    linea = re.sub(r"\b(?:cliente|proveedor|bill to|sold to|ship to|customer|supplier|emisor|receptor)\b\s*[:\-]*", "", linea, flags=re.IGNORECASE)
+    linea = re.sub(r"\s+", " ", linea).strip(" -:;,.|_/\\")
+    return linea
+
+
+def _score_candidato_entidad(linea):
+    raw = _limpiar_nombre_entidad(linea)
+    t = _normalizar_entidad(raw)
+
+    if _es_linea_basura_entidad(raw):
+        return -999
+
+    score = 0
+
+    # Preferir nombres con pinta empresarial
+    pistas_empresa = [
+        "sl", "s.l", "slu", "s.l.u", "sa", "s.a", "sau", "s.a.u",
+        "llc", "ltd", "inc", "corp", "gmbh", "sas", "spa", "group",
+        "solutions", "services", "equipamiento", "industrial", "comercial"
+    ]
+    if any(re.search(rf"\b{re.escape(p)}\b", t) for p in pistas_empresa):
+        score += 30
+
+    # Mayúsculas sostenidas suele ser buen indicador en PDFs
+    letras = [c for c in raw if c.isalpha()]
+    if letras:
+        ratio_mayus = sum(1 for c in letras if c.isupper()) / max(len(letras), 1)
+        if ratio_mayus > 0.65:
+            score += 15
+
+    palabras = raw.split()
+    if 2 <= len(palabras) <= 6:
+        score += 12
+    elif len(palabras) == 1:
+        score += 4
+    else:
+        score -= 5
+
+    if 6 <= len(raw) <= 60:
+        score += 10
+
+    # Penalizar líneas demasiado genéricas
+    if re.search(r"\b(?:españa|spain|madrid|valencia|barcelona)\b", t):
+        score -= 8
+
+    return score
+
+
+def _extraer_por_etiquetas(texto, etiquetas):
+    lineas = [_limpiar_linea_entidad(x) for x in (texto or "").splitlines()]
+    lineas = [x for x in lineas if x]
+
+    for i, linea in enumerate(lineas):
+        linea_norm = _normalizar_entidad(linea)
+
+        for etiqueta in etiquetas:
+            if re.search(etiqueta, linea_norm, flags=re.IGNORECASE):
+                candidatos = []
+
+                # 1) Intentar misma línea: "Cliente: ACME SL"
+                parte = re.split(etiqueta, linea, flags=re.IGNORECASE)
+                if len(parte) > 1:
+                    resto = _limpiar_nombre_entidad(parte[-1])
+                    if resto and not _es_linea_basura_entidad(resto):
+                        candidatos.append(resto)
+
+                # 2) Intentar líneas siguientes
+                for j in range(i + 1, min(i + 5, len(lineas))):
+                    cand = _limpiar_nombre_entidad(lineas[j])
+                    if _es_linea_basura_entidad(cand):
+                        continue
+                    candidatos.append(cand)
+
+                if candidatos:
+                    candidatos = sorted(candidatos, key=_score_candidato_entidad, reverse=True)
+                    if _score_candidato_entidad(candidatos[0]) > 0:
+                        return candidatos[0]
+
+    return None
+
+
+def _extraer_candidatos_generales(texto, primeros_n=25):
+    lineas = [_limpiar_linea_entidad(x) for x in (texto or "").splitlines()]
+    lineas = [x for x in lineas if x][:primeros_n]
+
+    candidatos = []
+    vistos = set()
+
+    for linea in lineas:
+        cand = _limpiar_nombre_entidad(linea)
+        clave = _normalizar_entidad(cand)
+
+        if not clave or clave in vistos:
+            continue
+        if _es_linea_basura_entidad(cand):
+            continue
+
+        score = _score_candidato_entidad(cand)
+        if score <= 0:
+            continue
+
+        vistos.add(clave)
+        candidatos.append((score, cand))
+
+    candidatos.sort(key=lambda x: x[0], reverse=True)
+    return [c for _, c in candidatos]
+
+
+def extraer_cliente_proveedor_desde_factura(texto, tipo_doc):
+    """
+    Reglas:
+    - factura_venta  -> cliente
+    - factura_compra -> proveedor
+    - resto          -> None
+    """
+    texto = texto or ""
+    tipo_doc = (tipo_doc or "").strip().lower()
+
+    if tipo_doc not in ["factura_venta", "factura_compra"]:
+        return None
+
+    etiquetas_cliente = [
+        r"\bcliente\b",
+        r"\bcustomer\b",
+        r"\bbill to\b",
+        r"\bsold to\b",
+        r"\bship to\b",
+        r"\bdestinatario\b",
+        r"\breceptor\b",
+    ]
+
+    etiquetas_proveedor = [
+        r"\bproveedor\b",
+        r"\bsupplier\b",
+        r"\bemisor\b",
+        r"\bissuer\b",
+        r"\bvendor\b",
+    ]
+
+    # 1) Prioridad: etiquetas explícitas
+    if tipo_doc == "factura_venta":
+        nombre = _extraer_por_etiquetas(texto, etiquetas_cliente)
+        if nombre:
+            return nombre
+
+    if tipo_doc == "factura_compra":
+        nombre = _extraer_por_etiquetas(texto, etiquetas_proveedor)
+        if nombre:
+            return nombre
+
+    # 2) Fallback robusto sin depender de formato exacto
+    candidatos = _extraer_candidatos_generales(texto, primeros_n=25)
+    if not candidatos:
+        return None
+
+    # En compra, normalmente el proveedor/emisor está muy arriba.
+    # En venta, si no hubo etiqueta, usamos el mejor candidato útil.
+    return candidatos[0]
+
+
 def _contiene_alguno(texto, patrones):
     t = (texto or "").lower()
     return any(p in t for p in patrones)
