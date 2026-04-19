@@ -1471,47 +1471,47 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         return cards
 
     def tabla_movimientos_relevantes_html():
-    analisis = analizar_movimientos_bancarios()
-    entradas = analisis["entradas_relevantes"]
-    salidas = analisis["salidas_relevantes"]
+        analisis = analizar_movimientos_bancarios()
+        entradas = analisis["entradas_relevantes"]
+        salidas = analisis["salidas_relevantes"]
 
-    if not entradas and not salidas:
-        return """
-        <div class="empty-state">
-            <p>No hay movimientos bancarios relevantes para mostrar.</p>
-        </div>
-        """
+        if not entradas and not salidas:
+            return """
+            <div class="empty-state">
+                <p>No hay movimientos bancarios relevantes para mostrar.</p>
+            </div>
+            """
+    
+        filas = ""
+        cards = ""
+    
+        def slug_banco(nombre):
+            slug = re.sub(r"[^a-z0-9]+", "-", (nombre or "").strip().lower())
+            slug = slug.strip("-")
+            return f"bank-{slug}" if slug else "bank-desconocido"
 
-    filas = ""
-    cards = ""
+        def fecha_ordenable(valor):
+            raw = str(valor or "").strip()
 
-    def slug_banco(nombre):
-        slug = re.sub(r"[^a-z0-9]+", "-", (nombre or "").strip().lower())
-        slug = slug.strip("-")
-        return f"bank-{slug}" if slug else "bank-desconocido"
+            if raw.lower() in ["n.a.", "na", "-", "", "no detectada"]:
+                return datetime.max
 
-    def fecha_ordenable(valor):
-        raw = str(valor or "").strip()
+            formatos = [
+                "%d/%m/%Y",
+                "%d/%m/%y",
+                "%d-%m-%Y",
+                "%d-%m-%y",
+                "%d.%m.%Y",
+                "%d.%m.%y",
+            ]
 
-        if raw.lower() in ["n.a.", "na", "-", "", "no detectada"]:
+            for fmt in formatos:
+                try:
+                    return datetime.strptime(raw, fmt)
+                except Exception:
+                    continue
+    
             return datetime.max
-
-        formatos = [
-            "%d/%m/%Y",
-            "%d/%m/%y",
-            "%d-%m-%Y",
-            "%d-%m-%y",
-            "%d.%m.%Y",
-            "%d.%m.%y",
-        ]
-
-        for fmt in formatos:
-            try:
-                return datetime.strptime(raw, fmt)
-            except Exception:
-                continue
-
-        return datetime.max
 
     def prioridad_movimiento(item):
         banco = (item.get("banco") or "").strip().lower()
