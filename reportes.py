@@ -1624,6 +1624,27 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             </div>
         </div>
         """
+
+    def construir_botones_conciliacion(section_target):
+        botones = [
+            ("all", "Ver todo"),
+            ("conciliadas", "Conciliadas"),
+            ("pendientes", "Pendientes"),
+            ("sin-soporte", "Sin soporte"),
+            ("no-conciliables", "No conciliables"),
+            ("duplicados", "Duplicados"),
+            ("internos", "Movimientos internos"),
+        ]
+
+        html = ""
+        for valor, etiqueta in botones:
+            clase = "filter-btn active" if valor == "all" else "filter-btn"
+            html += (
+                f'<button class="{clase}" type="button" '
+                f'data-filter="{valor}" data-target="{section_target}">{etiqueta}</button>'
+            )
+
+        return html
     
     def tabla_conciliacion_html():
         if not conciliacion:
