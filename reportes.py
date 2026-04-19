@@ -1471,93 +1471,58 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         return cards
 
     def tabla_movimientos_relevantes_html():
-    analisis = analizar_movimientos_bancarios()
-    entradas = analisis["entradas_relevantes"]
-    salidas = analisis["salidas_relevantes"]
+        analisis = analizar_movimientos_bancarios()
+        entradas = analisis["entradas_relevantes"]
+        salidas = analisis["salidas_relevantes"]
 
-    if not entradas and not salidas:
-        return """
-        <div class="empty-state">
-            <p>No hay movimientos bancarios relevantes para mostrar.</p>
-        </div>
-        """
+        if not entradas and not salidas:
+            return """
+            <div class="empty-state">
+                <p>No hay movimientos bancarios relevantes para mostrar.</p>
+            </div>
+            """
 
-    filas = ""
-    cards = ""
+        filas = ""
+        cards = ""
 
-    def slug_banco(nombre):
-        slug = re.sub(r"[^a-z0-9]+", "-", (nombre or "").strip().lower())
-        slug = slug.strip("-")
-        return f"bank-{slug}" if slug else "bank-desconocido"
+        def slug_banco(nombre):
+            slug = re.sub(r"[^a-z0-9]+", "-", (nombre or "").strip().lower())
+            slug = slug.strip("-")
+            return f"bank-{slug}" if slug else "bank-desconocido"
 
-    def fecha_ordenable_local(valor):
-        raw = str(valor or "").strip()
+        def fecha_ordenable_local(valor):
+            raw = str(valor or "").strip()
 
-        if raw.lower() in ["n.a.", "na", "-", "", "no detectada"]:
+            if raw.lower() in ["n.a.", "na", "-", "", "no detectada"]:
+                return datetime.max
+
+            formatos = [
+                "%d/%m/%Y",
+                "%d/%m/%y",
+                "%d-%m-%Y",
+                "%d-%m-%y",
+                "%d.%m.%Y",
+                "%d.%m.%y",
+            ]
+
+            for fmt in formatos:
+                try:
+                    return datetime.strptime(raw, fmt)
+                except Exception:
+                    continue
+
             return datetime.max
 
-        formatos = [
-            "%d/%m/%Y",
-            "%d/%m/%y",
-            "%d-%m-%Y",
-            "%d-%m-%y",
-            "%d.%m.%Y",
-            "%d.%m.%y",
-        ]
+        def prioridad_movimiento(item):
+            banco = (item.get("banco") or "").strip().lower()
+            fecha = fecha_ordenable_local(item.get("fecha"))
+            importe = -(item.get("importe_abs") or 0.0)
+            descripcion = str(item.get("descripcion") or "").lower()
+            return (banco, fecha, importe, descripcion)
 
-        for fmt in formatos:
-            try:
-                return datetime.strptime(raw, fmt)
-            except Exception:
-                continue
+        movimientos_ordenados = sorted(entradas + salidas, key=prioridad_movimiento)
 
-        return datetime.max
-
-    def prioridad_movimiento(item):
-        banco = (item.get("banco") or "").strip().lower()
-        fecha = fecha_ordenable_local(item.get("fecha"))
-        importe = -(item.get("importe_abs") or 0.0)
-        descripcion = str(item.get("descripcion") or "").lower()
-        return (banco, fecha, importe, descripcion)
-
-    movimientos_ordenados = sorted(entradas + salidas, key=prioridad_movimiento)
-
-    for item in movimientos_ordenados:
-        categoria = (item.get("categoria") or "").strip().lower()
-        banco = (item.get("banco") or "-").strip() or "-"
-        banco_tag = slug_banco(banco)
-
-        if categoria in ["otros_cobros", "cobro_cliente"]:
-            clase = "row-entrada"
-            tags = ["all", "entradas", "cobros", banco_tag]
-        elif categoria in ["otros_pagos", "gasto_operativo", "pago_proveedor"]:
-            clase = "row-salida"
-            tags = ["all", "salidas", "pagos", banco_tag]
-        elif categoria in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
-            clase = "row-salida"
-            tags = ["all", "salidas", "internos", banco_tag]
-        else:
-            clase = item.get("clase_fila", "row-salida")
-            tags = ["all", banco_tag]
-
-        filas += f"""
-        <tr class="{clase} mov-row"
-            data-kind="{' '.join(sorted(set(tags)))}"
-            data-category="{item['categoria']}"
-            data-bank="{banco}"
-            data-target-section="movimientos-section">
-            <td class="mono">{item['fecha']}</td>
-            <td>{item['descripcion']}</td>
-            <td>{banco}</td>
-            <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
-            <td class="mono">€ {item['importe_fmt']}</td>
-        </tr>
-        """
-
-    def tarjetas_moviles_movimientos(items):
-        cards_html = ""
-
-        for item in items:
+        for item in movimientos_ordenados:
             categoria = (item.get("categoria") or "").strip().lower()
             banco = (item.get("banco") or "-").strip() or "-"
             banco_tag = slug_banco(banco)
@@ -1575,55 +1540,90 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 clase = item.get("clase_fila", "row-salida")
                 tags = ["all", banco_tag]
 
-            cards_html += f"""
-            <article class="mobile-movement-card {clase}"
+            filas += f"""
+            <tr class="{clase} mov-row"
                 data-kind="{' '.join(sorted(set(tags)))}"
                 data-category="{item['categoria']}"
                 data-bank="{banco}"
                 data-target-section="movimientos-section">
-                <div class="mobile-movement-head">
-                    <span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span>
-                    <span class="mobile-amount">€ {item['importe_fmt']}</span>
-                </div>
-                <div class="mobile-meta-row">
-                    <span class="mobile-label">Fecha</span>
-                    <span class="mono">{item['fecha']}</span>
-                </div>
-                <div class="mobile-meta-row">
-                    <span class="mobile-label">Banco</span>
-                    <span>{banco}</span>
-                </div>
-                <div class="mobile-description">{item['descripcion']}</div>
-            </article>
+                <td class="mono">{item['fecha']}</td>
+                <td>{item['descripcion']}</td>
+                <td>{banco}</td>
+                <td><span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span></td>
+                <td class="mono">€ {item['importe_fmt']}</td>
+            </tr>
             """
 
-        return cards_html
+        def tarjetas_moviles_movimientos(items):
+            cards_html = ""
 
-    cards = tarjetas_moviles_movimientos(movimientos_ordenados)
+            for item in items:
+                categoria = (item.get("categoria") or "").strip().lower()
+                banco = (item.get("banco") or "-").strip() or "-"
+                banco_tag = slug_banco(banco)
 
-    return f"""
-    <div class="table-shell compact-shell">
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Descripción</th>
-                        <th>Banco</th>
-                        <th>Categoría</th>
-                        <th>Importe</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {filas}
-                </tbody>
-            </table>
+                if categoria in ["otros_cobros", "cobro_cliente"]:
+                    clase = "row-entrada"
+                    tags = ["all", "entradas", "cobros", banco_tag]
+                elif categoria in ["otros_pagos", "gasto_operativo", "pago_proveedor"]:
+                    clase = "row-salida"
+                    tags = ["all", "salidas", "pagos", banco_tag]
+                elif categoria in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
+                    clase = "row-salida"
+                    tags = ["all", "salidas", "internos", banco_tag]
+                else:
+                    clase = item.get("clase_fila", "row-salida")
+                    tags = ["all", banco_tag]
+
+                cards_html += f"""
+                <article class="mobile-movement-card {clase}"
+                    data-kind="{' '.join(sorted(set(tags)))}"
+                    data-category="{item['categoria']}"
+                    data-bank="{banco}"
+                    data-target-section="movimientos-section">
+                    <div class="mobile-movement-head">
+                        <span class="badge {clase_badge_categoria(item['categoria'])}">{item['categoria_humana']}</span>
+                        <span class="mobile-amount">€ {item['importe_fmt']}</span>
+                    </div>
+                    <div class="mobile-meta-row">
+                        <span class="mobile-label">Fecha</span>
+                        <span class="mono">{item['fecha']}</span>
+                    </div>
+                    <div class="mobile-meta-row">
+                        <span class="mobile-label">Banco</span>
+                        <span>{banco}</span>
+                    </div>
+                    <div class="mobile-description">{item['descripcion']}</div>
+                </article>
+                """
+
+            return cards_html
+
+        cards = tarjetas_moviles_movimientos(movimientos_ordenados)
+
+        return f"""
+        <div class="table-shell compact-shell">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Descripción</th>
+                            <th>Banco</th>
+                            <th>Categoría</th>
+                            <th>Importe</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filas}
+                    </tbody>
+                </table>
+            </div>
+            <div class="mobile-movements-grid">
+                {cards}
+            </div>
         </div>
-        <div class="mobile-movements-grid">
-            {cards}
-        </div>
-    </div>
-    """
+        """
     
     def prioridad_movimiento(item):
         banco = (item.get("banco") or "").strip().lower()
