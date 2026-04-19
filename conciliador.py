@@ -1,11 +1,168 @@
 from itertools import combinations
-
+import re
 
 def normalizar_importe(valor):
     try:
         return float(str(valor).replace(".", "").replace(",", "."))
     except Exception:
         return None
+
+def _limpiar_texto_entidad(texto):
+    texto = (texto or "").strip()
+    texto = re.sub(r"\s+", " ", texto)
+    return texto.strip(" -:;,.|_/\\")[:120]
+
+
+def _normalizar_texto_entidad(texto):
+    texto = _limpiar_texto_entidad(texto).lower()
+    reemplazos = {
+        "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u", "ü": "u",
+    }
+    for a, b in reemplazos.items():
+        texto = texto.replace(a, b)
+    texto = re.sub(r"[^a-z0-9&.\- /]", " ", texto)
+    texto = re.sub(r"\s+", " ", texto).strip()
+    return texto
+
+
+def _es_linea_basura_entidad(texto):
+    raw = _limpiar_texto_entidad(texto)
+    t = _normalizar_texto_entidad(raw)
+
+    if not t:
+        return True
+
+    if len(raw) < 3 or len(raw) > 120:
+        return True
+
+    basura = [
+        "factura", "invoice", "fecha", "date", "vencimiento", "total", "subtotal",
+        "base imponible", "iva", "irpf", "descuento", "retencion", "importe",
+        "cuenta", "iban", "swift", "bic", "cif", "nif", "nie", "vat",
+        "cliente", "proveedor", "supplier", "customer", "emisor", "receptor",
+        "direccion", "dirección", "domicilio", "postal", "ciudad", "provincia",
+        "telefono", "tel", "tlf", "phone", "email", "mail", "web", "www",
+        "pedido", "albaran", "albarán", "referencia", "ref", "concepto",
+        "descripcion", "descripción", "cantidad", "precio", "euros", "eur"
+    ]
+    if any(x in t for x in basura):
+        return True
+
+    patrones_ruido = [
+        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",
+        r"\b[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}\b",
+        r"\b(?:www\.|http://|https://)\S+\b",
+        r"\b[a-z]{2}\d{2}[a-z0-9]{8,}\b",
+        r"\b\d{5}\b",
+        r"\b\d{7,}\b",
+        r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b",
+        r"\b\d+\.\d{2}\b",
+    ]
+    for patron in patrones_ruido:
+        if re.search(patron, t, flags=re.IGNORECASE):
+            return True
+
+    if not re.search(r"[a-z]", t):
+        return True
+
+    return False
+
+
+def _score_entidad(texto):
+    raw = _limpiar_texto_entidad(texto)
+    t = _normalizar_texto_entidad(raw)
+
+    if _es_linea_basura_entidad(raw):
+        return -999
+
+    score = 0
+
+    palabras = raw.split()
+    if 2 <= len(palabras) <= 6:
+        score += 15
+    elif len(palabras) == 1:
+        score += 4
+    else:
+        score -= 6
+
+    if 6 <= len(raw) <= 60:
+        score += 10
+
+    pistas_empresa = [
+        "sl", "s l", "slu", "s l u", "sa", "s a", "sau", "s a u",
+        "llc", "ltd", "inc", "corp", "gmbh", "group", "solutions",
+        "services", "equipamiento", "levante", "industrial", "comercial"
+    ]
+    if any(re.search(rf"\b{re.escape(p)}\b", t) for p in pistas_empresa):
+        score += 30
+
+    letras = [c for c in raw if c.isalpha()]
+    if letras:
+        ratio_mayus = sum(1 for c in letras if c.isupper()) / max(len(letras), 1)
+        if ratio_mayus > 0.65:
+            score += 12
+
+    return score
+
+
+def _extraer_entidad_desde_texto_libre(texto):
+    if not texto:
+        return None
+
+    lineas = [_limpiar_texto_entidad(x) for x in str(texto).splitlines()]
+    lineas = [x for x in lineas if x]
+
+    candidatos = []
+    vistos = set()
+
+    for linea in lineas[:20]:
+        clave = _normalizar_texto_entidad(linea)
+        if not clave or clave in vistos:
+            continue
+
+        score = _score_entidad(linea)
+        if score > 0:
+            candidatos.append((score, linea))
+            vistos.add(clave)
+
+    if not candidatos:
+        return None
+
+    candidatos.sort(key=lambda x: x[0], reverse=True)
+    return candidatos[0][1]
+
+
+def _resolver_cliente_proveedor_factura(item, tipo, descripcion=""):
+    valor = (item.get("cliente_proveedor") or "").strip()
+    if valor and valor.lower() != "no aplica":
+        return valor
+
+    if tipo == "factura_venta":
+        valor = (
+            item.get("cliente")
+            or item.get("receptor")
+            or item.get("emisor")
+            or ""
+        )
+    elif tipo == "factura_compra":
+        valor = (
+            item.get("proveedor")
+            or item.get("emisor")
+            or item.get("receptor")
+            or ""
+        )
+    else:
+        valor = ""
+
+    valor = _limpiar_texto_entidad(valor)
+    if valor and not _es_linea_basura_entidad(valor):
+        return valor
+
+    extraido = _extraer_entidad_desde_texto_libre(descripcion)
+    if extraido:
+        return extraido
+
+    return "No aplica"
 
 
 def _coherencia_signo(importe_factura, importe_banco):
@@ -231,13 +388,7 @@ def _preparar_facturas_y_banco(ledger):
                 importe_firmado = importe if tipo == "factura_venta" else -importe
 
             descripcion = item.get("descripcion") or item.get("archivo") or ""
-            cliente_proveedor = item.get("cliente_proveedor")
-
-            if not cliente_proveedor:
-                if tipo == "factura_venta":
-                    cliente_proveedor = item.get("cliente") or item.get("emisor") or item.get("receptor")
-                elif tipo == "factura_compra":
-                    cliente_proveedor = item.get("proveedor") or item.get("emisor") or item.get("receptor")
+            cliente_proveedor = _resolver_cliente_proveedor_factura(item, tipo, descripcion)
 
             facturas.append({
                 "id": item.get("id"),
@@ -249,7 +400,7 @@ def _preparar_facturas_y_banco(ledger):
                 "moneda": item.get("moneda"),
                 "categoria": item.get("categoria"),
                 "descripcion": descripcion,
-                "cliente_proveedor": (cliente_proveedor or "").strip() or "No aplica",
+                "cliente_proveedor": cliente_proveedor,
                 "banco": "No aplica",
             })
 
