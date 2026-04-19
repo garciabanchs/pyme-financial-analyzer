@@ -479,11 +479,160 @@ def extraer_cliente_proveedor_desde_factura(texto, tipo_doc):
     texto = texto or ""
     tipo_doc = (tipo_doc or "").strip().lower()
 
-    if tipo_doc == "factura_compra":
-        return _extraer_proveedor_factura_compra(texto)
+    if tipo_doc not in ["factura_venta", "factura_compra"]:
+        return None
 
+    lineas = [_limpiar_linea_entidad(x) for x in texto.splitlines()]
+    lineas = [x for x in lineas if x]
+
+    def _limpiar_resultado(x):
+        x = (x or "").strip()
+
+        # cortar dirección / CIF / email / teléfono / etc.
+        cortes = [
+            r"\bCIF\b",
+            r"\bNIF\b",
+            r"\bVAT\b",
+            r"\bIVA\b",
+            r"\bC/\b",
+            r"\bCALLE\b",
+            r"\bAVDA\b",
+            r"\bAVENIDA\b",
+            r"\bTEL\b",
+            r"\bTLF\b",
+            r"\bEMAIL\b",
+            r"\bADMINISTRACION@\b",
+            r"\bFACTURA\b",
+            r"\bALBAR[ÁA]N\b",
+            r"\bDATOS DE FACTURACI[ÓO]N\b",
+        ]
+        for patron in cortes:
+            m = re.search(patron, x, flags=re.IGNORECASE)
+            if m:
+                x = x[:m.start()].strip(" -:;,.|_/\\")
+                break
+
+        x = re.sub(r"\s+", " ", x).strip(" -:;,.|_/\\")
+        return x
+
+    def _es_archivo_o_codigo(x):
+        x = (x or "").strip()
+        if not x:
+            return True
+        if re.search(r"\.pdf\b|\.(xml|csv|xlsx|xls|doc|docx)\b", x, flags=re.IGNORECASE):
+            return True
+        if re.fullmatch(r"[A-Za-z0-9_\-]+\.[A-Za-z0-9]+", x):
+            return True
+        if re.fullmatch(r"[A-Za-z]?\d{6,}[A-Za-z0-9\-]*", x):
+            return True
+        return False
+
+    def _es_valido(x):
+        if not x:
+            return False
+        if _es_archivo_o_codigo(x):
+            return False
+        if _es_linea_basura_entidad(x):
+            return False
+        return True
+
+    # =====================================================
+    # FACTURA DE COMPRA -> proveedor/emisor
+    # =====================================================
+    if tipo_doc == "factura_compra":
+        # 1) buscar razón social con sufijo mercantil en TODO el texto
+        patrones_empresa = [
+            r"\b([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]{2,}?(?:SLU|S\.L\.U\.|SL|S\.L\.|SAU|S\.A\.U\.|SA|S\.A\.|LLC|LTD|INC|GMBH|SAS))\b",
+            r"\b(VERDNATURA(?: [A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]+)?)\b",
+            r"\b(HMY(?: [A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]+)?)\b",
+        ]
+
+        texto_upper = texto.upper()
+
+        for patron in patrones_empresa:
+            for m in re.finditer(patron, texto_upper):
+                candidato = _limpiar_resultado(m.group(1))
+                if _es_valido(candidato):
+                    return candidato
+
+        # 2) fallback: primera línea con empresa mercantil
+        for linea in lineas:
+            linea_upper = linea.upper()
+            for patron in patrones_empresa:
+                m = re.search(patron, linea_upper)
+                if m:
+                    candidato = _limpiar_resultado(m.group(1))
+                    if _es_valido(candidato):
+                        return candidato
+
+        return None
+
+    # =====================================================
+    # FACTURA DE VENTA -> cliente/receptor
+    # =====================================================
     if tipo_doc == "factura_venta":
-        return _extraer_cliente_factura_venta(texto)
+        # 1) intentar por etiquetas explícitas
+        etiquetas_cliente = [
+            r"\bcliente\b",
+            r"\bcustomer\b",
+            r"\bbill to\b",
+            r"\bsold to\b",
+            r"\bship to\b",
+            r"\bdestinatario\b",
+            r"\breceptor\b",
+            r"\bdatos de facturacion\b",
+            r"\bdatos de facturación\b",
+        ]
+
+        for i, linea in enumerate(lineas):
+            linea_norm = _normalizar_entidad(linea)
+
+            for etiqueta in etiquetas_cliente:
+                if re.search(etiqueta, linea_norm, flags=re.IGNORECASE):
+                    # misma línea
+                    partes = re.split(etiqueta, linea, flags=re.IGNORECASE)
+                    if len(partes) > 1:
+                        resto = _limpiar_resultado(partes[-1])
+                        if _es_valido(resto):
+                            return resto
+
+                    # líneas siguientes
+                    for j in range(i + 1, min(i + 5, len(lineas))):
+                        cand = _limpiar_resultado(lineas[j])
+                        if not _es_valido(cand):
+                            continue
+
+                        # si viene pegado con nombre personal al final, cortar
+                        m_hmy = re.search(
+                            r"\b(HMY(?: [A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]+)?|[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]+ EQUIPAMIENTO)\b",
+                            cand.upper()
+                        )
+                        if m_hmy:
+                            return _limpiar_resultado(m_hmy.group(1))
+
+                        return cand
+
+        # 2) fallback específico para HMY / empresa cliente
+        patrones_cliente_empresa = [
+            r"\b(HMY(?: [A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]+)?)\b",
+            r"\b([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9&.\- ]+ EQUIPAMIENTO)\b",
+        ]
+
+        texto_upper = texto.upper()
+        for patron in patrones_cliente_empresa:
+            m = re.search(patron, texto_upper)
+            if m:
+                candidato = _limpiar_resultado(m.group(1))
+                if _es_valido(candidato):
+                    return candidato
+
+        # 3) fallback final: primera línea válida que no sea archivo/código
+        for linea in lineas[:25]:
+            cand = _limpiar_resultado(linea)
+            if _es_valido(cand):
+                return cand
+
+        return None
 
     return None
 
