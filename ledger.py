@@ -225,15 +225,15 @@ def _extraer_por_etiquetas(texto, etiquetas):
             if re.search(etiqueta, linea_norm, flags=re.IGNORECASE):
                 candidatos = []
 
-                # 1) Intentar misma línea: "Cliente: ACME SL"
+                # 1) Misma línea solo si parece entidad de verdad
                 parte = re.split(etiqueta, linea, flags=re.IGNORECASE)
                 if len(parte) > 1:
                     resto = _limpiar_nombre_entidad(parte[-1])
                     if resto and not _es_linea_basura_entidad(resto):
                         candidatos.append(resto)
 
-                # 2) Intentar líneas siguientes
-                for j in range(i + 1, min(i + 5, len(lineas))):
+                # 2) Solo mirar las 2 líneas siguientes
+                for j in range(i + 1, min(i + 3, len(lineas))):
                     cand = _limpiar_nombre_entidad(lineas[j])
                     if _es_linea_basura_entidad(cand):
                         continue
@@ -241,11 +241,11 @@ def _extraer_por_etiquetas(texto, etiquetas):
 
                 if candidatos:
                     candidatos = sorted(candidatos, key=_score_candidato_entidad, reverse=True)
-                    if _score_candidato_entidad(candidatos[0]) > 0:
-                        return candidatos[0]
+                    mejor = candidatos[0]
+                    if _score_candidato_entidad(mejor) > 0:
+                        return mejor
 
     return None
-
 
 def _extraer_candidatos_generales(texto, primeros_n=18):
     lineas = [_limpiar_linea_entidad(x) for x in (texto or "").splitlines()]
