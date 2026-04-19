@@ -1063,7 +1063,7 @@ def calcular_score_financiero(flujo, conc):
     score = 100
 
     score -= conc.get("pendientes", 0) * 12
-    score -= conc.get("sin_soporte", 0) * 2
+    score -= conc.get("sin_soporte", 0) * 1.5
     score -= conc.get("duplicados", 0) * 6
     score -= conc.get("parciales", 0) * 5
     score -= conc.get("probables_multi", 0) * 7
