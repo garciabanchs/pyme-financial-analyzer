@@ -1516,10 +1516,17 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
         def prioridad_movimiento(item):
             banco = (item.get("banco") or "").strip().lower()
             fecha = fecha_ordenable_local(item.get("fecha"))
-            importe = -(item.get("importe_abs") or 0.0)
-            descripcion = str(item.get("descripcion") or "").lower()
-            return (banco, fecha, importe, descripcion)
+            naturaleza = (item.get("naturaleza") or "").strip().lower()
 
+            if naturaleza == "entrada":
+                prioridad_tipo = 0   # verdes
+            elif naturaleza == "salida":
+                prioridad_tipo = 1   # rojos
+            else:
+                prioridad_tipo = 2   # grises
+
+        return (banco, prioridad_tipo, fecha)
+        
         movimientos_ordenados = sorted(entradas + salidas, key=prioridad_movimiento)
 
         for item in movimientos_ordenados:
