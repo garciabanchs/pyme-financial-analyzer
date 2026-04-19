@@ -104,8 +104,14 @@ def _es_linea_basura_entidad(linea):
     if len(raw) < 3 or len(raw) > 80:
         return True
 
-    # Nunca aceptar nombres de archivo como entidad
+    # Nunca aceptar nombres de archivo o códigos de documento
     if re.search(r"\.pdf\b|\.(xml|csv|xlsx|xls|doc|docx)\b", raw, flags=re.IGNORECASE):
+        return True
+
+    if re.fullmatch(r"[A-Za-z0-9_\-]+\.[A-Za-z0-9]+", raw):
+        return True
+
+    if re.fullmatch(r"[A-Za-z]?\d{6,}[A-Za-z0-9\-]*", raw):
         return True
 
     # Excluir importes, fechas, teléfonos, emails, webs, IBAN, CIF/NIF, etc.
@@ -133,9 +139,15 @@ def _es_linea_basura_entidad(linea):
         "cuenta", "bank", "banco", "payment", "transfer", "transferencia",
         "billing", "bill to", "sold to", "ship to", "domicilio", "direccion",
         "dirección", "calle", "avenida", "avda", "postal", "ciudad",
-        "country", "pais", "país", "euros", "eur"
+        "country", "pais", "país", "euros", "eur",
+        "cobertura", "completa", "mes", "meses", "servicio", "plan",
+        "producto", "suscripcion", "suscripción", "licencia", "mantenimiento"
     ]
     if any(p in t for p in palabras_basura):
+        return True
+
+    # Rechazar texto entre paréntesis o muy conceptual
+    if raw.startswith("(") and raw.endswith(")"):
         return True
 
     # Si la línea es casi todo números, fuera
@@ -305,15 +317,29 @@ def extraer_cliente_proveedor_desde_factura(texto, tipo_doc):
         r"\bvendor\b",
     ]
 
+    def _archivo_o_codigo(x):
+        x = (x or "").strip()
+        if not x:
+            return True
+        if re.search(r"\.pdf\b|\.(xml|csv|xlsx|xls|doc|docx)\b", x, flags=re.IGNORECASE):
+            return True
+        if re.fullmatch(r"[A-Za-z0-9_\-]+\.[A-Za-z0-9]+", x):
+            return True
+        if re.fullmatch(r"[A-Za-z]?\d{6,}[A-Za-z0-9\-]*", x):
+            return True
+        return False
+
     # 1) Prioridad absoluta: etiquetas explícitas
     if tipo_doc == "factura_venta":
         nombre = _extraer_por_etiquetas(texto, etiquetas_cliente)
-        if nombre and not _es_linea_basura_entidad(nombre):
-            return nombre
+        if nombre and not _es_linea_basura_entidad(nombre) and not _archivo_o_codigo(nombre):
+            t = _normalizar_entidad(nombre)
+            if not any(x in t for x in ["cobertura", "artesania", "artesanía", "floral", "arlett"]):
+                return nombre
 
     if tipo_doc == "factura_compra":
         nombre = _extraer_por_etiquetas(texto, etiquetas_proveedor)
-        if nombre and not _es_linea_basura_entidad(nombre):
+        if nombre and not _es_linea_basura_entidad(nombre) and not _archivo_o_codigo(nombre):
             return nombre
 
     # 2) Fallback por líneas generales
@@ -324,24 +350,24 @@ def extraer_cliente_proveedor_desde_factura(texto, tipo_doc):
     if tipo_doc == "factura_venta":
         for c in candidatos:
             t = _normalizar_entidad(c)
-            if any(x in t for x in [
-                "artesania", "artesanía", "floral", "arlett", "arlett"
-            ]):
+            if _es_linea_basura_entidad(c) or _archivo_o_codigo(c):
                 continue
-            if not _es_linea_basura_entidad(c):
-                return c
+            if any(x in t for x in ["cobertura", "artesania", "artesanía", "floral", "arlett"]):
+                continue
+            return c
 
     if tipo_doc == "factura_compra":
         for c in candidatos:
             t = _normalizar_entidad(c)
-            if any(x in t for x in [
-                "sl", "s.l", "sa", "s.a", "slu", "ltd", "inc"
-            ]):
+            if _es_linea_basura_entidad(c) or _archivo_o_codigo(c):
+                continue
+            if any(x in t for x in ["sl", "s.l", "sa", "s.a", "slu", "ltd", "inc"]):
                 return c
 
         for c in candidatos:
-            if not _es_linea_basura_entidad(c):
-                return c
+            if _es_linea_basura_entidad(c) or _archivo_o_codigo(c):
+                continue
+            return c
 
     return None
 
