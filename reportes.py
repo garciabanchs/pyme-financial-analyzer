@@ -1549,12 +1549,12 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     clase = "row-salida"
                     tags = ["all", "salidas", "internos", banco_tag]
 
-                else:
+                 else:
                     clase = item.get("clase_fila", "row-salida")
                     if clase == "row-entrada":
-                    tags = ["all", "entradas", banco_tag]
-                else:
-                    tags = ["all", "salidas", banco_tag]
+                        tags = ["all", "entradas", banco_tag]
+                    else:
+                        tags = ["all", "salidas", banco_tag]
             
             filas += f"""
             <tr class="{clase} mov-row"
