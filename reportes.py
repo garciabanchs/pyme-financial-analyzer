@@ -1526,7 +1526,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             categoria = (item.get("categoria") or "").strip().lower()
             banco = (item.get("banco") or "-").strip() or "-"
             banco_tag = slug_banco(banco)
-
+                
             naturaleza = (item.get("naturaleza") or "").strip().lower()
 
             if categoria in ["otros_cobros", "cobro_cliente"]:
@@ -1551,7 +1551,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                     clase = "row-salida"
                     tags = ["all", "salidas", "internos", banco_tag]
 
-                else:
+            else:
                     clase = item.get("clase_fila", "row-salida")
                     if clase == "row-entrada":
                         tags = ["all", "entradas", banco_tag]
