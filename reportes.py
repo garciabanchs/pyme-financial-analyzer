@@ -1525,7 +1525,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             else:
                 prioridad_tipo = 2   # grises
 
-        return (banco, prioridad_tipo, fecha)
+            return (banco, prioridad_tipo, fecha)
         
         movimientos_ordenados = sorted(entradas + salidas, key=prioridad_movimiento)
 
