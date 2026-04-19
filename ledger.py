@@ -94,7 +94,6 @@ def _normalizar_entidad(linea):
     linea = re.sub(r"\s+", " ", linea).strip()
     return linea
 
-
 def _es_linea_basura_entidad(linea):
     raw = _limpiar_linea_entidad(linea)
     t = _normalizar_entidad(raw)
@@ -102,7 +101,11 @@ def _es_linea_basura_entidad(linea):
     if not t:
         return True
 
-    if len(raw) < 3 or len(raw) > 120:
+    if len(raw) < 3 or len(raw) > 80:
+        return True
+
+    # Nunca aceptar nombres de archivo como entidad
+    if re.search(r"\.pdf\b|\.(xml|csv|xlsx|xls|doc|docx)\b", raw, flags=re.IGNORECASE):
         return True
 
     # Excluir importes, fechas, teléfonos, emails, webs, IBAN, CIF/NIF, etc.
@@ -110,13 +113,13 @@ def _es_linea_basura_entidad(linea):
         r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",
         r"\b[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}\b",
         r"\b(?:www\.|http://|https://)\S+\b",
-        r"\b[a-z]{2}\d{2}[a-z0-9]{8,}\b",   # IBAN aproximado
+        r"\b[a-z]{2}\d{2}[a-z0-9]{8,}\b",
         r"\b(?:cif|nif|nie|vat|iva|iban|swift|bic|ccc|pedido|albar[aá]n|orden|ref|referencia)\b",
         r"\b(?:tel|tlf|telefono|phone|m[óo]vil|mobile|fax)\b",
-        r"\b\d{5}\b",                       # CP
-        r"\b\d{7,}\b",                      # números largos
-        r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b",   # importes ES
-        r"\b\d+\.\d{2}\b",                  # importes EN
+        r"\b\d{5}\b",
+        r"\b\d{7,}\b",
+        r"\b\d{1,3}(?:\.\d{3})*,\d{2}\b",
+        r"\b\d+\.\d{2}\b",
     ]
     for patron in patrones_ruido:
         if re.search(patron, t, flags=re.IGNORECASE):
@@ -128,15 +131,14 @@ def _es_linea_basura_entidad(linea):
         "descuento", "retencion", "cantidad", "precio", "concepto",
         "descripcion", "articulo", "artículo", "importe", "saldo",
         "cuenta", "bank", "banco", "payment", "transfer", "transferencia",
-        "cliente", "proveedor", "emisor", "receptor", "billing",
-        "bill to", "sold to", "ship to", "domicilio", "direccion",
+        "billing", "bill to", "sold to", "ship to", "domicilio", "direccion",
         "dirección", "calle", "avenida", "avda", "postal", "ciudad",
         "country", "pais", "país", "euros", "eur"
     ]
     if any(p in t for p in palabras_basura):
         return True
 
-    # Demasiados números
+    # Si la línea es casi todo números, fuera
     if sum(ch.isdigit() for ch in raw) >= 5:
         return True
 
@@ -144,14 +146,19 @@ def _es_linea_basura_entidad(linea):
     if not re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", raw):
         return True
 
-    return False
+    # Demasiadas palabras ya suele ser bloque contaminado
+    palabras = raw.split()
+    if len(palabras) > 7:
+        return True
 
+    return False
 
 def _limpiar_nombre_entidad(linea):
     linea = _limpiar_linea_entidad(linea)
     linea = re.sub(r"\b(?:cliente|proveedor|bill to|sold to|ship to|customer|supplier|emisor|receptor)\b\s*[:\-]*", "", linea, flags=re.IGNORECASE)
     linea = re.sub(r"\s+", " ", linea).strip(" -:;,.|_/\\")
     return linea
+
 
 
 def _score_candidato_entidad(linea):
@@ -162,40 +169,50 @@ def _score_candidato_entidad(linea):
         return -999
 
     score = 0
+    palabras = raw.split()
 
-    # Preferir nombres con pinta empresarial
+    # Longitud razonable
+    if 2 <= len(palabras) <= 5:
+        score += 18
+    elif len(palabras) == 6:
+        score += 8
+    elif len(palabras) == 1:
+        score += 2
+    else:
+        score -= 20
+
+    if 6 <= len(raw) <= 50:
+        score += 10
+
+    # Preferir nombres empresariales
     pistas_empresa = [
         "sl", "s.l", "slu", "s.l.u", "sa", "s.a", "sau", "s.a.u",
         "llc", "ltd", "inc", "corp", "gmbh", "sas", "spa", "group",
-        "solutions", "services", "equipamiento", "industrial", "comercial"
+        "solutions", "services", "equipamiento", "industrial", "comercial",
+        "levante"
     ]
     if any(re.search(rf"\b{re.escape(p)}\b", t) for p in pistas_empresa):
-        score += 30
+        score += 35
 
-    # Mayúsculas sostenidas suele ser buen indicador en PDFs
+    # Mayúsculas sostenidas: muy útil en tus PDFs
     letras = [c for c in raw if c.isalpha()]
     if letras:
         ratio_mayus = sum(1 for c in letras if c.isupper()) / max(len(letras), 1)
-        if ratio_mayus > 0.65:
-            score += 15
+        if ratio_mayus > 0.70:
+            score += 18
 
-    palabras = raw.split()
-    if 2 <= len(palabras) <= 6:
-        score += 12
-    elif len(palabras) == 1:
-        score += 4
-    else:
-        score -= 5
+    # Penalizar mezcla rara de dos nombres pegados
+    if len(palabras) >= 5 and not any(re.search(rf"\b{re.escape(p)}\b", t) for p in pistas_empresa):
+        score -= 10
 
-    if 6 <= len(raw) <= 60:
-        score += 10
+    # Penalizar nombres de persona largos frente a empresa
+    if len(palabras) >= 4 and all(p[:1].isupper() for p in palabras if p):
+        score -= 4
 
-    # Penalizar líneas demasiado genéricas
     if re.search(r"\b(?:españa|spain|madrid|valencia|barcelona)\b", t):
         score -= 8
 
     return score
-
 
 def _extraer_por_etiquetas(texto, etiquetas):
     lineas = [_limpiar_linea_entidad(x) for x in (texto or "").splitlines()]
@@ -230,7 +247,7 @@ def _extraer_por_etiquetas(texto, etiquetas):
     return None
 
 
-def _extraer_candidatos_generales(texto, primeros_n=25):
+def _extraer_candidatos_generales(texto, primeros_n=18):
     lineas = [_limpiar_linea_entidad(x) for x in (texto or "").splitlines()]
     lineas = [x for x in lineas if x][:primeros_n]
 
@@ -254,7 +271,7 @@ def _extraer_candidatos_generales(texto, primeros_n=25):
         candidatos.append((score, cand))
 
     candidatos.sort(key=lambda x: x[0], reverse=True)
-    return [c for _, c in candidatos]
+    return [c for _, c in candidatos[:5]]
 
 
 def extraer_cliente_proveedor_desde_factura(texto, tipo_doc):
@@ -288,26 +305,29 @@ def extraer_cliente_proveedor_desde_factura(texto, tipo_doc):
         r"\bvendor\b",
     ]
 
-    # 1) Prioridad: etiquetas explícitas
+    # 1) Prioridad absoluta: etiquetas explícitas
     if tipo_doc == "factura_venta":
         nombre = _extraer_por_etiquetas(texto, etiquetas_cliente)
-        if nombre:
+        if nombre and not _es_linea_basura_entidad(nombre):
             return nombre
 
     if tipo_doc == "factura_compra":
         nombre = _extraer_por_etiquetas(texto, etiquetas_proveedor)
-        if nombre:
+        if nombre and not _es_linea_basura_entidad(nombre):
             return nombre
 
-    # 2) Fallback robusto sin depender de formato exacto
-    candidatos = _extraer_candidatos_generales(texto, primeros_n=25)
+    # 2) Fallback por líneas generales
+    candidatos = _extraer_candidatos_generales(texto, primeros_n=18)
     if not candidatos:
         return None
 
-    # En compra, normalmente el proveedor/emisor está muy arriba.
-    # En venta, si no hubo etiqueta, usamos el mejor candidato útil.
-    return candidatos[0]
+    # 3) Elegir el mejor candidato, pero nunca archivo ni bloque raro
+    mejor = candidatos[0]
 
+    if _es_linea_basura_entidad(mejor):
+        return None
+
+    return mejor
 
 def _contiene_alguno(texto, patrones):
     t = (texto or "").lower()
