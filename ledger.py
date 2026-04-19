@@ -321,13 +321,29 @@ def extraer_cliente_proveedor_desde_factura(texto, tipo_doc):
     if not candidatos:
         return None
 
-    # 3) Elegir el mejor candidato, pero nunca archivo ni bloque raro
-    mejor = candidatos[0]
+    if tipo_doc == "factura_venta":
+        for c in candidatos:
+            t = _normalizar_entidad(c)
+            if any(x in t for x in [
+                "artesania", "artesanía", "floral", "arlett", "arlett"
+            ]):
+                continue
+            if not _es_linea_basura_entidad(c):
+                return c
 
-    if _es_linea_basura_entidad(mejor):
-        return None
+    if tipo_doc == "factura_compra":
+        for c in candidatos:
+            t = _normalizar_entidad(c)
+            if any(x in t for x in [
+                "sl", "s.l", "sa", "s.a", "slu", "ltd", "inc"
+            ]):
+                return c
 
-    return mejor
+        for c in candidatos:
+            if not _es_linea_basura_entidad(c):
+                return c
+
+    return None
 
 def _contiene_alguno(texto, patrones):
     t = (texto or "").lower()
