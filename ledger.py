@@ -285,89 +285,93 @@ def _extraer_candidatos_generales(texto, primeros_n=18):
     candidatos.sort(key=lambda x: x[0], reverse=True)
     return [c for _, c in candidatos[:5]]
 
-
 def extraer_cliente_proveedor_desde_factura(texto, tipo_doc):
-    """
-    Reglas:
-    - factura_venta  -> cliente
-    - factura_compra -> proveedor
-    - resto          -> None
-    """
     texto = texto or ""
-    tipo_doc = (tipo_doc or "").strip().lower()
+    tipo_doc = (tipo_doc or "").lower()
 
     if tipo_doc not in ["factura_venta", "factura_compra"]:
         return None
 
-    etiquetas_cliente = [
-        r"\bcliente\b",
-        r"\bcustomer\b",
-        r"\bbill to\b",
-        r"\bsold to\b",
-        r"\bship to\b",
-        r"\bdestinatario\b",
-        r"\breceptor\b",
-    ]
+    lineas = [l.strip() for l in texto.splitlines() if l.strip()]
 
-    etiquetas_proveedor = [
-        r"\bproveedor\b",
-        r"\bsupplier\b",
-        r"\bemisor\b",
-        r"\bissuer\b",
-        r"\bvendor\b",
-    ]
+    def es_basura(linea):
+        l = linea.lower()
 
-    def _archivo_o_codigo(x):
-        x = (x or "").strip()
-        if not x:
+        # Muy corta o muy larga
+        if len(linea) < 4 or len(linea) > 80:
             return True
-        if re.search(r"\.pdf\b|\.(xml|csv|xlsx|xls|doc|docx)\b", x, flags=re.IGNORECASE):
+
+        # Tiene importes o números grandes
+        if re.search(r"\d{1,3}(?:\.\d{3})*,\d{2}", linea):
             return True
-        if re.fullmatch(r"[A-Za-z0-9_\-]+\.[A-Za-z0-9]+", x):
+        if sum(c.isdigit() for c in linea) >= 5:
             return True
-        if re.fullmatch(r"[A-Za-z]?\d{6,}[A-Za-z0-9\-]*", x):
+
+        # Emails, webs, IBAN, etc.
+        if re.search(r"@|www\.|http|iban|swift|bic", l):
             return True
+
+        # Archivos o códigos
+        if re.search(r"\.pdf|\.xml|\.csv|\.xlsx", l):
+            return True
+        if re.fullmatch(r"[A-Za-z]?\d{6,}[A-Za-z0-9\-]*", linea):
+            return True
+
+        # Conceptos típicos
+        palabras_basura = [
+            "factura", "fecha", "total", "iva", "base", "importe",
+            "concepto", "descripcion", "articulo",
+            "cobertura", "plan", "servicio", "licencia", "suscripcion",
+            "producto", "mantenimiento",
+            "banco", "cuenta", "transferencia",
+            "direccion", "calle", "ciudad", "pais"
+        ]
+        if any(p in l for p in palabras_basura):
+            return True
+
+        # Debe tener letras
+        if not re.search(r"[A-Za-zÁÉÍÓÚÑ]", linea):
+            return True
+
         return False
 
-    # 1) Prioridad absoluta: etiquetas explícitas
-    if tipo_doc == "factura_venta":
-        nombre = _extraer_por_etiquetas(texto, etiquetas_cliente)
-        if nombre and not _es_linea_basura_entidad(nombre) and not _archivo_o_codigo(nombre):
-            t = _normalizar_entidad(nombre)
-            if not any(x in t for x in ["cobertura", "artesania", "artesanía", "floral", "arlett"]):
-                return nombre
+    def parece_empresa(linea):
+        palabras = linea.split()
 
-    if tipo_doc == "factura_compra":
-        nombre = _extraer_por_etiquetas(texto, etiquetas_proveedor)
-        if nombre and not _es_linea_basura_entidad(nombre) and not _archivo_o_codigo(nombre):
-            return nombre
+        # Longitud razonable
+        if not (1 <= len(palabras) <= 5):
+            return False
 
-    # 2) Fallback por líneas generales
-    candidatos = _extraer_candidatos_generales(texto, primeros_n=18)
+        # Tiene letras
+        if not re.search(r"[A-Za-zÁÉÍÓÚÑ]", linea):
+            return False
+
+        return True
+
+    candidatos = []
+
+    for linea in lineas[:20]:  # SOLO primeras líneas
+        if es_basura(linea):
+            continue
+        if not parece_empresa(linea):
+            continue
+
+        candidatos.append(linea)
+
     if not candidatos:
         return None
 
-    if tipo_doc == "factura_venta":
-        for c in candidatos:
-            t = _normalizar_entidad(c)
-            if _es_linea_basura_entidad(c) or _archivo_o_codigo(c):
-                continue
-            if any(x in t for x in ["cobertura", "artesania", "artesanía", "floral", "arlett"]):
-                continue
-            return c
-
+    # 🔵 REGLA SIMPLE
     if tipo_doc == "factura_compra":
-        for c in candidatos:
-            t = _normalizar_entidad(c)
-            if _es_linea_basura_entidad(c) or _archivo_o_codigo(c):
-                continue
-            if any(x in t for x in ["sl", "s.l", "sa", "s.a", "slu", "ltd", "inc"]):
-                return c
+        # proveedor = primera empresa válida
+        return candidatos[0]
 
-        for c in candidatos:
-            if _es_linea_basura_entidad(c) or _archivo_o_codigo(c):
-                continue
-            return c
+    if tipo_doc == "factura_venta":
+        # cliente = primera empresa distinta del emisor
+        # (asumimos que la primera suele ser el emisor)
+        if len(candidatos) >= 2:
+            return candidatos[1]
+        return candidatos[0]
 
     return None
 
