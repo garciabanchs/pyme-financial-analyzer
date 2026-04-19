@@ -1527,19 +1527,35 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             banco = (item.get("banco") or "-").strip() or "-"
             banco_tag = slug_banco(banco)
 
+            naturaleza = (item.get("naturaleza") or "").strip().lower()
+
             if categoria in ["otros_cobros", "cobro_cliente"]:
                 clase = "row-entrada"
                 tags = ["all", "entradas", "cobros", banco_tag]
+
             elif categoria in ["otros_pagos", "gasto_operativo", "pago_proveedor"]:
                 clase = "row-salida"
                 tags = ["all", "salidas", "pagos", banco_tag]
-            elif categoria in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
+
+            elif categoria == "retiro_propio":
                 clase = "row-salida"
                 tags = ["all", "salidas", "internos", banco_tag]
-            else:
-                clase = item.get("clase_fila", "row-salida")
-                tags = ["all", banco_tag]
+    
+            elif categoria in ["transferencia_interna", "traspaso", "movimiento_interno"]:
+                if naturaleza == "entrada":
+                    clase = "row-entrada"
+                    tags = ["all", "entradas", "internos", banco_tag]
+                else:
+                    clase = "row-salida"
+                    tags = ["all", "salidas", "internos", banco_tag]
 
+                else:
+                    clase = item.get("clase_fila", "row-salida")
+                    if clase == "row-entrada":
+                    tags = ["all", "entradas", banco_tag]
+                else:
+                    tags = ["all", "salidas", banco_tag]
+            
             filas += f"""
             <tr class="{clase} mov-row"
                 data-kind="{' '.join(sorted(set(tags)))}"
@@ -1568,13 +1584,23 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
                 elif categoria in ["otros_pagos", "gasto_operativo", "pago_proveedor"]:
                     clase = "row-salida"
                     tags = ["all", "salidas", "pagos", banco_tag]
-                elif categoria in ["retiro_propio", "transferencia_interna", "traspaso", "movimiento_interno"]:
+                elif categoria == "retiro_propio":
                     clase = "row-salida"
                     tags = ["all", "salidas", "internos", banco_tag]
+
+                elif categoria in ["transferencia_interna", "traspaso", "movimiento_interno"]:
+                    naturaleza = (item.get("naturaleza") or "").strip().lower()
+
+                    if naturaleza == "entrada":
+                        clase = "row-entrada"
+                        tags = ["all", "entradas", "internos", banco_tag]
+                    else:
+                        clase = "row-salida"
+                        tags = ["all", "salidas", "internos", banco_tag]
                 else:
                     clase = item.get("clase_fila", "row-salida")
                     tags = ["all", banco_tag]
-
+    
                 cards_html += f"""
                 <article class="mobile-movement-card {clase}"
                     data-kind="{' '.join(sorted(set(tags)))}"
