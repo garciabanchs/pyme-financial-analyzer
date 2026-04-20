@@ -19,7 +19,7 @@ UMBRAL_MOVIMIENTO_RELEVANTE = 100.0
 # =========================================================
 # DEBUG CONTROLADO
 # Déjalo en False normalmente.
-# Ponlo en True solo para diagnosticar N26.
+# Ponlo en True solo para diagnosticar.
 # =========================================================
 DEBUG_EXTRACTOS = False
 DEBUG_SOLO_BANCOS = {"N26"}
@@ -42,7 +42,11 @@ PALABRAS_EMPRESA = [
     "consultoria", "consultoría", "management", "ventures",
     "partners", "studio", "market", "foods", "tech", "digital",
     "floristeria", "floristería", "decoracion", "decoración",
-    "restaurante", "cafe", "café", "bar", "tienda", "shop"
+    "restaurante", "cafe", "café", "bar", "tienda", "shop",
+    "medical", "clinic", "clinica", "clínica", "laboratorio",
+    "farmacia", "transportes", "construcciones", "ingenieria",
+    "ingeniería", "arquitectura", "abogados", "asesores",
+    "consultores", "finanzas", "energia", "energía"
 ]
 
 PALABRAS_RUIDO_DURAS = [
@@ -139,7 +143,7 @@ def detectar_moneda(texto):
 
 
 # =========================================================
-# HELPERS ENTIDADES
+# HELPERS DE ENTIDADES
 # =========================================================
 def _limpiar_linea_entidad(linea):
     linea = (linea or "").strip()
@@ -208,6 +212,51 @@ def _limpiar_resultado_entidad(linea):
             break
 
     x = re.sub(r"\s+", " ", x).strip(" -:;,.|_/\\")
+    return x
+
+
+def _tiene_forma_juridica_pegada(linea):
+    x = (linea or "").upper()
+    formas = ["S.L.U.", "S.L.", "SLU", "SL", "S.A.U.", "S.A.", "SAU", "SA", "LLC", "LTD", "INC", "GMBH", "SAS"]
+    for forma in formas:
+        pos = x.find(forma)
+        if pos != -1:
+            return pos + len(forma)
+    return -1
+
+
+def _recortar_ocr_pegado_entidad(linea):
+    x = _limpiar_resultado_entidad(linea)
+    if not x:
+        return x
+
+    # Caso 1: cortar justo después de una forma jurídica aunque venga texto pegado
+    fin_forma = _tiene_forma_juridica_pegada(x)
+    if fin_forma != -1:
+        candidato = x[:fin_forma].strip(" -:;,.|_/\\")
+        if len(candidato.split()) >= 1:
+            return candidato.upper()
+
+    # Caso 2: cortar después de palabra empresarial fuerte aunque OCR haya pegado persona detrás
+    palabras_corte = [
+        "EQUIPAMIENTO", "INDUSTRIAL", "COMERCIAL", "SERVICES", "SOLUTIONS",
+        "SYSTEMS", "GROUP", "HOLDING", "LOGISTICA", "LOGÍSTICA",
+        "CONSULTING", "CONSULTORIA", "CONSULTORÍA", "MANAGEMENT",
+        "DIGITAL", "TECH", "STUDIO", "MARKET", "FOODS", "CLINIC",
+        "CLINICA", "CLÍNICA", "LABORATORIO", "FARMACIA", "TRANSPORTES",
+        "CONSTRUCCIONES", "INGENIERIA", "INGENIERÍA", "ABOGADOS",
+        "ASESORES", "CONSULTORES"
+    ]
+
+    x_upper = x.upper()
+    for palabra in palabras_corte:
+        pos = x_upper.find(palabra)
+        if pos != -1:
+            corte = pos + len(palabra)
+            candidato = x_upper[:corte].strip(" -:;,.|_/\\")
+            if len(candidato.split()) >= 2:
+                return candidato
+
     return x
 
 
@@ -292,7 +341,7 @@ def _parece_persona(linea):
     if _tiene_forma_juridica(x) or _tiene_palabra_empresa(x):
         return False
 
-    if any("&" in p or "." in p for p in palabras):
+    if any("&" in p for p in palabras):
         return False
 
     capitalizadas = 0
@@ -305,15 +354,13 @@ def _parece_persona(linea):
 
 def _parece_autonomo(linea):
     x = _limpiar_resultado_entidad(linea)
-
     if _tiene_forma_juridica(x):
         return False
-
     return _parece_persona(x)
 
 
 def _parece_empresa(linea):
-    x = _limpiar_resultado_entidad(linea)
+    x = _recortar_ocr_pegado_entidad(linea)
     if _es_linea_basura_entidad(x):
         return False
 
@@ -331,7 +378,7 @@ def _parece_empresa(linea):
     if ratio > 0.72 and 1 <= len(palabras) <= 8:
         return True
 
-    if len(palabras) >= 2 and len(palabras) <= 6 and not _parece_persona(x):
+    if 2 <= len(palabras) <= 6 and not _parece_persona(x):
         return True
 
     return False
@@ -375,9 +422,24 @@ def _extraer_candidatos_generales(texto, primeros_n=30):
     return candidatos
 
 
+def _deduplicar_candidatos(candidatos):
+    dedup = []
+    vistos = set()
+
+    for cand in candidatos:
+        _, texto, _ = cand
+        clave = _normalizar_entidad(_recortar_ocr_pegado_entidad(texto))
+        if not clave or clave in vistos:
+            continue
+        vistos.add(clave)
+        dedup.append(cand)
+
+    return dedup
+
+
 def _score_probabilistico_entidad(candidato, rol_esperado):
     origen, texto, posicion = candidato
-    x = _limpiar_resultado_entidad(texto)
+    x = _recortar_ocr_pegado_entidad(texto)
 
     if not x or _es_archivo_o_codigo(x) or _es_linea_basura_entidad(x):
         return -999.0, {"tipo": "descartado"}
@@ -454,37 +516,7 @@ def _score_probabilistico_entidad(candidato, rol_esperado):
     if re.search(r"\b(calle|avda|avenida|local|piso|puerta|poligono|polígono)\b", _normalizar_entidad(x)):
         score -= 25
 
-    if rol_esperado == "cliente":
-        if origen.startswith("etiqueta"):
-            score += 10
-    elif rol_esperado == "proveedor":
-        if posicion <= 8:
-            score += 10
-
     return score, meta
-
-
-def _deduplicar_candidatos(candidatos):
-    dedup = []
-    vistos = set()
-
-    for cand in candidatos:
-        _, texto, _ = cand
-        clave = _normalizar_entidad(_limpiar_resultado_entidad(texto))
-        if not clave or clave in vistos:
-            continue
-        vistos.add(clave)
-        dedup.append(cand)
-
-    return dedup
-
-
-def _aprender_feedback_entidad(texto_extraido, texto_correcto):
-    return {
-        "extraido": _limpiar_resultado_entidad(texto_extraido),
-        "correcto": _limpiar_resultado_entidad(texto_correcto),
-        "timestamp": datetime.now().isoformat(),
-    }
 
 
 def extraer_cliente_proveedor_desde_factura(texto, tipo_doc):
@@ -497,7 +529,6 @@ def extraer_cliente_proveedor_desde_factura(texto, tipo_doc):
     rol_esperado = "cliente" if tipo_doc == "factura_venta" else "proveedor"
 
     candidatos = []
-
     if rol_esperado == "cliente":
         candidatos.extend(_extraer_por_etiquetas(texto, ETIQUETAS_CLIENTE, max_lineas=5))
     else:
@@ -520,11 +551,24 @@ def extraer_cliente_proveedor_desde_factura(texto, tipo_doc):
 
     ranking.sort(key=lambda x: x[0], reverse=True)
 
-    mejor_score, mejor_candidato, mejor_meta = ranking[0]
-    _, mejor_texto, _ = mejor_candidato
-    resultado = _limpiar_resultado_entidad(mejor_texto)
+    # Para cliente: si el mejor parece persona y el segundo parece empresa, preferir empresa si está cerca
+    if rol_esperado == "cliente" and len(ranking) >= 2:
+        score1, cand1, meta1 = ranking[0]
+        score2, cand2, meta2 = ranking[1]
 
-    if not resultado or _es_linea_basura_entidad(resultado) or _es_archivo_o_codigo(resultado):
+        if meta1.get("persona") and meta2.get("empresa") and (score2 >= score1 - 12):
+            ranking[0], ranking[1] = ranking[1], ranking[0]
+
+    _, mejor_candidato, _ = ranking[0]
+    _, mejor_texto, _ = mejor_candidato
+    resultado = _recortar_ocr_pegado_entidad(mejor_texto)
+
+    if not resultado:
+        return None
+
+    resultado = _recortar_ocr_pegado_entidad(resultado)
+
+    if _es_linea_basura_entidad(resultado) or _es_archivo_o_codigo(resultado):
         return None
 
     return resultado
