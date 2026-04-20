@@ -22,6 +22,34 @@ os.makedirs(EXTRACT_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
+def _to_bool(valor, default=False):
+    if valor is None:
+        return default
+    if isinstance(valor, bool):
+        return valor
+
+    valor = str(valor).strip().lower()
+    if valor in ["1", "true", "t", "si", "sí", "yes", "y", "on"]:
+        return True
+    if valor in ["0", "false", "f", "no", "off"]:
+        return False
+    return default
+
+
+def _obtener_filtros_conciliacion_desde_request():
+    """
+    Filtros backend para la sección de conciliación.
+    No obligan a usarse todavía en reportes.py, pero dejan la base lista.
+    """
+    return {
+        "solo_n26": _to_bool(request.args.get("solo_n26"), False),
+        "solo_paypal": _to_bool(request.args.get("solo_paypal"), False),
+        "filtro_verde": _to_bool(request.args.get("filtro_verde"), False),
+        "filtro_rojo": _to_bool(request.args.get("filtro_rojo"), False),
+        "filtro_azul": _to_bool(request.args.get("filtro_azul"), False),
+    }
+
+
 @app.route("/")
 def home():
     return """
@@ -135,6 +163,8 @@ def upload():
     if not file.filename.lower().endswith(".zip"):
         return "Solo se permiten archivos ZIP"
 
+    filtros_conciliacion = _obtener_filtros_conciliacion_desde_request()
+
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(file_path)
 
@@ -215,19 +245,38 @@ def upload():
                 "descripcion": item.get("descripcion"),
                 "importe": item.get("importe"),
                 "importe_firmado_num": item.get("importe_firmado_num"),
+                "tipo_flujo": item.get("tipo_flujo"),
+                "conciliable": item.get("conciliable"),
+                "solo_n26": item.get("solo_n26"),
+                "solo_paypal": item.get("solo_paypal"),
+                "filtro_verde": item.get("filtro_verde"),
+                "filtro_rojo": item.get("filtro_rojo"),
+                "filtro_azul": item.get("filtro_azul"),
             }, flush=True)
     print("========== FIN DEBUG LEDGER BANCOS ==========\n", flush=True)
 
     conciliacion = detectar_inconsistencias(ledger)
 
-    html_resultado = generar_html_resultado(
-        total=total_files,
-        clasificados=clasificados,
-        importes=importes_detectados,
-        documentos=documentos,
-        ledger=ledger,
-        conciliacion=conciliacion,
-    )
+    try:
+        html_resultado = generar_html_resultado(
+            total=total_files,
+            clasificados=clasificados,
+            importes=importes_detectados,
+            documentos=documentos,
+            ledger=ledger,
+            conciliacion=conciliacion,
+            filtros_conciliacion=filtros_conciliacion,
+        )
+    except TypeError:
+        # Compatibilidad hacia atrás por si reportes.py todavía no acepta filtros_conciliacion
+        html_resultado = generar_html_resultado(
+            total=total_files,
+            clasificados=clasificados,
+            importes=importes_detectados,
+            documentos=documentos,
+            ledger=ledger,
+            conciliacion=conciliacion,
+        )
 
     nombre_base = os.path.splitext(file.filename)[0]
     nombre_base = re.sub(r"[^A-Za-z0-9_-]+", "_", nombre_base).strip("_") or "reporte"
