@@ -4315,3 +4315,79 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     """
 
     return html
+
+
+
+# =========================
+# CSS PARA FILTROS Y ESTILO
+# =========================
+
+CSS_REPORTES = """
+<style>
+
+.row-entrada { background-color: #e6f9ec; }
+.row-salida { background-color: #fdeaea; }
+
+.filter-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.filter-btn {
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    background: #f8f8f8;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.filter-btn:hover { background: #eee; }
+
+.filter-btn.active {
+    background: #111;
+    color: #fff;
+    border-color: #111;
+}
+
+tr, .mobile-conc-card { display: none; }
+
+tr.show { display: table-row; }
+.mobile-conc-card.show { display: block; }
+
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    document.querySelectorAll(".filter-btn").forEach(btn => {
+        btn.addEventListener("click", function () {
+
+            const filter = this.dataset.filter;
+            const target = this.dataset.target;
+
+            document.querySelectorAll(`.filter-btn[data-target="${target}"]`)
+                .forEach(b => b.classList.remove("active"));
+            this.classList.add("active");
+
+            document.querySelectorAll(`[data-target-section="${target}"]`)
+                .forEach(el => {
+                    const kinds = (el.dataset.kind || "").split(" ");
+
+                    if (filter === "all" || kinds.includes(filter)) {
+                        el.classList.add("show");
+                    } else {
+                        el.classList.remove("show");
+                    }
+                });
+
+        });
+    });
+
+    document.querySelectorAll('.filter-btn.active').forEach(btn => btn.click());
+
+});
+</script>
+"""
