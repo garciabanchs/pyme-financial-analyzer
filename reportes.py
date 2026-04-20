@@ -1663,12 +1663,16 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
     def construir_botones_conciliacion(section_target):
         botones = [
             ("all", "Ver todo"),
+            ("solo-n26", "Solo N26"),
+            ("solo-paypal", "Solo PayPal"),
+            ("verde", "Entradas"),
+            ("rojo", "Salidas"),
+            ("azul", "Internas"),
             ("conciliadas", "Conciliadas"),
             ("pendientes", "Pendientes"),
             ("sin-soporte", "Sin soporte"),
             ("no-conciliables", "No conciliables"),
             ("duplicados", "Duplicados"),
-            ("internos", "Movimientos internos"),
         ]
 
         html = ""
@@ -1680,6 +1684,47 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             )
 
         return html
+
+    def construir_tags_conciliacion(item, banco, estado_norm):
+        tags = ["all"]
+
+        banco_norm = (banco or "").strip().lower()
+        if banco_norm == "n26":
+            tags.append("solo-n26")
+        elif banco_norm == "paypal":
+            tags.append("solo-paypal")
+
+        categoria_norm = (item.get("categoria") or "").strip().lower()
+        naturaleza_norm = (item.get("naturaleza") or "").strip().lower()
+
+        if categoria_norm in ["transferencia_interna", "traspaso", "movimiento_interno", "retiro_propio"]:
+            tags.append("azul")
+        elif naturaleza_norm == "entrada" or categoria_norm in ["factura_venta", "cobro_cliente", "otros_cobros"]:
+            tags.append("verde")
+        elif naturaleza_norm == "salida" or categoria_norm in ["factura_compra", "pago_proveedor", "gasto_operativo", "otros_pagos"]:
+            tags.append("rojo")
+
+        if estado_norm in ["pendiente", "pendiente_cobro", "pendiente_pago"]:
+            tags.append("pendientes")
+        if estado_norm in [
+            "conciliado_exacto",
+            "conciliado_exacto_multi",
+            "conciliado_probable",
+            "conciliado_probable_multi",
+        ]:
+            tags.append("conciliadas")
+        if estado_norm in ["sin_soporte", "sin_soporte_menor"]:
+            tags.append("sin-soporte")
+        if estado_norm in [
+            "no_conciliable",
+            "movimiento_bancario_no_conciliable",
+            "movimiento_bancario_no_conciliable_menor",
+        ]:
+            tags.append("no-conciliables")
+        if estado_norm in ["duplicado_potencial"]:
+            tags.append("duplicados")
+
+        return sorted(set(tags))
     
     def tabla_conciliacion_html():
         if not conciliacion:
@@ -1724,28 +1769,7 @@ def generar_html_resultado(total, clasificados, importes, documentos, ledger=Non
             banco = item.get("banco", "") or ""
             cliente_proveedor = item.get("cliente_proveedor", "") or ""
 
-            tags = ["all"]
-            if estado_norm in ["pendiente", "pendiente_cobro", "pendiente_pago"]:
-                tags.append("pendientes")
-            if estado_norm in [
-                "conciliado_exacto",
-                "conciliado_exacto_multi",
-                "conciliado_probable",
-                "conciliado_probable_multi",
-            ]:
-                tags.append("conciliadas")
-            if estado_norm in ["sin_soporte", "sin_soporte_menor"]:
-                tags.append("sin-soporte")
-            if estado_norm in [
-                "no_conciliable",
-                "movimiento_bancario_no_conciliable",
-                "movimiento_bancario_no_conciliable_menor",
-            ]:
-                tags.append("no-conciliables")
-            if estado_norm in ["duplicado_potencial"]:
-                tags.append("duplicados")
-            if estado_norm == "movimiento_interno":
-                tags.append("internos")
+            tags = construir_tags_conciliacion(item, banco, estado_norm)
 
             filas += f"""
             <tr class="conc-row" data-kind="{' '.join(sorted(set(tags)))}" data-target-section="conciliacion-section">
