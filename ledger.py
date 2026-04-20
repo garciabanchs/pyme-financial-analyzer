@@ -1502,6 +1502,46 @@ def extraer_movimientos_extracto(texto, archivo, fecha_doc, banco=None):
 # =========================================================
 # LEDGER
 # =========================================================
+
+# =========================================================
+# ENRIQUECIMIENTO PARA FILTROS DE CONCILIACIÓN
+# =========================================================
+def enriquecer_fila_para_filtros(fila):
+    categoria = (fila.get("categoria") or "").lower()
+    naturaleza = (fila.get("naturaleza") or "").lower()
+    banco = (fila.get("banco") or "").strip().lower()
+
+    # Tipo de flujo
+    if categoria in ["transferencia_interna", "retiro_propio"]:
+        tipo_flujo = "interna"
+    elif naturaleza == "entrada":
+        tipo_flujo = "entrada"
+    elif naturaleza == "salida":
+        tipo_flujo = "salida"
+    else:
+        tipo_flujo = "otros"
+
+    conciliable = tipo_flujo in ["entrada", "salida", "interna"]
+
+    # Flags por banco para conciliación
+    solo_n26 = banco == "n26"
+    solo_paypal = banco == "paypal"
+
+    # Flags por color / tipo visual
+    filtro_verde = tipo_flujo == "entrada"
+    filtro_rojo = tipo_flujo == "salida"
+    filtro_azul = tipo_flujo == "interna"
+
+    fila["tipo_flujo"] = tipo_flujo
+    fila["conciliable"] = conciliable
+    fila["solo_n26"] = solo_n26
+    fila["solo_paypal"] = solo_paypal
+    fila["filtro_verde"] = filtro_verde
+    fila["filtro_rojo"] = filtro_rojo
+    fila["filtro_azul"] = filtro_azul
+
+    return fila
+    
 def construir_ledger(documentos):
     ledger = []
 
@@ -1639,4 +1679,7 @@ def construir_ledger(documentos):
     print("========== DEBUG CONSTRUIR_LEDGER FIN ==========")
     print(f"Total items ledger generados: {len(ledger)}")
 
+    ledger = [enriquecer_fila_para_filtros(x) for x in ledger]
     return ledger
+    
+    
